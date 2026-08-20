@@ -28,6 +28,7 @@ from app.schemas.sensors import (
     SensorUpdateRequest,
     SensorIngestRequest,
     SensorIngestResponse,
+    SensorPendingIngestResponse,
     SensorRead,
     SensorListResponse,
     TankReadingsResponse,
@@ -43,6 +44,8 @@ from app.services.sensor_services import (
     compute_water_level,
     derive_status,
     ingest_reading,
+    promote_pending_readings,
+    store_pending_reading,
 )
 
 sensors_router = APIRouter(prefix="/api/sensors", tags=["sensors"])
@@ -92,6 +95,7 @@ def _reading_response(reading: SensorReading) -> SensorIngestResponse:
         depth_m=reading.depth_m,
         status=reading.status.value,
         occurred_at=reading.occurred_at,
+        dedup_key=reading.dedup_key,
     )
 
 
@@ -188,20 +192,27 @@ async def _current_user_or_ingest_key(
     return await get_current_user(authorization=authorization, db=db)
 
 
-@sensors_router.post("/ingest", response_model=SensorIngestResponse)
+@sensors_router.post("/ingest", response_model=SensorIngestResponse | SensorPendingIngestResponse)
 async def ingest_sensor_reading(
     payload: SensorIngestRequest,
     current_user: CurrentUser = Depends(_current_user_or_ingest_key),
     db: Session = Depends(get_db),
 ):
     """
-    Accept a reading from a registered device or an authenticated user.
+    Accept a reading from a registered or unregistered device.
 
-    Scope (utility/dma/tank) is derived server-side from the sensor's link.
+    Registered devices: scope is resolved from the sensor's tank link.
+    Unregistered devices: reading is stored as pending, ready for
+    association when the sensor is later registered.
     Accepts either a valid bearer token or the shared X-Ingest-Key header.
     """
-    result = ingest_reading(db, payload.device_id, payload.model_dump())
-    return SensorIngestResponse(**result)
+    sensor = db.query(SensorDevice).filter(SensorDevice.device_id == payload.device_id).first()
+    if sensor is not None:
+        result = ingest_reading(db, payload.device_id, payload.model_dump())
+        return SensorIngestResponse(**result)
+
+    result = store_pending_reading(db, payload.device_id, payload.model_dump())
+    return SensorPendingIngestResponse(**result)
 
 
 # ============================================================================
@@ -245,6 +256,11 @@ async def register_sensor(
     db.add(sensor)
     db.flush()
 
+    db.commit()
+    db.refresh(sensor)
+
+    promoted = promote_pending_readings(db, sensor, tank)
+
     audit_log(
         db,
         request=request,
@@ -260,10 +276,11 @@ async def register_sensor(
             "device_id": payload.device_id,
             "tank_id": tank.id,
             "activated": payload.activated,
+            "promoted_readings": promoted,
         },
     )
-    db.commit()
-    db.refresh(sensor)
+    if promoted:
+        db.commit()
 
     return SensorRegisterResponse(
         id=sensor.id,
@@ -275,6 +292,7 @@ async def register_sensor(
         warning_height_m=sensor.warning_height_m,
         critical_height_m=sensor.critical_height_m,
         activated=sensor.activated,
+        promoted_readings=promoted,
         created_at=sensor.created_at,
         updated_at=sensor.updated_at,
     )

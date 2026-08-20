@@ -105,11 +105,23 @@ class SensorRegisterResponse(BaseModel):
     warning_height_m: float
     critical_height_m: float
     activated: bool
+    promoted_readings: int = 0
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class SensorPendingIngestResponse(BaseModel):
+    """Schema for a buffered reading from an unregistered device."""
+    ok: bool = True
+    is_pending: bool = True
+    reading_id: str
+    device_id: str
+    occurred_at: datetime
+    dedup_key: Optional[str] = None
+    is_duplicate: bool = False
 
 
 class SensorIngestRequest(BaseModel):
@@ -120,6 +132,14 @@ class SensorIngestRequest(BaseModel):
     properties: Optional[dict[str, Any]] = None
     occurred_at: Optional[Any] = None
     Timestamp: Optional[Any] = None
+    # Flat top-level fields (how real LoRa firmware sends data)
+    depth_m: Optional[float] = Field(None, ge=0)
+    Depth: Optional[float] = Field(None, ge=0)
+    depth: Optional[float] = Field(None, ge=0)
+    H2: Optional[float] = Field(None, ge=0)
+    h2: Optional[float] = Field(None, ge=0)
+    Depth_mm: Optional[float] = Field(None, ge=0)
+    depth_mm: Optional[float] = Field(None, ge=0)
 
 
 class SensorIngestResponse(BaseModel):
@@ -135,6 +155,8 @@ class SensorIngestResponse(BaseModel):
     depth_m: float
     status: str
     occurred_at: datetime
+    dedup_key: Optional[str] = None
+    is_duplicate: bool = False
 
 
 class SensorRead(BaseModel):

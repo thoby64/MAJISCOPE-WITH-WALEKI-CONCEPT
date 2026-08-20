@@ -3,7 +3,7 @@ Sensor Models
 SQLAlchemy ORM models for tank water-level monitoring.
 """
 
-from sqlalchemy import Column, String, DateTime, Float, Boolean, Text, ForeignKey, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, Float, Boolean, Text, ForeignKey, Enum as SQLEnum, UniqueConstraint, Index as SAIndex
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -86,9 +86,29 @@ class SensorReading(Base):
     status = Column(SQLEnum(SensorStatusEnum), nullable=False, index=True)
     raw_data = Column(Text, nullable=True)
     occurred_at = Column(DateTime, nullable=False, index=True)
+    dedup_key = Column(String(300), nullable=True, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     sensor = relationship("SensorDevice", foreign_keys=[sensor_id])
     tank = relationship("Tank", foreign_keys=[tank_id])
     utility = relationship("Utility", foreign_keys=[utility_id])
     dma = relationship("DMA", foreign_keys=[dma_id])
+
+
+class SensorPendingReading(Base):
+    """Buffered reading from an unregistered device, pending association.
+
+    Stored when a device sends data before being registered in MajiScope.
+    Promoted to a real SensorReading when the device is registered and
+    associated with a tank.
+    """
+
+    __tablename__ = "sensor_pending_reading"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    device_id = Column(String(100), nullable=False, index=True)
+    depth_m = Column(Float, nullable=False)
+    raw_data = Column(Text, nullable=True)
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    dedup_key = Column(String(300), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

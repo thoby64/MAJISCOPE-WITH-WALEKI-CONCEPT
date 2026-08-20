@@ -86,6 +86,14 @@ export default function WaterLevelTankDetailPage() {
   if (!representative) {
     return (
       <div className="flex flex-col gap-6">
+        <Button
+          variant="ghost"
+          onClick={() => router.push("/dashboard/water-level")}
+          className="mb-1 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500 hover:text-slate-700"
+        >
+          <ArrowLeft className="mr-1.5 h-4 w-4" />
+          Back to monitoring
+        </Button>
         <Card className="border-slate-200/70 bg-white shadow-sm">
           <CardContent className="py-16 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -93,22 +101,21 @@ export default function WaterLevelTankDetailPage() {
                 <Droplets className="h-8 w-8 text-slate-400" />
               </div>
               <div>
-                <p className="text-lg font-semibold text-slate-800">Tank not found</p>
+                <p className="text-lg font-semibold text-slate-800">No sensor registered</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  This tank has no registered sensors or is outside your scope.
+                  This tank does not have a registered sensor yet.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => router.push("/dashboard/water-level")}
-                className="mt-2 rounded-xl"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to monitoring
-              </Button>
+              {canRegister && (
+                <Button size="sm" onClick={() => setRegisterOpen(true)} className="mt-2 rounded-xl">
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Register sensor
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
+        <RegisterSensorModal open={registerOpen} onOpenChange={setRegisterOpen} defaultTankId={tankId} />
       </div>
     )
   }

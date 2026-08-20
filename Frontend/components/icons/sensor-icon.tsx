@@ -13,14 +13,21 @@ export function SensorIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
       aria-hidden="true"
       {...props}
     >
-      {/* Sensor body */}
-      <rect x="4" y="2" width="14" height="18" rx="2" />
-      {/* Pin */}
-      <path d="M18 6l3-2 3 2" />
-      {/* Wave indicators */}
-      <path d="M8 8c1.5-2 3.5-2 5 0" />
-      <path d="M8 12c1.5-2 3.5-2 5 0" />
-      <path d="M8 16c1.5-2 3.5-2 5 0" />
+      {/* Left connection points - circles */}
+      <circle cx="3" cy="6" r="1.5" />
+      <circle cx="3" cy="12" r="1.5" />
+      <circle cx="3" cy="18" r="1.5" />
+      {/* Lines from circles to body */}
+      <path d="M4.5 6H8" />
+      <path d="M4.5 12H8" />
+      <path d="M4.5 18H8" />
+      {/* Rectangular sensor body */}
+      <rect x="8" y="4" width="8" height="16" rx="1.5" />
+      {/* Dome/bump on right side */}
+      <path d="M16 10a2 2 0 0 1 2 2 2 2 0 0 1-2 2" />
+      {/* Signal arcs */}
+      <path d="M20.5 8.5a6 6 0 0 1 0 7" />
+      <path d="M22.5 6a9.5 9.5 0 0 1 0 12" />
     </svg>
   )
 }

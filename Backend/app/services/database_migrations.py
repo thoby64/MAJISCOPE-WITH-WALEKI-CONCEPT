@@ -82,6 +82,8 @@ def run_safe_startup_migrations(engine: Engine) -> None:
     _migrate_utility_infrastructure_layer_table(engine)
     _migrate_sensor_tables(engine)
     _migrate_tank_key_field(engine)
+    _migrate_sensor_ingest_fields(engine)
+    _migrate_sensor_pending_reading_table(engine)
     _migrate_hydraulic_model_tables(engine)
     _migrate_hydraulic_snapshot_report_columns(engine)
     _drop_legacy_utility_pipe_network_table(engine)
@@ -217,6 +219,115 @@ def _migrate_tank_key_field(engine: Engine) -> None:
                 return
         else:
             connection.exec_driver_sql("ALTER TABLE utility_infrastructure_layer ADD COLUMN tank_key_field VARCHAR(100)")
+
+
+def _migrate_sensor_ingest_fields(engine: Engine) -> None:
+    """Add dedup_key for idempotent ingest; drop removed location columns."""
+    inspector = inspect(engine)
+    is_postgres = engine.dialect.name.startswith("postgresql")
+    dialect = engine.dialect.name
+
+    # --- sensor_reading: ensure dedup_key column + unique index ---
+    if "sensor_reading" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("sensor_reading")}
+        with engine.begin() as connection:
+            if "dedup_key" not in columns:
+                if is_postgres:
+                    if not _run_postgres_ddl_without_timeout(
+                        connection,
+                        "ALTER TABLE sensor_reading ADD COLUMN IF NOT EXISTS dedup_key VARCHAR(300)",
+                    ):
+                        return
+                else:
+                    connection.exec_driver_sql("ALTER TABLE sensor_reading ADD COLUMN dedup_key VARCHAR(300)")
+
+        with engine.begin() as connection:
+            if is_postgres:
+                _run_postgres_ddl_without_timeout(
+                    connection,
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_sensor_reading_dedup_key ON sensor_reading (dedup_key) WHERE dedup_key IS NOT NULL",
+                )
+            else:
+                connection.exec_driver_sql(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_sensor_reading_dedup_key ON sensor_reading (dedup_key) WHERE dedup_key IS NOT NULL"
+                )
+
+    # --- best-effort DROP of removed location columns ---
+    # These may exist on DBs that ran the earlier migration before this revert.
+    _safe_drop_column(engine, "sensor_device", "location_tolerance_km")
+    for col in ("device_latitude", "device_longitude", "location_verified", "location_distance_km"):
+        _safe_drop_column(engine, "sensor_reading", col)
+
+
+def _migrate_sensor_pending_reading_table(engine: Engine) -> None:
+    """Create the pending-reading buffer table for unregistered devices."""
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+
+    if "sensor_pending_reading" in existing_tables:
+        return
+
+    if engine.dialect.name.startswith("postgresql"):
+        ddl_statements = [
+            """
+            CREATE TABLE IF NOT EXISTS sensor_pending_reading (
+                id VARCHAR(36) PRIMARY KEY,
+                device_id VARCHAR(100) NOT NULL,
+                depth_m FLOAT NOT NULL,
+                raw_data TEXT,
+                occurred_at TIMESTAMP NOT NULL,
+                dedup_key VARCHAR(300) NOT NULL UNIQUE,
+                created_at TIMESTAMP NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_device_id ON sensor_pending_reading (device_id)",
+            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_occurred_at ON sensor_pending_reading (occurred_at)",
+        ]
+    else:
+        ddl_statements = [
+            """
+            CREATE TABLE IF NOT EXISTS sensor_pending_reading (
+                id VARCHAR(36) PRIMARY KEY,
+                device_id VARCHAR(100) NOT NULL,
+                depth_m FLOAT NOT NULL,
+                raw_data TEXT,
+                occurred_at DATETIME NOT NULL,
+                dedup_key VARCHAR(300) NOT NULL UNIQUE,
+                created_at DATETIME NOT NULL
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_device_id ON sensor_pending_reading (device_id)",
+            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_occurred_at ON sensor_pending_reading (occurred_at)",
+        ]
+    with engine.begin() as connection:
+        for statement in ddl_statements:
+            if engine.dialect.name.startswith("postgresql"):
+                if not _run_postgres_ddl_without_timeout(connection, statement, required=False):
+                    return
+            else:
+                connection.exec_driver_sql(statement)
+
+
+def _safe_drop_column(engine: Engine, table_name: str, column_name: str) -> None:
+    """Best-effort DROP COLUMN; harmless if column or table doesn't exist."""
+    inspector = inspect(engine)
+    if table_name not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns(table_name)}
+    if column_name not in columns:
+        return
+    is_postgres = engine.dialect.name.startswith("postgresql")
+    try:
+        with engine.begin() as connection:
+            if is_postgres:
+                _run_postgres_ddl_without_timeout(
+                    connection,
+                    f"ALTER TABLE {table_name} DROP COLUMN IF EXISTS {column_name} CASCADE",
+                )
+            else:
+                connection.exec_driver_sql(f"ALTER TABLE {table_name} DROP COLUMN {column_name}")
+    except Exception:
+        pass
 
 
 def _migrate_sensor_tables(engine: Engine) -> None:

@@ -39,6 +39,7 @@ from app.models.sensors import (
     Tank,
     SensorDevice,
     SensorReading,
+    SensorPendingReading,
     TankStatusEnum,
     SensorStatusEnum,
 )
@@ -69,6 +70,7 @@ __all__ = [
     "Tank",
     "SensorDevice",
     "SensorReading",
+    "SensorPendingReading",
     # Enums
     "EntityStatusEnum",
     "UtilityServiceAreaCategoryEnum",

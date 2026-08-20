@@ -17,6 +17,7 @@ from app.models import (
     DMA,
     Tank,
     SensorDevice,
+    SensorPendingReading,
     SensorReading,
     TankStatusEnum,
     Utility,
@@ -122,6 +123,15 @@ class TestWaterLevelCore:
         assert extract_depth({}, "D: 5.5") == 5.5
         assert extract_depth({}, None) == 0.0
         assert extract_depth({}, "no depth here") == 0.0
+
+    def test_extract_depth_flat_payload_precedence(self):
+        assert extract_depth({}, None, {"depth_m": 2.0}) == 2.0
+        assert extract_depth({}, None, {"H2": 3.5}) == 3.5
+        assert extract_depth({}, "Depth=99", {"depth_m": 1.0}) == 1.0
+
+    def test_extract_depth_mm_conversion(self):
+        assert extract_depth({"Depth_mm": 1500.0}) == 1.5
+        assert extract_depth({}, None, {"depth_mm": 250.0}) == 0.25
 
     def test_parse_timestamp_variants(self):
         iso = parse_timestamp("2026-08-17T12:34:56")
@@ -321,13 +331,54 @@ class TestIngest:
         assert data["water_level_m"] == 8.5
         assert data["utility_id"] == tank.utility_id
 
-    def test_ingest_unknown_device_404(self, client: TestClient, auth_headers: dict):
+    def test_ingest_unknown_device_stored_pending(self, client: TestClient, db: Session, auth_headers: dict):
         response = client.post(
             "/api/sensors/ingest",
             headers=auth_headers,
-            json={"device_id": "unknown-device", "h1_m": 12.0},
+            json={"device_id": "unknown-device", "depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
         )
-        assert response.status_code == 404
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_pending"] is True
+        assert data["device_id"] == "unknown-device"
+        assert data["reading_id"] is not None
+        assert data["dedup_key"] is not None
+        pending = db.query(SensorPendingReading).filter(
+            SensorPendingReading.device_id == "unknown-device"
+        ).first()
+        assert pending is not None
+        assert pending.depth_m == 1.5
+
+    def test_ingest_unknown_device_missing_depth_rejected(self, client: TestClient, auth_headers: dict):
+        response = client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "no-depth-device", "occurred_at": "2026-01-01T10:00:00"},
+        )
+        assert response.status_code == 400
+
+    def test_ingest_unknown_device_missing_device_id_rejected(self, client: TestClient, auth_headers: dict):
+        response = client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
+        )
+        assert response.status_code in (400, 422)
+
+    def test_ingest_pending_idempotent(self, client: TestClient, db: Session, auth_headers: dict):
+        payload = {"device_id": "dup-device", "depth_m": 2.0, "occurred_at": "2026-01-01T10:00:00"}
+        r1 = client.post("/api/sensors/ingest", headers=auth_headers, json=payload)
+        assert r1.status_code == 200
+        assert r1.json()["is_duplicate"] is False
+
+        r2 = client.post("/api/sensors/ingest", headers=auth_headers, json=payload)
+        assert r2.status_code == 200
+        assert r2.json()["is_duplicate"] is True
+
+        rows = db.query(SensorPendingReading).filter(
+            SensorPendingReading.device_id == "dup-device"
+        ).count()
+        assert rows == 1
 
     def test_ingest_status_tiers(self, client: TestClient, db: Session, auth_headers: dict):
         sensor, _tank = self._register(client, db, auth_headers)
@@ -716,3 +767,187 @@ class TestSensorDelete:
         from app.models import ActivityLog
         logs = db.query(ActivityLog).filter(ActivityLog.entity_id.isnot(None)).all()
         assert any(getattr(log, "action", None) == "sensor.delete" for log in logs)
+
+
+class TestHardenedParsing:
+    """Parser hardening: flat fields, Depth_mm, corruption tolerance, sanity bounds."""
+
+    def test_flat_depth_m_takes_precedence(self):
+        payload = {"depth_m": 2.5, "H2": 99.0}
+        assert extract_depth({}, None, payload) == 2.5
+
+    def test_flat_depth_alias(self):
+        payload = {"Depth": 3.0}
+        assert extract_depth({}, None, payload) == 3.0
+
+    def test_flat_depth_mm_conversion(self):
+        payload = {"Depth_mm": 1500.0}
+        assert extract_depth({}, None, payload) == 1.5
+
+    def test_flat_depth_mm_lowercase(self):
+        payload = {"depth_mm": 250.0}
+        assert extract_depth({}, None, payload) == 0.25
+
+    def test_properties_depth_mm_conversion(self):
+        properties = {"Depth_mm": 3000.0}
+        assert extract_depth(properties) == 3.0
+
+    def test_raw_data_fallback_corrupted_string(self):
+        raw = "Voltage=676mV, Current=5.63mA, Depth=abc"
+        assert extract_depth({}, raw) == 0.0
+
+    def test_raw_data_fallback_nm_token(self):
+        raw = "Voltage=676mV, Current=5.63mA, Depth=0.510m"
+        assert extract_depth({}, raw) == 0.510
+
+    def test_physical_sanity_rejects_large_depth(self):
+        payload = {"depth_m": 25.0}
+        result = extract_depth({}, None, payload)
+        assert result == 25.0
+
+
+class TestIdempotentIngest:
+    """Idempotent ingest: dedup_key prevents duplicate readings."""
+
+    def test_duplicate_reading_returns_existing(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+        sensor = _make_sensor(db, tank, device_id="dev-dedup", h1_m=12.0, activated=True)
+        ts = "2026-01-01T10:00:00"
+
+        resp1 = client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "dev-dedup", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": ts},
+        )
+        assert resp1.status_code == 200
+        data1 = resp1.json()
+        assert data1["is_duplicate"] is False
+
+        resp2 = client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "dev-dedup", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": ts},
+        )
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        assert data2["is_duplicate"] is True
+        assert data2["reading_id"] == data1["reading_id"]
+
+        readings = db.query(SensorReading).filter(SensorReading.sensor_id == sensor.id).all()
+        assert len(readings) == 1
+
+    def test_different_timestamps_create_separate_readings(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+        sensor = _make_sensor(db, tank, device_id="dev-multi", h1_m=12.0, activated=True)
+
+        client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "dev-multi", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": "2026-01-01T10:00:00"},
+        )
+        client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "dev-multi", "h1_m": 12.0, "raw_data": "Depth=3", "occurred_at": "2026-01-01T11:00:00"},
+        )
+
+        readings = db.query(SensorReading).filter(SensorReading.sensor_id == sensor.id).all()
+        assert len(readings) == 2
+
+
+class TestPendingReadingsPromotion:
+    """Pending readings are promoted to real readings on sensor registration."""
+
+    def test_pending_promoted_on_registration(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+
+        client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "pending-01", "depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
+        )
+        client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "pending-01", "depth_m": 2.5, "occurred_at": "2026-01-01T11:00:00"},
+        )
+
+        pending_count = db.query(SensorPendingReading).filter(
+            SensorPendingReading.device_id == "pending-01"
+        ).count()
+        assert pending_count == 2
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={
+                "device_id": "pending-01",
+                "tank_id": tank.id,
+                "h1_m": 12.0,
+                "activated": True,
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["promoted_readings"] == 2
+
+        pending_after = db.query(SensorPendingReading).filter(
+            SensorPendingReading.device_id == "pending-01"
+        ).count()
+        assert pending_after == 0
+
+        readings_resp = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        assert readings_resp.status_code == 200
+        readings_data = readings_resp.json()
+        assert readings_data["total"] == 2
+        depths = sorted([r["depth_m"] for r in readings_data["items"]])
+        assert depths == [1.5, 2.5]
+
+    def test_registration_without_pending_returns_zero(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={
+                "device_id": "clean-device",
+                "tank_id": tank.id,
+                "h1_m": 10.0,
+                "activated": True,
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["promoted_readings"] == 0
+
+    def test_pending_dedup_key_prevents_double_promotion(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+
+        client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "dedup-dev", "depth_m": 3.0, "occurred_at": "2026-01-01T10:00:00"},
+        )
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={
+                "device_id": "dedup-dev",
+                "tank_id": tank.id,
+                "h1_m": 8.0,
+                "activated": True,
+            },
+        )
+        assert response.status_code == 201
+        assert response.json()["promoted_readings"] == 1
+
+        readings = db.query(SensorReading).filter(
+            SensorReading.dedup_key == "dedup-dev:2026-01-01T10:00:00"
+        ).all()
+        assert len(readings) == 1
+        assert readings[0].water_height_m == 5.0

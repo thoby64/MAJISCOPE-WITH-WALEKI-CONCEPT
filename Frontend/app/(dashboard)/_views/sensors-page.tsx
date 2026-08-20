@@ -66,7 +66,10 @@ export default function SensorsPage() {
   const handleTankToggle = async (sensor: SensorSnap) => {
     setBusyDevice(sensor.deviceId)
     const tank = tanks.find((t) => t.id === sensor.tankId)
-    if (!tank) return
+    if (!tank) {
+      setBusyDevice(null)
+      return
+    }
     const next = tank.status === "deactivated" ? "active" : "deactivated"
     try {
       await updateTankStatus(tank.id, next)

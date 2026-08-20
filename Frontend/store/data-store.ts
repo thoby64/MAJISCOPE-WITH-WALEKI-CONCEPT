@@ -102,6 +102,7 @@ export interface SensorSnap {
   activated: boolean
   status: string
   lastReading: SensorLastReading | null
+  promotedReadings: number | null
   createdAt: string
   updatedAt: string
 }
@@ -118,6 +119,8 @@ export interface SensorLastReading {
   depthM: number
   status: string
   occurredAt: string
+  dedupKey: string | null
+  isDuplicate: boolean
 }
 
 export interface TankReading {
@@ -132,6 +135,8 @@ export interface TankReading {
   depthM: number
   status: string
   occurredAt: string
+  dedupKey: string | null
+  isDuplicate: boolean
 }
 
 export interface TankSnap {
