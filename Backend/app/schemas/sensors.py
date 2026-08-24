@@ -65,6 +65,7 @@ class TankSyncSummary(BaseModel):
     reactivated: int = 0
     deactivated: int = 0
     deactivated_with_sensors: int = 0
+    skipped_duplicates: int = 0
     total: int = 0
     has_warnings: bool = False
 
@@ -92,6 +93,7 @@ class SensorUpdateRequest(BaseModel):
     warning_height_m: Optional[float] = Field(None, gt=0)
     critical_height_m: Optional[float] = Field(None, ge=0)
     activated: Optional[bool] = None
+    dma_id: Optional[str] = None
 
 
 class SensorRegisterResponse(BaseModel):
@@ -100,6 +102,8 @@ class SensorRegisterResponse(BaseModel):
     device_id: str
     tank_id: str
     utility_id: str
+    dma_id: Optional[str] = None
+    dma_auto_assigned: bool = False
     h1_m: Optional[float] = None
     depth_m: Optional[float] = None
     warning_height_m: float

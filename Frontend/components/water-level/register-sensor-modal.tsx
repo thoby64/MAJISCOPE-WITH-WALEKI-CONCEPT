@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Loader2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
+import { TankCombobox } from "@/components/water-level/tank-combobox"
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type RegisterSensorInput, type SensorSnap } from "@/store/data-store"
 
@@ -22,7 +23,7 @@ interface RegisterSensorModalProps {
 
 export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor }: RegisterSensorModalProps) {
   const { currentUser } = useAuthStore()
-  const { tanks, fetchTanks, registerSensor, updateSensor } = useDataStore()
+  const { tanks, dmas, fetchTanks, fetchDMAs, registerSensor, updateSensor, detectSensorDma } = useDataStore()
 
   const role = currentUser?.role
   const isEdit = Boolean(sensor)
@@ -34,6 +35,9 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
   const [warningHeightM, setWarningHeightM] = useState("")
   const [criticalHeightM, setCriticalHeightM] = useState("")
   const [activated, setActivated] = useState(true)
+  const [dmaId, setDmaId] = useState("")
+  const [detectedDmaId, setDetectedDmaId] = useState<string | null>(null)
+  const [detecting, setDetecting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -53,6 +57,11 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       setWarningHeightM(sensor.warningHeightM != null ? String(sensor.warningHeightM) : "")
       setCriticalHeightM(sensor.criticalHeightM != null ? String(sensor.criticalHeightM) : "")
       setActivated(sensor.activated)
+      setDmaId(sensor.dmaId ?? "")
+      setDetectedDmaId(null)
+      setDetecting(false)
+      void fetchDMAs(sensor.utilityId)
+      void runDmaDetection(sensor.tankId)
     } else {
       setDeviceId("")
       setTankId(defaultTankId ?? "")
@@ -61,29 +70,84 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       setWarningHeightM("")
       setCriticalHeightM("")
       setActivated(true)
+      setDmaId("")
+      setDetectedDmaId(null)
+      setDetecting(false)
     }
-  }, [open, sensor, defaultTankId, fetchTanks])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sensor, defaultTankId])
 
   const scopedTanks = useMemo(() => {
     if (!tanks.length) return []
-    if (role === "admin") return tanks
-    const myUtility = currentUser?.utilityId
-    return myUtility ? tanks.filter((t) => t.utilityId === myUtility) : tanks
-  }, [currentUser?.utilityId, role, tanks])
+    let filtered = tanks
+    if (role !== "admin") {
+      const myUtility = currentUser?.utilityId
+      filtered = myUtility ? tanks.filter((t) => t.utilityId === myUtility) : tanks
+    }
+    // For new sensor registration, hide tanks that already have an activated sensor
+    if (!isEdit) {
+      const { sensors } = useDataStore.getState()
+      const tanksWithActiveSensor = new Set(
+        sensors.filter((s) => s.activated).map((s) => s.tankId)
+      )
+      filtered = filtered.filter((t) => !tanksWithActiveSensor.has(t.id))
+    }
+    return filtered
+  }, [currentUser?.utilityId, role, tanks, isEdit])
+
+  const tankOptions = useMemo(
+    () =>
+      scopedTanks.map((tank) => ({
+        id: tank.id,
+        name: tank.name || tank.sourceKey || tank.id,
+        latitude: tank.latitude,
+        longitude: tank.longitude,
+      })),
+    [scopedTanks]
+  )
 
   const selectedTankName = useMemo(() => {
-    const tank = scopedTanks.find((t) => t.id === tankId)
-    return tank ? (tank.name || tank.sourceKey) : ""
-  }, [scopedTanks, tankId])
+    const option = tankOptions.find((o) => o.id === tankId)
+    return option ? option.name : ""
+  }, [tankOptions, tankId])
 
-  const tankHasActivatedSensor = (tankId: string) => {
-    const { sensors } = useDataStore.getState()
-    return sensors.some((s) => s.tankId === tankId && s.activated)
-  }
+  const scopedDMAs = useMemo(() => {
+    if (!sensor) return []
+    return dmas.filter((d) => d.utilityId === sensor.utilityId)
+  }, [dmas, sensor])
+
+  const selectedDmaName = useMemo(() => {
+    const dma = scopedDMAs.find((d) => d.id === dmaId)
+    return dma ? dma.name : ""
+  }, [scopedDMAs, dmaId])
 
   const parseOptional = (raw: string): number | undefined => {
     const value = Number.parseFloat(raw)
     return Number.isFinite(value) ? value : undefined
+  }
+
+  const runDmaDetection = async (tankIdToCheck: string) => {
+    if (!tankIdToCheck) return
+    setDetecting(true)
+    try {
+      const detected = await detectSensorDma(tankIdToCheck)
+      if (detected.dmaId) {
+        setDetectedDmaId(detected.dmaId)
+        setDmaId(detected.dmaId)
+      } else {
+        setDetectedDmaId(null)
+      }
+    } finally {
+      setDetecting(false)
+    }
+  }
+
+  const handleTankChange = (newTankId: string) => {
+    setTankId(newTankId)
+    if (isEdit) {
+      setDetectedDmaId(null)
+      void runDmaDetection(newTankId)
+    }
   }
 
   const handleSave = async () => {
@@ -107,6 +171,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
           warning_height_m: payload.warning_height_m,
           critical_height_m: payload.critical_height_m,
           activated,
+          dma_id: dmaId || null,
         })
         toast.success("Sensor updated.")
       } else {
@@ -178,21 +243,52 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="tank-id">Tank</Label>
-              <select
-                id="tank-id"
+              <Label>Tank</Label>
+              <TankCombobox
                 value={tankId}
-                onChange={(e) => setTankId(e.target.value)}
-                className="h-10 w-full rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 text-sm focus:border-cyan-400 focus:outline-none"
-              >
-                <option value="">Select a tank…</option>
-                {scopedTanks.map((tank) => (
-                  <option key={tank.id} value={tank.id}>
-                    {tank.name || tank.sourceKey}{tankHasActivatedSensor(tank.id) ? " (sensor attached)" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={handleTankChange}
+                options={tankOptions}
+                placeholder="Select a tank…"
+                searchPlaceholder="Type to search tanks…"
+                emptyText="No tanks match your search."
+              />
             </div>
+
+            {isEdit ? (
+              <div className="grid gap-1.5">
+                <Label htmlFor="dma-id" className="flex items-center gap-2">
+                  DMA
+                  {detecting && (
+                    <span className="flex items-center gap-1 text-xs font-normal text-slate-400">
+                      <Loader2 className="h-3 w-3 animate-spin" /> detecting…
+                    </span>
+                  )}
+                </Label>
+                <select
+                  id="dma-id"
+                  value={dmaId}
+                  onChange={(e) => setDmaId(e.target.value)}
+                  disabled={detecting || detectedDmaId !== null}
+                  className="h-10 w-full rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 text-sm focus:border-cyan-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="">Unassigned</option>
+                  {scopedDMAs.map((dma) => (
+                    <option key={dma.id} value={dma.id}>
+                      {dma.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400">
+                  {detectedDmaId !== null
+                    ? "DMA auto-detected from the tank's location. Change the tank to re-detect."
+                    : "No DMA matched the tank's location — choose one manually."}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">
+                The DMA is detected automatically from the tank's location when the sensor is registered.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -262,6 +358,15 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <span className="text-slate-500">Tank</span>
             <span className="font-medium text-slate-800">{selectedTankName || "—"}</span>
           </div>
+          {isEdit && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">DMA</span>
+              <span className="font-medium text-slate-800">
+                {selectedDmaName || "Unassigned"}
+                {detectedDmaId && <span className="ml-1 text-xs text-emerald-600">(auto-detected)</span>}
+              </span>
+            </div>
+          )}
           <div className="border-t border-slate-200/80" />
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex justify-between">

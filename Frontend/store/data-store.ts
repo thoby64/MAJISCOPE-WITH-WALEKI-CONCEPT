@@ -95,6 +95,7 @@ export interface SensorSnap {
   tankName: string | null
   utilityId: string
   dmaId: string | null
+  dmaAutoAssigned?: boolean
   h1M: number | null
   depthM: number | null
   warningHeightM: number
@@ -163,6 +164,7 @@ export interface RegisterSensorInput {
   warning_height_m?: number
   critical_height_m?: number
   activated?: boolean
+  dma_id?: string | null
 }
 
 function serializeUtilityPayload(data: Partial<Utility>) {
@@ -425,6 +427,7 @@ interface DataState {
   registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
   updateSensor: (deviceId: string, data: Partial<RegisterSensorInput>) => Promise<SensorSnap>
   deleteSensor: (deviceId: string) => Promise<void>
+  detectSensorDma: (tankId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
   updateTankStatus: (tankId: string, status: "active" | "deactivated") => Promise<TankSnap>
   getUnreadNotificationCount: () => number
   markNotificationRead: (id: string) => Promise<Notification | null>
@@ -852,6 +855,20 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch (error) {
       console.error("Error deleting sensor:", error)
       throw error
+    }
+  },
+
+  detectSensorDma: async (tankId: string) => {
+    try {
+      const response = await apiClient.get(`/tanks/${tankId}/detect-dma`, { skipCache: true })
+      if (response.success && response.data) {
+        const data = transformKeys(response.data) as { dmaId: string | null; dmaName: string | null }
+        return { dmaId: data.dmaId ?? null, dmaName: data.dmaName ?? null }
+      }
+      return { dmaId: null, dmaName: null }
+    } catch (error) {
+      console.error("Error detecting tank DMA:", error)
+      return { dmaId: null, dmaName: null }
     }
   },
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react"
-import { Download, Loader2, Trash2, Upload } from "lucide-react"
+import { Download, FileDown, Loader2, Trash2, Upload } from "lucide-react"
 import { InfrastructureIcon } from "@/components/icons/infrastructure-icon"
 import { toast } from "sonner"
 import { useAuthStore } from "@/store/auth-store"
@@ -251,6 +251,35 @@ export default function UtilityInfrastructurePage() {
     }
   }
 
+  async function handleTemplateDownload(assetType: AssetType) {
+    const asset = ASSETS.find((item) => item.type === assetType) || ASSETS[0]
+    const busy = `template:${assetType}`
+    setBusyKey(busy)
+    try {
+      const response = await fetch(`${CONFIG.backend.fullUrl}/infrastructure-templates/${assetType}`)
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}))
+        toast.error(payload.detail || `Failed to download ${asset.label.toLowerCase()} template`)
+        return
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const anchor = document.createElement("a")
+      anchor.href = url
+      anchor.download = `${assetType}_template.gpkg`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success(`${asset.label} template downloaded.`)
+    } catch (error) {
+      console.error("Error downloading infrastructure template:", error)
+      toast.error(`Failed to download ${asset.label.toLowerCase()} template`)
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -258,6 +287,7 @@ export default function UtilityInfrastructurePage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Utility Infrastructure Upload</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-300">
             Upload utility GIS assets individually so the dashboard can display pipes, valves, water sources, storage facilities, and bulk meters as separate map layers.
+            Download a sample <strong>Template</strong> for each asset type, fill it with your own data, and re-upload to ensure your file aligns with the system.
           </p>
         </div>
         <div className="w-full md:w-80">
@@ -282,6 +312,7 @@ export default function UtilityInfrastructurePage() {
             {ASSETS.map((asset) => {
             const file = getAssetFile(selectedUtility, asset.type)
             const busy = busyKey === `${selectedUtility?.id}:${asset.type}`
+            const templateBusy = busyKey === `template:${asset.type}`
             const selected = selectedAssetType === asset.type
 
             return (
@@ -332,6 +363,21 @@ export default function UtilityInfrastructurePage() {
                       >
                         {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                         {file ? "Replace" : "Upload"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        title="Download a sample GeoPackage you can edit with your own data and re-upload"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void handleTemplateDownload(asset.type)
+                        }}
+                        disabled={templateBusy}
+                        className="h-8 rounded-lg border-dashed"
+                      >
+                        {templateBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1.5 h-3.5 w-3.5" />}
+                        Template
                       </Button>
                       {file ? (
                         <>

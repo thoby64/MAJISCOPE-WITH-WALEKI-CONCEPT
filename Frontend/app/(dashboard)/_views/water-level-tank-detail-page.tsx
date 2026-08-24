@@ -3,7 +3,8 @@
 import type { ChangeEvent } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Activity, ArrowLeft, Calendar, Clock, Droplets, Gauge, Plus, Ruler, TrendingUp } from "lucide-react"
+import { Activity, ArrowLeft, Calendar, Clock, Droplets, Gauge, MapPin, Plus, Ruler, TrendingUp } from "lucide-react"
+import { SensorIcon } from "@/components/icons/sensor-icon"
 import { useDataStore, type SensorSnap, type TankReading } from "@/store/data-store"
 import { useAuthStore } from "@/store/auth-store"
 import { Card, CardContent } from "@/components/ui/card"
@@ -52,6 +53,13 @@ export default function WaterLevelTankDetailPage() {
   const tankSensors = useMemo(
     () => sensors.filter((s) => s.tankId === tankId),
     [sensors, tankId]
+  )
+
+  const { tanks } = useDataStore()
+
+  const tank = useMemo(
+    () => tanks.find((t) => t.id === tankId),
+    [tanks, tankId]
   )
 
   const representative: SensorSnap | undefined = useMemo(() => {
@@ -113,6 +121,15 @@ export default function WaterLevelTankDetailPage() {
                 </Button>
               )}
             </div>
+            {tank?.latitude != null && tank?.longitude != null && (
+              <div className="mt-6 pt-6 border-t border-slate-100 w-full max-w-md mx-auto text-left">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Storage Facility Coordinates</p>
+                <div className="flex items-center gap-2 text-sm text-slate-600 font-mono">
+                  <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
+                  <span>{tank.latitude.toFixed(6)}°, {tank.longitude.toFixed(6)}°</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
         <RegisterSensorModal open={registerOpen} onOpenChange={setRegisterOpen} defaultTankId={tankId} />
@@ -146,7 +163,7 @@ export default function WaterLevelTankDetailPage() {
         <p className="text-sm text-slate-500">
           Detailed readings, sensor hanging length, h2 reading, and live tank level.
         </p>
-        {canRegister && (
+        {canRegister && tankSensors.length === 0 && (
           <Button size="sm" onClick={() => setRegisterOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />
             Register sensor
@@ -225,6 +242,22 @@ export default function WaterLevelTankDetailPage() {
                 <span className="text-sm text-slate-500">Total readings</span>
                 <strong className="ml-auto font-semibold text-slate-800">{readings.length}</strong>
               </div>
+              <div className="flex items-center gap-3">
+                <SensorIcon className="h-4 w-4 shrink-0 text-cyan-600" />
+                <span className="text-sm text-slate-500">Sensor ID</span>
+                <strong className="ml-auto font-mono font-semibold text-slate-800">
+                  {representative.deviceId}
+                </strong>
+              </div>
+              {tank?.latitude != null && tank?.longitude != null && (
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
+                  <span className="text-sm text-slate-500">Storage Facility Coordinates</span>
+                  <strong className="ml-auto font-mono font-semibold text-slate-800">
+                    {tank.latitude.toFixed(6)}°, {tank.longitude.toFixed(6)}°
+                  </strong>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

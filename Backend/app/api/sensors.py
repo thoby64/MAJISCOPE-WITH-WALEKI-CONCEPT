@@ -17,6 +17,7 @@ from app.models import (
     TankStatusEnum,
     SensorDevice,
     SensorReading,
+    Utility,
     DMA,
 )
 from app.schemas.sensors import (
@@ -39,7 +40,7 @@ from app.security.dependencies import (
     CurrentUser,
 )
 from app.services.activity_logs import audit_log
-from app.services.hierarchy import resolve_current_user_utility_id
+from app.services.hierarchy import resolve_current_user_utility_id, find_dma_within_utility_by_boundary
 from app.services.sensor_services import (
     compute_water_level,
     derive_status,
@@ -97,6 +98,18 @@ def _reading_response(reading: SensorReading) -> SensorIngestResponse:
         occurred_at=reading.occurred_at,
         dedup_key=reading.dedup_key,
     )
+
+
+def _detect_dma_for_tank(db: Session, tank: Tank) -> Optional[DMA]:
+    """
+    Detect the DMA that contains the tank's coordinates via point-in-polygon
+    against the tank's utility's DMA boundaries. Returns None when the tank
+    has no coordinates or no boundary matches.
+    """
+    if tank.latitude is None or tank.longitude is None:
+        return None
+    utility = db.query(Utility).filter(Utility.id == tank.utility_id).first()
+    return find_dma_within_utility_by_boundary(tank.latitude, tank.longitude, utility, db)
 
 
 def _tank_read(tank: Tank, db: Session) -> TankRead:
@@ -244,6 +257,14 @@ async def register_sensor(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tank is not active")
     _ensure_tank_access(tank, current_user, db, action="access")
 
+    dma_auto_assigned = False
+    if tank.dma_id is None:
+        matched_dma = _detect_dma_for_tank(db, tank)
+        if matched_dma is not None:
+            tank.dma_id = matched_dma.id
+            dma_auto_assigned = True
+            db.flush()
+
     sensor = SensorDevice(
         device_id=payload.device_id,
         tank_id=tank.id,
@@ -287,6 +308,8 @@ async def register_sensor(
         device_id=sensor.device_id,
         tank_id=sensor.tank_id,
         utility_id=tank.utility_id,
+        dma_id=tank.dma_id,
+        dma_auto_assigned=dma_auto_assigned,
         h1_m=sensor.h1_m,
         depth_m=sensor.depth_m,
         warning_height_m=sensor.warning_height_m,
@@ -308,6 +331,9 @@ async def update_sensor(
 ):
     sensor = _get_sensor_or_404(db, device_id)
     _ensure_sensor_access(sensor, current_user, db)
+
+    if payload.dma_id == "":
+        payload = payload.model_copy(update={"dma_id": None})
 
     changes: dict[str, Any] = {}
     if payload.tank_id and payload.tank_id != sensor.tank_id:
@@ -332,6 +358,38 @@ async def update_sensor(
     if payload.activated is not None:
         sensor.activated = payload.activated
         changes["activated"] = payload.activated
+    dma_auto_assigned = False
+    if "tank_id" in changes:
+        # Tank moved: auto-detect the DMA from the new tank's coordinates,
+        # exactly like registration. Detection takes priority over the
+        # manually supplied dma_id.
+        tank = _get_tank_or_404(db, sensor.tank_id)
+        detected = _detect_dma_for_tank(db, tank)
+        if detected is not None and detected.id != tank.dma_id:
+            tank.dma_id = detected.id
+            changes["dma_id"] = detected.id
+            dma_auto_assigned = True
+        if detected is not None:
+            payload = payload.model_copy(update={"dma_id": None})
+
+    if payload.dma_id is not None:
+        tank = _get_tank_or_404(db, sensor.tank_id)
+        if payload.dma_id != tank.dma_id:
+            dma = db.query(DMA).filter(DMA.id == payload.dma_id).first()
+            if dma is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DMA not found")
+            if dma.utility_id != tank.utility_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="DMA does not belong to the sensor's utility",
+                )
+            if current_user.user_type == "dma_manager" and current_user.dma_id != dma.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only assign a sensor to your own DMA",
+                )
+            tank.dma_id = dma.id
+            changes["dma_id"] = dma.id
 
     audit_log(
         db,
@@ -354,6 +412,8 @@ async def update_sensor(
         device_id=sensor.device_id,
         tank_id=sensor.tank_id,
         utility_id=tank.utility_id,
+        dma_id=tank.dma_id,
+        dma_auto_assigned=dma_auto_assigned,
         h1_m=sensor.h1_m,
         depth_m=sensor.depth_m,
         warning_height_m=sensor.warning_height_m,
@@ -489,6 +549,26 @@ async def get_sensor_tank(
     tank = _get_tank_or_404(db, tank_id)
     _ensure_tank_access(tank, current_user, db, action="access")
     return _tank_read(tank, db)
+
+
+@tanks_router.get("/{tank_id}/detect-dma")
+async def detect_tank_dma(
+    tank_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Detect which of the tank's utility DMA boundaries contain the tank's
+    coordinates. Returns null values when no boundary matches so the client
+    can fall back to manual selection.
+    """
+    tank = _get_tank_or_404(db, tank_id)
+    _ensure_tank_access(tank, current_user, db, action="access")
+    dma = _detect_dma_for_tank(db, tank)
+    return {
+        "dma_id": dma.id if dma else None,
+        "dma_name": dma.name if dma else None,
+    }
 
 
 @tanks_router.patch("/{tank_id}", response_model=TankRead)

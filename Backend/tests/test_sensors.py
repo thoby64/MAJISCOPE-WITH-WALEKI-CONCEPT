@@ -4,6 +4,7 @@ Tests for sensor registration, ingest, status derivation, tank reconciliation,
 and role-scoped listing.
 """
 
+import json
 from datetime import datetime
 from types import SimpleNamespace
 from uuid import uuid4
@@ -221,6 +222,90 @@ class TestTankSync:
         tank = db.query(Tank).filter(Tank.utility_id == utility.id).first()
         assert tank.source_key.startswith("coord:")
         assert layer.tank_key_field is None
+
+    def test_coordinate_fallback_uses_tank_default_name(self, db: Session):
+        utility = _make_utility(db)
+        layer = UtilityInfrastructureLayer(
+            utility_id=utility.id,
+            asset_type="storage_facilities",
+            file_data=b"",
+            file_name="tanks.gpkg",
+            file_size=0,
+            feature_count=1,
+        )
+        db.add(layer)
+        db.commit()
+        db.refresh(layer)
+
+        features = [
+            {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
+        ]
+        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        assert summary["created"] == 1
+        db.flush()
+        tank = db.query(Tank).filter(Tank.utility_id == utility.id).first()
+        assert tank.name == "TANK"
+        assert tank.latitude is not None and tank.longitude is not None
+
+    def test_numeric_only_name_falls_back_to_tank(self, db: Session):
+        utility = _make_utility(db)
+        layer = UtilityInfrastructureLayer(
+            utility_id=utility.id,
+            asset_type="storage_facilities",
+            file_data=b"",
+            file_name="tanks.gpkg",
+            file_size=0,
+            feature_count=2,
+        )
+        db.add(layer)
+        db.commit()
+        db.refresh(layer)
+
+        # Name-like fields holding purely numeric values (e.g. ObjectID / Id
+        # exports) are not readable names: fall back to "TANK-<number>".
+        features = [
+            {"type": "Feature", "properties": {"Name": "322"}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
+            {"type": "Feature", "properties": {"Id": 1357}, "geometry": {"type": "Point", "coordinates": [36.8, -3.5]}},
+        ]
+        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        assert summary["created"] == 2
+        db.flush()
+        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).order_by(Tank.source_key).all()
+        assert len(tanks) == 2
+        for tank in tanks:
+            assert tank.name.startswith("TANK-")
+            assert tank.source_key.startswith("coord:")
+
+    def test_reupload_unnamed_duplicate_skipped_by_coordinates(self, db: Session):
+        utility = _make_utility(db)
+        layer = UtilityInfrastructureLayer(
+            utility_id=utility.id,
+            asset_type="storage_facilities",
+            file_data=b"",
+            file_name="tanks.gpkg",
+            file_size=0,
+            feature_count=1,
+        )
+        db.add(layer)
+        db.commit()
+        db.refresh(layer)
+
+        features = [
+            {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
+        ]
+        sync_tanks_from_layer(db, utility.id, features, layer)
+        db.commit()
+
+        # Re-upload the same unnamed feature: coordinates already exist, so
+        # no duplicate tank is created and the original stays active.
+        summary2 = sync_tanks_from_layer(db, utility.id, features, layer)
+        db.commit()
+        assert summary2["created"] == 0
+        assert summary2["skipped_duplicates"] == 1
+        assert summary2["deactivated"] == 0
+        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).all()
+        assert len(tanks) == 1
+        assert tanks[0].name == "TANK"
 
     def test_deactivated_with_sensor_warns(self, db: Session):
         utility = _make_utility(db)
@@ -951,3 +1036,200 @@ class TestPendingReadingsPromotion:
         ).all()
         assert len(readings) == 1
         assert readings[0].water_height_m == 5.0
+
+
+class TestDmaAutoAssignment:
+    """DMA assignment from tank coordinates on registration + manual DMA choice on edit."""
+
+    POLYGON_AROUND_TANK = [
+        [36.5, -3.6], [36.9, -3.6], [36.9, -3.2], [36.5, -3.2], [36.5, -3.6],
+    ]
+    POLYGON_OTHERWHERE = [
+        [37.4, -3.6], [37.6, -3.6], [37.6, -3.2], [37.4, -3.2], [37.4, -3.6],
+    ]
+
+    @staticmethod
+    def _make_dma_with_boundary(db: Session, utility: Utility, name: str, polygon) -> DMA:
+        dma = DMA(
+            name=name,
+            utility_id=utility.id,
+            boundary_geojson=json.dumps({"type": "Polygon", "coordinates": [polygon]}),
+        )
+        db.add(dma)
+        db.commit()
+        db.refresh(dma)
+        return dma
+
+    def test_register_auto_assigns_dma_from_tank_coords(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = self._make_dma_with_boundary(db, utility, "Covering DMA", self.POLYGON_AROUND_TANK)
+        tank = _make_tank(db, utility)  # lat=-3.4, lon=36.7, inside POLYGON_AROUND_TANK
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={"device_id": "AU_NAM_0901", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["dma_id"] == dma.id
+        assert data["dma_auto_assigned"] is True
+
+        db.refresh(tank)
+        assert tank.dma_id == dma.id
+
+    def test_register_unassigned_when_no_boundary_match(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        self._make_dma_with_boundary(db, utility, "Faraway DMA", self.POLYGON_OTHERWHERE)
+        tank = _make_tank(db, utility)
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={"device_id": "AU_NAM_0902", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["dma_id"] is None
+        assert data["dma_auto_assigned"] is False
+
+        db.refresh(tank)
+        assert tank.dma_id is None
+
+    def test_register_preserves_existing_tank_dma(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        existing_dma = _make_dma(db, utility, "Existing DMA")
+        tank = _make_tank(db, utility)
+        tank.dma_id = existing_dma.id
+        db.commit()
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={"device_id": "AU_NAM_0903", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["dma_id"] == existing_dma.id
+        assert data["dma_auto_assigned"] is False
+
+    def test_promoted_readings_receive_auto_assigned_dma(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = self._make_dma_with_boundary(db, utility, "Promotion DMA", self.POLYGON_AROUND_TANK)
+        tank = _make_tank(db, utility)
+
+        ingest = client.post(
+            "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": "AU_NAM_0904", "depth_m": 2.0, "occurred_at": "2026-02-01T08:00:00"},
+        )
+        assert ingest.status_code == 200
+        assert ingest.json()["is_pending"] is True
+
+        response = client.post(
+            "/api/sensors",
+            headers=auth_headers,
+            json={"device_id": "AU_NAM_0904", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+        )
+        assert response.status_code == 201
+        assert response.json()["promoted_readings"] == 1
+
+        reading = db.query(SensorReading).filter(
+            SensorReading.dedup_key == "AU_NAM_0904:2026-02-01T08:00:00"
+        ).first()
+        assert reading is not None
+        assert reading.dma_id == dma.id
+
+    def test_update_sensor_manual_dma_choice(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = _make_dma(db, utility, "Manual DMA")
+        tank = _make_tank(db, utility)
+        _make_sensor(db, tank, device_id="AU_NAM_0905")
+
+        response = client.patch(
+            "/api/sensors/AU_NAM_0905",
+            headers=auth_headers,
+            json={"dma_id": dma.id},
+        )
+        assert response.status_code == 200
+        assert response.json()["dma_id"] == dma.id
+
+        db.refresh(tank)
+        assert tank.dma_id == dma.id
+
+    def test_update_sensor_dma_other_utility_rejected(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        other_utility = _make_utility(db, name="Water Co B")
+        foreign_dma = _make_dma(db, other_utility, "Foreign DMA")
+        tank = _make_tank(db, utility)
+        _make_sensor(db, tank, device_id="AU_NAM_0906")
+
+        response = client.patch(
+            "/api/sensors/AU_NAM_0906",
+            headers=auth_headers,
+            json={"dma_id": foreign_dma.id},
+        )
+        assert response.status_code == 400
+
+        db.refresh(tank)
+        assert tank.dma_id is None
+
+    def test_detect_dma_endpoint(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = self._make_dma_with_boundary(db, utility, "Endpoint DMA", self.POLYGON_AROUND_TANK)
+        tank = _make_tank(db, utility)
+
+        response = client.get(f"/api/tanks/{tank.id}/detect-dma", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json() == {"dma_id": dma.id, "dma_name": dma.name}
+
+    def test_detect_dma_endpoint_no_match(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        tank = _make_tank(db, utility)
+
+        response = client.get(f"/api/tanks/{tank.id}/detect-dma", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json() == {"dma_id": None, "dma_name": None}
+
+    def test_update_sensor_tank_change_redetects_dma(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = self._make_dma_with_boundary(db, utility, "Redetect DMA", self.POLYGON_AROUND_TANK)
+        old_tank = _make_tank(db, utility, source_key="Old Tank", latitude=-3.9, longitude=37.0)
+        new_tank = _make_tank(db, utility, source_key="New Tank")  # inside POLYGON_AROUND_TANK
+        _make_sensor(db, old_tank, device_id="AU_NAM_0907")
+
+        response = client.patch(
+            "/api/sensors/AU_NAM_0907",
+            headers=auth_headers,
+            json={"tank_id": new_tank.id, "dma_id": ""},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["tank_id"] == new_tank.id
+        assert data["dma_id"] == dma.id
+        assert data["dma_auto_assigned"] is True
+
+        db.refresh(new_tank)
+        assert new_tank.dma_id == dma.id
+
+    def test_update_sensor_tank_change_detection_fails_allows_manual(self, client: TestClient, db: Session, auth_headers: dict):
+        utility = _make_utility(db)
+        dma = _make_dma(db, utility, "Manual After Move")
+        old_tank = _make_tank(db, utility, source_key="Old Tank B")
+        # New tank has no coordinates -> detection cannot succeed.
+        new_tank = _make_tank(db, utility, source_key="New Tank B", latitude=None, longitude=None)
+        _make_sensor(db, old_tank, device_id="AU_NAM_0908")
+
+        response = client.patch(
+            "/api/sensors/AU_NAM_0908",
+            headers=auth_headers,
+            json={"tank_id": new_tank.id, "dma_id": dma.id},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["tank_id"] == new_tank.id
+        assert data["dma_id"] == dma.id
+        assert data["dma_auto_assigned"] is False
+
+        db.refresh(new_tank)
+        assert new_tank.dma_id == dma.id

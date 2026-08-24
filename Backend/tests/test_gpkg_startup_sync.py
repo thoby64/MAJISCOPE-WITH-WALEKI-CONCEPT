@@ -80,5 +80,6 @@ class TestGpkgStartupSync:
         result = run_tank_gpkg_sync_on_startup(db, loader=_fake_loader)
         assert result == {
             "layers": 0, "created": 0, "updated": 0,
-            "reactivated": 0, "deactivated": 0, "failed": 0,
+            "reactivated": 0, "deactivated": 0, "skipped_duplicates": 0,
+            "failed": 0,
         }

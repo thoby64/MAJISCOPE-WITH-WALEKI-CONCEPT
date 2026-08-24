@@ -13,7 +13,7 @@ from app.services.tank_sync import sync_tanks_from_layer
 
 STORAGE_FACILITIES = "storage_facilities"
 
-_COUNT_KEYS = ("created", "updated", "reactivated", "deactivated")
+_COUNT_KEYS = ("created", "updated", "reactivated", "deactivated", "skipped_duplicates")
 
 
 def run_tank_gpkg_sync_on_startup(
@@ -38,12 +38,10 @@ def run_tank_gpkg_sync_on_startup(
 
     aggregate: Dict[str, Any] = {
         "layers": len(layers),
-        "created": 0,
-        "updated": 0,
-        "reactivated": 0,
-        "deactivated": 0,
         "failed": 0,
     }
+    for key in _COUNT_KEYS:
+        aggregate[key] = 0
 
     for layer in layers:
         try:
@@ -66,5 +64,6 @@ def run_tank_gpkg_sync_on_startup(
     if layers:
         print(f"   Tank GPKG Startup Sync total: {aggregate['layers']} layer(s), "
               f"{aggregate['created']} created, {aggregate['updated']} updated, "
+              f"{aggregate['skipped_duplicates']} duplicate skips, "
               f"{aggregate['failed']} failed")
     return aggregate

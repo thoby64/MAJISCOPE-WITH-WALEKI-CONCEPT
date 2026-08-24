@@ -20,6 +20,7 @@ from app.api.uploads import uploads_router
 from app.api.hydraulic_model import hydraulic_model_router
 from app.api.dashboard import dashboard_router
 from app.api.sensors import sensors_router, tanks_router
+from app.api.infrastructure_templates import infrastructure_templates_router
 
 __all__ = [
     "auth_router",
@@ -40,4 +41,5 @@ __all__ = [
     "dashboard_router",
     "sensors_router",
     "tanks_router",
+    "infrastructure_templates_router",
 ]
