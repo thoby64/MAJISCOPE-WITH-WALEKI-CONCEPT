@@ -67,8 +67,8 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["admin", "utility_manager", "dma_manager"],
   },
   {
-    title: "Water Level Monitoring",
-    href: "/dashboard/water-level",
+    title: "Sensor Data Monitoring",
+    href: "/dashboard/sensor-data",
     icon: Droplets,
     roles: ["admin", "utility_manager", "dma_manager"],
   },

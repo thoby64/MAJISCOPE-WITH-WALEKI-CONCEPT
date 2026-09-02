@@ -4,6 +4,7 @@ Request/response models for manual storage facility creation.
 """
 
 from datetime import datetime
+from app.schemas.utc_datetime import UTCDateTime
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
@@ -101,16 +102,16 @@ class StorageFacilityCreateResponse(BaseModel):
     status: str
     sensor_count: int = 0
     active_sensor_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-    deactivated_at: Optional[datetime] = None
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+    deactivated_at: Optional[UTCDateTime] = None
     
     # Sensor info (if registered)
     sensor_device_id: Optional[str] = None
     sensor_h1_m: Optional[float] = None
     sensor_depth_m: Optional[float] = None
     sensor_activated: Optional[bool] = None
-    sensor_created_at: Optional[datetime] = None
+    sensor_created_at: Optional[UTCDateTime] = None
     
     # GPKG info
     gpkg_updated: bool = True

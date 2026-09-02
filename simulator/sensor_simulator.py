@@ -81,13 +81,25 @@ def save_env(cfg: dict) -> None:
 
 
 # ─── Sensors persistence ─────────────────────────────────────────────────────
-def load_sensors() -> list:
+def load_sensors() -> list[dict]:
+    """Load persisted sensors. Plain-string entries are legacy water_level."""
     if SENSORS_FILE.exists():
         try:
-            return json.loads(SENSORS_FILE.read_text())
+            raw = json.loads(SENSORS_FILE.read_text())
         except json.JSONDecodeError:
             return []
-    return []
+    else:
+        return []
+    sensors = []
+    for entry in raw:
+        if isinstance(entry, dict):
+            sensors.append({
+                "device_id": entry.get("device_id", ""),
+                "category": entry.get("category", "water_level"),
+            })
+        elif isinstance(entry, str):
+            sensors.append({"device_id": entry, "category": "water_level"})
+    return sensors
 
 
 def save_sensors(sensors: list) -> None:
@@ -108,14 +120,80 @@ class DepthGenerator:
         return round(self.value, 3)
 
 
+# ─── Water-quality generator (random walk per parameter) ─────────────────────
+class WaterQualityGenerator:
+    """Simulates a multi-parameter sonde: Tier A core + optional Tier B/C probes."""
+
+    def __init__(self):
+        self.values = {
+            # Tier A (core)
+            "temperature_c": 21.5,
+            "ph": 7.2,
+            "ec_uscm": 480.0,
+            "do_mgl": 6.5,
+            "do_pct_sat": 78.0,
+            "turbidity_ntu": 2.5,
+            # Tier B/C (optional fitted probes)
+            "orp_mv": 230.0,
+            "free_chlorine_mgl": 0.85,
+            "nitrate_mgl": 8.5,
+            "ammonia_mgl": 0.18,
+            "phosphate_mgl": 0.35,
+            "chlorophyll_ugl": 2.8,
+            "phycocyanin_ugl": 1.4,
+        }
+        self.steps = {
+            "temperature_c": 0.15,
+            "ph": 0.05,
+            "ec_uscm": 15.0,
+            "do_mgl": 0.2,
+            "do_pct_sat": 1.5,
+            "turbidity_ntu": 0.3,
+            "orp_mv": 5.0,
+            "free_chlorine_mgl": 0.05,
+            "nitrate_mgl": 0.4,
+            "ammonia_mgl": 0.03,
+            "phosphate_mgl": 0.04,
+            "chlorophyll_ugl": 0.25,
+            "phycocyanin_ugl": 0.15,
+        }
+
+    def next(self) -> dict:
+        out = {}
+        for field, value in self.values.items():
+            step = random.gauss(0, self.steps[field])
+            if random.random() < 0.06:
+                step *= 3
+            self.values[field] = value + step
+            out[field] = round(self.values[field], 3)
+        # keep values physically sane
+        out["ph"] = max(0.5, min(13.5, out["ph"]))
+        out["do_mgl"] = max(0.5, min(15.0, out["do_mgl"]))
+        out["do_pct_sat"] = max(40.0, min(120.0, out["do_pct_sat"]))
+        out["turbidity_ntu"] = max(0.1, min(50.0, out["turbidity_ntu"]))
+        out["ec_uscm"] = max(50.0, out["ec_uscm"])
+        out["temperature_c"] = max(5.0, min(40.0, out["temperature_c"]))
+        out["free_chlorine_mgl"] = max(0.0, min(5.0, out["free_chlorine_mgl"]))
+        out["nitrate_mgl"] = max(0.0, out["nitrate_mgl"])
+        out["ammonia_mgl"] = max(0.0, out["ammonia_mgl"])
+        out["phosphate_mgl"] = max(0.0, out["phosphate_mgl"])
+        out["chlorophyll_ugl"] = max(0.0, out["chlorophyll_ugl"])
+        out["phycocyanin_ugl"] = max(0.0, out["phycocyanin_ugl"])
+        return out
+
+
 # ─── HTTP sender ──────────────────────────────────────────────────────────────
 def send_reading(url: str, key: str, device_id: str, depth_m: float,
-                 occurred_at: str) -> dict | None:
-    payload = json.dumps({
+                 occurred_at: str, wq_values: dict | None = None) -> dict | None:
+    body = {
         "device_id": device_id,
-        "depth_m": depth_m,
         "occurred_at": occurred_at,
-    }).encode()
+    }
+    if wq_values is not None:
+        body.update(wq_values)
+    else:
+        body["depth_m"] = depth_m
+    payload = json.dumps(body).encode()
 
     req = urllib.request.Request(
         url,
@@ -138,12 +216,16 @@ def send_reading(url: str, key: str, device_id: str, depth_m: float,
 
 # ─── Per-sensor send loop (runs in its own thread) ───────────────────────────
 class SensorLoop:
-    def __init__(self, device_id: str, url: str, key: str, interval: int):
+    def __init__(self, device_id: str, url: str, key: str, interval: int,
+                 category: str = "water_level"):
         self.device_id = device_id
+        self.category = category
         self.url = url
         self.key = key
         self.interval = interval
         self.depth = DepthGenerator()
+        self.wq = WaterQualityGenerator()
+        self.last_values: dict = {}
         self.send_count = 0
         self.last_status = "idle"
         self.last_response: dict | None = None
@@ -168,9 +250,15 @@ class SensorLoop:
             self._stop.wait(self.interval + random.uniform(-2, 2))
 
     def _tick(self):
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-        d = self.depth.next()
-        resp = send_reading(self.url, self.key, self.device_id, d, now)
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if self.category == "water_quality":
+            wq = self.wq.next()
+            self.last_values = wq
+            resp = send_reading(self.url, self.key, self.device_id, 0.0, now, wq_values=wq)
+        else:
+            d = self.depth.next()
+            self.last_values = {"depth_m": d}
+            resp = send_reading(self.url, self.key, self.device_id, d, now)
         self.send_count += 1
         self.last_send_time = now
         self.last_response = resp
@@ -188,9 +276,17 @@ class SensorLoop:
             if resp.get("is_pending"):
                 self.last_status = "pending"
             else:
-                wl = resp.get("water_level_m", "?")
                 st = resp.get("status", "?")
-                self.last_status = f"ok({st}, {wl}m)"
+                if self.category == "water_quality":
+                    params = resp.get("parameters") or {}
+                    head = ", ".join(
+                        f"{k.replace('_mgl','').replace('_uscm','').replace('_ntu','').replace('_c','')}={v}"
+                        for k, v in list(params.items())[:3]
+                    )
+                    self.last_status = f"ok({st}, {head})"
+                else:
+                    wl = resp.get("water_level_m", "?")
+                    self.last_status = f"ok({st}, {wl}m)"
 
 
 # ─── Simulator core ───────────────────────────────────────────────────────────
@@ -209,14 +305,18 @@ class Simulator:
             return False
         return True
 
-    def start_sensor(self, dev_id: str) -> str:
+    def start_sensor(self, dev_id: str, category: str = "water_level") -> str:
         if dev_id in self.loops and self.loops[dev_id].alive:
             return "already_active"
-        loop = SensorLoop(dev_id, self.cfg["MAJISCOPE_URL"], self.cfg["INGEST_KEY"], self._interval)
+        loop = SensorLoop(
+            dev_id, self.cfg["MAJISCOPE_URL"], self.cfg["INGEST_KEY"], self._interval,
+            category=category,
+        )
         self.loops[dev_id] = loop
         loop.start()
-        if dev_id not in self.sensors:
-            self.sensors.append(dev_id)
+        entry = {"device_id": dev_id, "category": category}
+        if entry not in self.sensors:
+            self.sensors.append(entry)
             save_sensors(self.sensors)
         return "started"
 
@@ -226,9 +326,8 @@ class Simulator:
         self.loops[dev_id].stop()
         self.loops[dev_id]._thread.join(timeout=5)
         del self.loops[dev_id]
-        if dev_id in self.sensors:
-            self.sensors.remove(dev_id)
-            save_sensors(self.sensors)
+        self.sensors = [s for s in self.sensors if s.get("device_id") != dev_id]
+        save_sensors(self.sensors)
         return True
 
     def sensor_status(self, dev_id: str) -> dict:
@@ -237,16 +336,21 @@ class Simulator:
             return {"device_id": dev_id, "alive": False}
         return {
             "device_id": dev_id,
+            "category": loop.category,
             "alive": loop.alive,
             "send_count": loop.send_count,
             "last_status": loop.last_status,
             "last_send_time": loop.last_send_time,
             "consecutive_errors": loop.consecutive_errors,
             "last_response": loop.last_response,
+            "last_values": loop.last_values,
         }
 
     def all_sensors_status(self) -> list[dict]:
-        return [self.sensor_status(did) for did in self.sensors]
+        return [
+            self.sensor_status(entry["device_id"] if isinstance(entry, dict) else entry)
+            for entry in self.sensors
+        ]
 
     def stop_all(self):
         for loop in self.loops.values():
@@ -286,11 +390,15 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
 
         if path == "/api/sensors/add":
             dev_id = (body or {}).get("device_id", "").strip()
+            category = (body or {}).get("category", "water_level")
+            if category not in ("water_level", "water_quality"):
+                self._json_response({"error": "category must be water_level or water_quality"}, 400)
+                return
             if not dev_id:
                 self._json_response({"error": "device_id is required"}, 400)
                 return
-            result = self.sim.start_sensor(dev_id)
-            self._json_response({"status": result, "device_id": dev_id})
+            result = self.sim.start_sensor(dev_id, category=category)
+            self._json_response({"status": result, "device_id": dev_id, "category": category})
 
         elif path == "/api/sensors/remove":
             dev_id = (body or {}).get("device_id", "").strip()
@@ -302,12 +410,18 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
 
         elif path == "/api/send-test":
             dev_id = (body or {}).get("device_id", "").strip()
+            category = (body or {}).get("category", "water_level")
             key = self.sim.cfg.get("INGEST_KEY", "")
             url = self.sim.cfg.get("MAJISCOPE_URL", "")
-            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-            d = round(random.uniform(0.5, 15.0), 3)
-            resp = send_reading(url, key, dev_id, d, now)
-            self._json_response({"depth_m": d, "occurred_at": now, "response": resp})
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            if category == "water_quality":
+                wq = WaterQualityGenerator().next()
+                resp = send_reading(url, key, dev_id, 0.0, now, wq_values=wq)
+                self._json_response({"category": "water_quality", "values": wq, "occurred_at": now, "response": resp})
+            else:
+                d = round(random.uniform(0.5, 15.0), 3)
+                resp = send_reading(url, key, dev_id, d, now)
+                self._json_response({"category": "water_level", "depth_m": d, "occurred_at": now, "response": resp})
 
         else:
             self.send_error(404)
@@ -439,6 +553,10 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)
       <h2>Active Sensors <span class="count" id="sensorCount">0</span></h2>
       <div class="add-form">
         <input type="text" id="addInput" placeholder="Device ID — e.g. AU_NAM_0001" spellcheck="false">
+        <select id="categorySelect" style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;outline:none">
+          <option value="water_level">🌊 Water Level</option>
+          <option value="water_quality">🧪 Water Quality</option>
+        </select>
         <button class="btn btn-primary" onclick="addSensor()">+ Add &amp; Start</button>
       </div>
     </div>
@@ -520,12 +638,23 @@ function render() {
 
     const nameMatch = /^[A-Z]{2,3}_[A-Z]{2,3}_\d{2,4}$/.test(s.device_id);
     const badge = nameMatch ? '' : '<span style="font-size:.65rem;color:var(--orange);margin-left:6px" title="Does not follow UTILITY_DMA_SEQ convention">⚠ non-standard</span>';
+    const isWq = s.category === 'water_quality';
+    const catTag = isWq
+      ? '<span style="font-size:.65rem;padding:2px 8px;border-radius:8px;background:rgba(6,182,212,.15);color:var(--accent2);margin-left:6px;font-weight:600">🧪 WQ</span>'
+      : '<span style="font-size:.65rem;padding:2px 8px;border-radius:8px;background:rgba(34,197,94,.15);color:var(--green);margin-left:6px;font-weight:600">🌊 WL</span>';
+
+    let valuesHtml = '';
+    if (s.last_values && Object.keys(s.last_values).length) {
+      const parts = Object.entries(s.last_values).slice(0, 4).map(([k, v]) => `${esc(k)}: <b>${v}</b>`);
+      valuesHtml = `<span style="font-size:.7rem;color:var(--text2)">${parts.join(' · ')}</span>`;
+    }
 
     return `<div class="sensor-card ${statusClass}">
       <div>
         <div class="sensor-top">
           <span class="sensor-dot ${dotClass}"></span>
           <span class="sensor-id">${esc(s.device_id)}</span>
+          ${catTag}
           ${badge}
           <span class="status-badge ${statusClass}">${esc(statusText)}</span>
         </div>
@@ -534,9 +663,10 @@ function render() {
           <span>Errors: <b>${s.consecutive_errors}</b></span>
           ${s.last_send_time ? `<span>Last: <b>${esc(s.last_send_time)}</b></span>` : ''}
         </div>
+        ${valuesHtml ? `<div style="margin-top:4px">${valuesHtml}</div>` : ''}
       </div>
       <div class="sensor-actions">
-        <button class="btn btn-ghost" onclick="testSend('${esc(s.device_id)}')">Test Send</button>
+        <button class="btn btn-ghost" onclick="testSend('${esc(s.device_id)}', '${s.category || 'water_level'}')">Test Send</button>
         <button class="btn btn-danger" onclick="removeSensor('${esc(s.device_id)}')">Remove</button>
       </div>
     </div>`;
@@ -548,13 +678,14 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 async function addSensor() {
   const input = document.getElementById('addInput');
   const devId = input.value.trim();
+  const category = document.getElementById('categorySelect').value;
   if (!devId) { toast('Enter a device ID', 'error'); return; }
 
-  const r = await api('POST', '/api/sensors/add', { device_id: devId });
+  const r = await api('POST', '/api/sensors/add', { device_id: devId, category });
   if (r.error) { toast(r.error, 'error'); return; }
 
   input.value = '';
-  toast(`${devId} — started`);
+  toast(`${devId} (${category === 'water_quality' ? 'WQ' : 'WL'}) — started`);
   refreshSensors();
 }
 
@@ -565,13 +696,15 @@ async function removeSensor(devId) {
   refreshSensors();
 }
 
-async function testSend(devId) {
-  const r = await api('POST', '/api/send-test', { device_id: devId });
+async function testSend(devId, category) {
+  const r = await api('POST', '/api/send-test', { device_id: devId, category });
   if (r.error) { toast(r.error, 'error'); return; }
   const resp = r.response || {};
   if (resp.error) toast(`Error ${resp.status}: ${resp.detail}`, 'error');
-  else if (resp.is_pending) toast(`Sent — pending buffer (${r.depth_m}m)`);
+  else if (resp.is_pending) toast(`Sent — pending buffer (register to link)`);
+  else if (category === 'water_quality') toast(`Sent — status: ${resp.status}, params: ${Object.keys(resp.parameters || {}).length}`);
   else toast(`Sent — water_level: ${resp.water_level_m}m, status: ${resp.status}`);
+  refreshSensors();
 }
 
 document.getElementById('addInput').addEventListener('keydown', e => { if (e.key === 'Enter') addSensor(); });
@@ -593,8 +726,10 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
     print(f"  Endpoint : {c(sim.cfg['MAJISCOPE_URL'], DIM)}")
     print(f"  Interval : {c(f'{interval}s', DIM)}\n")
 
-    for dev_id in sim.sensors:
-        sim.start_sensor(dev_id)
+    for entry in sim.sensors:
+        dev_id = entry["device_id"] if isinstance(entry, dict) else entry
+        category = entry.get("category", "water_level") if isinstance(entry, dict) else "water_level"
+        sim.start_sensor(dev_id, category=category)
 
     if once:
         time.sleep(interval + 5)
@@ -618,15 +753,18 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
             if not dev_id:
                 print(f"  {c('Aborted.', YELLOW)}")
                 continue
+            print(f"  Category: {c('1', GREEN)} Water level   {c('2', GREEN)} Water quality")
+            cat_choice = input(f"  Category [1/2, default 1]: ").strip()
+            category = "water_quality" if cat_choice == "2" else "water_level"
             if DEVICE_ID_PATTERN.match(dev_id):
                 print(f"  {c('Naming convention OK', GREEN)}")
             else:
                 print(f"  {c('Note:', YELLOW)} does not match {{UTILITY}}_{{DMA}}_{{SEQ}} convention — still accepted.")
-            result = sim.start_sensor(dev_id)
+            result = sim.start_sensor(dev_id, category=category)
             if result == "already_active":
                 print(f"  {c('Already active.', YELLOW)}")
             else:
-                print(f"  {c('Sensor added and started.', GREEN)} Sending every {interval}s.\n")
+                print(f"  {c(f'Sensor added ({category}) and started.', GREEN)} Sending every {interval}s.\n")
 
         elif choice == "2":
             print(f"\n  {c('Sensors', BOLD)}")
@@ -637,7 +775,8 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
                 icon = c("●", GREEN) if loop.alive and loop.consecutive_errors == 0 else (
                     c("●", YELLOW) if loop.consecutive_errors < 3 else c("●", RED))
                 last = loop.last_status if loop.last_status != "idle" else c("—", DIM)
-                print(f"  {icon} {c(dev_id, BOLD)}")
+                cat = "🧪 WQ" if loop.category == "water_quality" else "🌊 WL"
+                print(f"  {icon} {c(dev_id, BOLD)}  [{cat}]")
                 print(f"      Sends: {loop.send_count}  |  Last: {c(last, CYAN if loop.last_status == 'pending' else DIM)}  |  Errors: {loop.consecutive_errors}")
             print()
 
@@ -667,8 +806,10 @@ def run_web(sim: Simulator, port: int = 8081):
     print(f"  Interval : {c(f'{sim._interval}s', DIM)}")
     print(f"  Open     : {c(f'http://localhost:{port}', GREEN)}\n")
 
-    for dev_id in sim.sensors:
-        sim.start_sensor(dev_id)
+    for entry in sim.sensors:
+        dev_id = entry["device_id"] if isinstance(entry, dict) else entry
+        category = entry.get("category", "water_level") if isinstance(entry, dict) else "water_level"
+        sim.start_sensor(dev_id, category=category)
 
     if sim.sensors:
         print(f"  {c(f'Resumed {len(sim.sensors)} saved sensor(s).', DIM)}\n")

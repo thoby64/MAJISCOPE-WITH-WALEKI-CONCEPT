@@ -4,6 +4,7 @@ Request and response models for API validation
 """
 
 from datetime import datetime
+from app.schemas.utc_datetime import UTCDateTime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field, model_validator
 from app.constants.enums import LeakageType, ReportStatus, ReportPriority, ReportType, NotificationType
@@ -74,7 +75,7 @@ class ReportUpdate(BaseModel):
     status: Optional[ReportStatus] = None
     photos: Optional[List[str]] = None
     notes: Optional[str] = Field(None, max_length=2000)
-    sla_deadline: Optional[datetime] = None
+    sla_deadline: Optional[UTCDateTime] = None
 
 
 class ReportResponse(ReportBase):
@@ -82,9 +83,9 @@ class ReportResponse(ReportBase):
     id: str
     status: ReportStatus
     assigned_engineer_id: Optional[str]
-    sla_deadline: Optional[datetime]
-    created_at: datetime
-    updated_at: datetime
+    sla_deadline: Optional[UTCDateTime]
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -146,7 +147,7 @@ class ActivityLogCreate(ActivityLogBase):
 class ActivityLogResponse(ActivityLogBase):
     """Schema for activity log response"""
     id: str
-    timestamp: datetime
+    timestamp: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -169,8 +170,8 @@ class ActivityLogFilterRequest(BaseModel):
     entity_id: Optional[str] = None
     utility_id: Optional[str] = None
     dma_id: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    start_date: Optional[UTCDateTime] = None
+    end_date: Optional[UTCDateTime] = None
     limit: int = Field(100, ge=1, le=1000)
     offset: int = Field(0, ge=0)
 
@@ -217,8 +218,8 @@ class NotificationResponse(NotificationBase):
     utility_manager_id: Optional[str]
     dma_manager_id: Optional[str]
     engineer_id: Optional[str]
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -259,9 +260,9 @@ class PushTokenResponse(BaseModel):
     device_id: Optional[str] = None
     app_role: Optional[str] = None
     active: bool
-    created_at: datetime
-    updated_at: datetime
-    last_registered_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+    last_registered_at: UTCDateTime
 
     class Config:
         from_attributes = True

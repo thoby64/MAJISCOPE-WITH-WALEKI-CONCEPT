@@ -135,9 +135,9 @@ export default function StorageFacilityCreatePage() {
       
       // Navigate to the new tank's detail page or water-level page
       if (response.data?.tank?.id) {
-        router.push(`/dashboard/water-level/${response.data.tank.id}`);
+        router.push(`/dashboard/sensor-data/${response.data.tank.id}`);
       } else {
-        router.push('/dashboard/water-level');
+        router.push('/dashboard/sensor-data');
         router.refresh();
       }
     } catch (error: any) {

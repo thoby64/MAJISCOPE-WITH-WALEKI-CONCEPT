@@ -21,10 +21,10 @@ from shapely import wkb
 from app.models import (
     Tank,
     TankStatusEnum,
-    SensorDevice,
     UtilityInfrastructureLayer,
     Utility,
 )
+from app.models.sensor_platform import SensorDevice as PlatformSensorDevice, SensorCategoryEnum
 from app.services.tank_sync import sync_tanks_from_layer
 from app.services.gpkg_utils import load_storage_facilities_features
 from app.services.activity_logs import audit_log
@@ -385,7 +385,7 @@ def append_storage_facility(
     sensor_h1_m: Optional[float] = None,
     sensor_depth_m: Optional[float] = None,
     sensor_activated: bool = False,
-) -> Tuple[bytes, Tank, Optional[SensorDevice]]:
+) -> Tuple[bytes, Tank, Optional[PlatformSensorDevice]]:
     """
     Append a storage facility to GPKG and materialize in database.
     
@@ -489,25 +489,61 @@ def append_storage_facility(
     if not new_tank:
         raise ValueError("Failed to find newly created tank after sync")
     
-    # 4. Optionally register sensor
+    # 4. Optionally register sensor (sensor registry lives in the sensor DB)
     created_sensor = None
     if register_sensor and sensor_device_id:
-        # Check if sensor already exists
-        existing_sensor = db.query(SensorDevice).filter(SensorDevice.device_id == sensor_device_id).first()
-        if existing_sensor:
-            raise ValueError(f"Sensor with device_id {sensor_device_id} already exists")
-        
-        created_sensor = SensorDevice(
-            device_id=sensor_device_id,
-            tank_id=new_tank.id,
-            h1_m=sensor_h1_m,
-            depth_m=sensor_depth_m,
-            warning_height_m=10.0,
-            critical_height_m=0.0,
-            activated=sensor_activated,
+        from app.database.sensor_session import SensorSessionLocal
+        from app.services.sensor_platform_sync import (
+            ensure_tank_ref,
+            refresh_tank_sensor_counts,
         )
-        db.add(created_sensor)
-        db.flush()
+
+        with SensorSessionLocal() as sensor_db:
+            # Check if sensor already exists (globally unique device_id)
+            existing_sensor = (
+                sensor_db.query(PlatformSensorDevice)
+                .filter(PlatformSensorDevice.device_id == sensor_device_id)
+                .first()
+            )
+            if existing_sensor:
+                raise ValueError(f"Sensor with device_id {sensor_device_id} already exists")
+
+            # Mirror the new tank into the sensor DB (self-heals if needed)
+            tank_ref = ensure_tank_ref(db, sensor_db, new_tank.id)
+            if tank_ref is None:
+                raise ValueError("Failed to mirror tank to sensor platform")
+
+            if sensor_activated:
+                clash = (
+                    sensor_db.query(PlatformSensorDevice)
+                    .filter(
+                        PlatformSensorDevice.tank_id == tank_ref.id,
+                        PlatformSensorDevice.category == SensorCategoryEnum.WATER_LEVEL,
+                        PlatformSensorDevice.activated.is_(True),
+                    )
+                    .first()
+                )
+                if clash is not None:
+                    raise ValueError(
+                        f"Tank already has an active water_level sensor ({clash.device_id})"
+                    )
+
+            created_sensor = PlatformSensorDevice(
+                device_id=sensor_device_id,
+                category=SensorCategoryEnum.WATER_LEVEL,
+                tank_id=tank_ref.id,
+                activated=sensor_activated,
+                config={
+                    "h1_m": sensor_h1_m,
+                    "depth_m": sensor_depth_m,
+                    "warning_height_m": 10.0,
+                    "critical_height_m": 0.0,
+                },
+            )
+            sensor_db.add(created_sensor)
+            sensor_db.commit()
+            sensor_db.refresh(created_sensor)
+            refresh_tank_sensor_counts(sensor_db, tank_ref.id)
     
     # 5. Audit log for GPKG update
     # (Will be called by API endpoint with proper request context)

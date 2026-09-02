@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Activity, Droplets, Loader2, Pencil, Power, Trash2 } from "lucide-react"
+import { Activity, Droplets, FlaskConical, Loader2, Pencil, Power, Trash2, Waves } from "lucide-react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
@@ -96,10 +96,10 @@ export default function SensorsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="Sensor Management"
-        description="Edit and manage water-level sensors across tanks. New sensors are registered on the Water Level page."
+        description="Edit and manage sensors of all categories across tanks. New sensors are registered on the Sensor Data Monitoring page."
       />
 
       <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm">
@@ -108,6 +108,7 @@ export default function SensorsPage() {
             <TableHeader>
               <TableRow className="bg-slate-50">
                 <TableHead className="px-6 py-4">Device ID</TableHead>
+                <TableHead className="px-6 py-4">Category</TableHead>
                 <TableHead className="px-6 py-4">Tank</TableHead>
                 <TableHead className="px-6 py-4">Utility</TableHead>
                 <TableHead className="px-6 py-4">DMA</TableHead>
@@ -136,6 +137,20 @@ export default function SensorsPage() {
                           {sensor.deviceId}
                         </span>
                       </TableCell>
+                      <TableCell className="px-6 py-4">
+                        <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          sensor.category === "water_quality"
+                            ? "bg-cyan-50 text-cyan-700"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}>
+                          {sensor.category === "water_quality" ? (
+                            <FlaskConical className="h-3 w-3" />
+                          ) : (
+                            <Waves className="h-3 w-3" />
+                          )}
+                          {sensor.category === "water_quality" ? "Quality" : "Level"}
+                        </span>
+                      </TableCell>
                       <TableCell className="px-6 py-4 text-sm text-slate-600">
                         {tank?.name || tank?.sourceKey || sensor.tankName || sensor.tankId}
                       </TableCell>
@@ -150,7 +165,9 @@ export default function SensorsPage() {
                       </TableCell>
                       <TableCell className="px-6 py-4 text-xs text-slate-500">
                         {sensor.lastReading
-                          ? `${sensor.lastReading.waterLevelM.toFixed(2)} m · ${sensor.lastReading.occurredAt}`
+                          ? sensor.lastReading.category === "water_quality"
+                            ? `${Object.values(sensor.lastReading.parameters ?? {}).length} param(s) · ${sensor.lastReading.occurredAt}`
+                            : `${(sensor.lastReading.waterLevelM ?? 0).toFixed(2)} m · ${sensor.lastReading.occurredAt}`
                           : "No readings"}
                       </TableCell>
                       <TableCell className="px-6 py-4">

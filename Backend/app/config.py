@@ -33,6 +33,12 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://user:password@localhost:5432/majiscope",
         alias="DATABASE_URL",
     )
+    # Separate store for sensor telemetry (readings) and the sensor registry.
+    # Treated as a remote host; may point at the same Postgres server.
+    sensor_database_url: str = Field(
+        default="postgresql+psycopg://user:password@localhost:5432/sensor_platform",
+        alias="SENSOR_DATABASE_URL",
+    )
 
     # ===== Security Settings =====
     secret_key: str = Field(

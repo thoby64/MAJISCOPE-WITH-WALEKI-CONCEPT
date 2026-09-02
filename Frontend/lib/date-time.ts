@@ -3,8 +3,22 @@ const TANZANIA_TIME_ZONE = "Africa/Dar_es_Salaam"
 
 type DateInput = Date | string | number
 
+// ISO 8601 datetime without any timezone designator ("Z" or "+hh:mm").
+// The backend stores naive UTC timestamps, so such strings must be read as UTC.
+// JavaScript's `new Date()` otherwise treats them as *local* time, which made
+// readings appear hours off (e.g. 3h behind in Tanzania, UTC+3).
+const NAIVE_ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?$/
+
+export function normalizeNaiveIsoAsUtc(value: string): string {
+  if (typeof value === "string" && NAIVE_ISO_DATE_TIME.test(value.trim())) {
+    return `${value.trim()}Z`
+  }
+  return value
+}
+
 function parseDate(value: DateInput) {
-  const date = value instanceof Date ? value : new Date(value)
+  const normalised = typeof value === "string" ? normalizeNaiveIsoAsUtc(value) : value
+  const date = normalised instanceof Date ? normalised : new Date(normalised)
   return Number.isNaN(date.getTime()) ? null : date
 }
 

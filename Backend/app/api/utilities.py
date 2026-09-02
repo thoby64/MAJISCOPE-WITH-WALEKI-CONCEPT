@@ -1942,8 +1942,6 @@ async def create_storage_facility_manual(
 
         db.commit()
         db.refresh(new_tank)
-        if created_sensor:
-            db.refresh(created_sensor)
 
         # Build response
         response = StorageFacilityCreateResponse(
@@ -1955,8 +1953,8 @@ async def create_storage_facility_manual(
             dma_id=new_tank.dma_id,
             source_key=new_tank.source_key,
             status=new_tank.status.value if hasattr(new_tank.status, "value") else new_tank.status,
-            sensor_count=0,
-            active_sensor_count=0,
+            sensor_count=1 if created_sensor else 0,
+            active_sensor_count=1 if (created_sensor and created_sensor.activated) else 0,
             created_at=new_tank.created_at,
             updated_at=new_tank.updated_at,
             deactivated_at=new_tank.deactivated_at,
@@ -1966,8 +1964,8 @@ async def create_storage_facility_manual(
 
         if created_sensor:
             response.sensor_device_id = created_sensor.device_id
-            response.sensor_h1_m = created_sensor.h1_m
-            response.sensor_depth_m = created_sensor.depth_m
+            response.sensor_h1_m = (created_sensor.config or {}).get("h1_m")
+            response.sensor_depth_m = (created_sensor.config or {}).get("depth_m")
             response.sensor_activated = created_sensor.activated
             response.sensor_created_at = created_sensor.created_at
 

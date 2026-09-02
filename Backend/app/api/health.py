@@ -23,7 +23,7 @@ async def health_check():
         "service": settings.app_name,
         "version": settings.app_version,
         "environment": settings.environment,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.utcnow().isoformat() + "Z",
     }
 
 
@@ -36,14 +36,14 @@ async def database_health(db: Session = Depends(get_db)):
         return {
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "database": "disconnected",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
 
@@ -58,11 +58,11 @@ async def readiness_check(db: Session = Depends(get_db)):
             "ready": True,
             "service": settings.app_name,
             "version": settings.app_version,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }
     except Exception as e:
         return {
             "ready": False,
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.utcnow().isoformat() + "Z",
         }

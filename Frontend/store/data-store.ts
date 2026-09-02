@@ -88,18 +88,18 @@ export function getUtilityInfrastructureAsset(utility: Utility | null | undefine
   return utility?.infrastructureLayers?.find((layer) => layer.assetType === assetType) || null
 }
 
+export type SensorCategory = "water_level" | "water_quality"
+
 export interface SensorSnap {
   id: string
   deviceId: string
+  category: SensorCategory
   tankId: string
   tankName: string | null
   utilityId: string
   dmaId: string | null
   dmaAutoAssigned?: boolean
-  h1M: number | null
-  depthM: number | null
-  warningHeightM: number
-  criticalHeightM: number
+  config: Record<string, unknown> | null
   activated: boolean
   status: string
   lastReading: SensorLastReading | null
@@ -110,33 +110,39 @@ export interface SensorSnap {
 
 export interface SensorLastReading {
   ok: boolean
+  category: SensorCategory
   readingId: string
   sensorId: string
   tankId: string
   utilityId: string
   dmaId: string | null
-  waterLevelM: number
-  h1M: number
-  depthM: number
   status: string
   occurredAt: string
-  dedupKey: string | null
+  // water level
+  waterLevelM?: number | null
+  h1M?: number | null
+  depthM?: number | null
+  // water quality
+  parameters?: Record<string, number> | null
   isDuplicate: boolean
 }
 
 export interface TankReading {
   ok: boolean
+  category: SensorCategory
   readingId: string
   sensorId: string
   tankId: string
   utilityId: string
   dmaId: string | null
-  waterLevelM: number
-  h1M: number
-  depthM: number
+  // water level
+  waterLevelM?: number
+  h1M?: number
+  depthM?: number
+  // water quality
+  parameters?: Record<string, number>
   status: string
   occurredAt: string
-  dedupKey: string | null
   isDuplicate: boolean
 }
 
@@ -159,12 +165,14 @@ export interface TankSnap {
 export interface RegisterSensorInput {
   device_id: string
   tank_id: string
+  category?: SensorCategory
   h1_m?: number
   depth_m?: number
   warning_height_m?: number
   critical_height_m?: number
   activated?: boolean
   dma_id?: string | null
+  parameter_thresholds?: Record<string, Record<string, number>>
 }
 
 function serializeUtilityPayload(data: Partial<Utility>) {
@@ -423,7 +431,7 @@ interface DataState {
   fetchNotifications: (userId: string) => Promise<void>
   fetchSensors: () => Promise<void>
   fetchTanks: () => Promise<void>
-  fetchTankReadings: (tankId: string, limit?: number) => Promise<void>
+  fetchTankReadings: (tankId: string, limit?: number, category?: SensorCategory) => Promise<void>
   registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
   updateSensor: (deviceId: string, data: Partial<RegisterSensorInput>) => Promise<SensorSnap>
   deleteSensor: (deviceId: string) => Promise<void>
@@ -799,13 +807,19 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  fetchTankReadings: async (tankId: string, limit = 30) => {
+  fetchTankReadings: async (tankId: string, limit = 30, category: SensorCategory = "water_level") => {
     try {
-      const response = await apiClient.get(`/tanks/${tankId}/readings?limit=${limit}`, { skipCache: true })
+      const response = await apiClient.get(
+        `/tanks/${tankId}/readings?limit=${limit}&category=${category}`,
+        { skipCache: true }
+      )
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set((state) => ({
-          tankReadingsByTank: { ...state.tankReadingsByTank, [tankId]: transformed as TankReading[] },
+          tankReadingsByTank: {
+            ...state.tankReadingsByTank,
+            [`${tankId}:${category}`]: transformed as TankReading[],
+          },
         }))
       } else if (!isAbortLikeError(response.error, response.code)) {
         console.error("Error fetching tank readings:", response.error)

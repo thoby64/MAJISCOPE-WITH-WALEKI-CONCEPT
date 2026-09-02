@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Droplets, Gauge, MapPin, Plus, RefreshCw } from "lucide-react"
+import { Droplets, FlaskConical, Gauge, MapPin, Plus, RefreshCw, Waves } from "lucide-react"
 import { InfrastructureIcon } from "@/components/icons/infrastructure-icon"
 import { useAuthStore } from "@/store/auth-store"
-import { useDataStore, type SensorSnap, type TankSnap } from "@/store/data-store"
+import { useDataStore, type SensorCategory, type SensorSnap, type TankSnap } from "@/store/data-store"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,9 +26,26 @@ interface TankGroup {
   representative: SensorSnap | null
   sensorCount: number
   activeSensorCount: number
+  activeCategories: SensorCategory[]
 }
 
-export default function WaterLevelPage() {
+function wqHeadline(parameters: Record<string, number> | null | undefined): string {
+  if (!parameters) return "—"
+  const pick = (...keys: string[]) => {
+    for (const k of keys) if (parameters[k] != null) return parameters[k]
+    return null
+  }
+  const parts: string[] = []
+  const ph = pick("ph")
+  if (ph != null) parts.push(`pH ${ph}`)
+  const turb = pick("turbidity_ntu", "turbidityNtu")
+  if (turb != null) parts.push(`Turb ${turb} NTU`)
+  const temp = pick("temperature_c", "temperatureC")
+  if (temp != null) parts.push(`${temp}°C`)
+  return parts.slice(0, 2).join(" · ") || "—"
+}
+
+export default function SensorDataPage() {
   const router = useRouter()
   const { currentUser } = useAuthStore()
   const { sensors, tanks, dmas, utilities, fetchSensors, fetchTanks, fetchDMAs, fetchUtilities } = useDataStore()
@@ -104,7 +121,7 @@ export default function WaterLevelPage() {
     return dmas
   }, [currentUser?.dmaId, dmas, role, utilityFilter])
 
-  // Build latest sensor-per-tank
+  // Build latest sensor-per-tank (prefer activated sensors with fresh readings)
   const latestSensorByTank = useMemo(() => {
     const map = new Map<string, SensorSnap>()
     for (const sensor of sensors) {
@@ -125,11 +142,15 @@ export default function WaterLevelPage() {
     return tanks
       .map((tank) => {
         const tankSensors = sensors.filter((s) => s.tankId === tank.id)
+        const activeCategories = Array.from(
+          new Set(tankSensors.filter((s) => s.activated).map((s) => s.category))
+        )
         return {
           tank,
           representative: latestSensorByTank.get(tank.id) ?? null,
           sensorCount: tankSensors.length,
           activeSensorCount: tank.activeSensorCount,
+          activeCategories,
         }
       })
       .filter((group) => {
@@ -145,7 +166,7 @@ export default function WaterLevelPage() {
   const canCreateFacility = role === "admin" || role === "utility_manager"
 
   const openTank = useCallback(
-    (tankId: string) => router.push(`/dashboard/water-level/${tankId}`),
+    (tankId: string) => router.push(`/dashboard/sensor-data/${tankId}`),
     [router]
   )
 
@@ -160,8 +181,8 @@ export default function WaterLevelPage() {
 
   if (!canView) {
     return (
-      <div className="flex flex-col gap-6">
-        <PageHeader title="Water Level Monitoring" description="Access restricted" />
+      <div className="flex min-w-0 flex-col gap-6">
+        <PageHeader title="Sensor Data Monitoring" description="Access restricted" />
         <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
           <CardContent className="py-16 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -171,7 +192,7 @@ export default function WaterLevelPage() {
               <div>
                 <p className="text-lg font-semibold text-slate-800">Access Restricted</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  Only admin, utility manager, and DMA manager roles can view water levels.
+                  Only admin, utility manager, and DMA manager roles can view sensor data.
                 </p>
               </div>
             </div>
@@ -182,10 +203,10 @@ export default function WaterLevelPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex min-w-0 flex-col gap-6">
       <PageHeader
-        title="Water Level Monitoring"
-        description="Live tank water levels from connected sensors. Refreshes every 10 seconds."
+        title="Sensor Data Monitoring"
+        description="Live readings from connected water-level and water-quality sensors. Refreshes every 10 seconds."
         actionLabel="Refresh"
         actionIcon={RefreshCw}
         onAction={() => {
@@ -282,8 +303,9 @@ export default function WaterLevelPage() {
           {tankGroups.map((group) => {
             const { tank, representative } = group
             const reading = representative?.lastReading ?? null
+            const isWq = representative?.category === "water_quality"
             const tankLength = tankLengthFor(representative ?? {}, readStoredTankLength(tank.id))
-            const percent = reading ? fillPercent(reading.waterLevelM, tankLength) : 0
+            const percent = reading && !isWq ? fillPercent(reading.waterLevelM ?? 0, tankLength) : 0
             const status = representative?.status ?? (tank.status === "deactivated" ? "inactive" : "unknown")
 
             return (
@@ -315,37 +337,76 @@ export default function WaterLevelPage() {
                         <MapPin className="h-3 w-3 shrink-0" />
                         {group.tank.dmaId ? dmas.find((dma) => dma.id === group.tank.dmaId)?.name || "Unassigned" : "Unassigned"}
                       </p>
+                      {/* Category chips: which sensor types are fitted on this tank */}
+                      {group.activeCategories.length > 0 && (
+                        <div className="mt-1.5 flex items-center gap-1">
+                          {group.activeCategories.map((cat) => (
+                            <span
+                              key={cat}
+                              className={cn(
+                                "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                                cat === "water_quality"
+                                  ? "bg-cyan-50 text-cyan-700"
+                                  : "bg-emerald-50 text-emerald-700"
+                              )}
+                            >
+                              {cat === "water_quality" ? (
+                                <FlaskConical className="h-2.5 w-2.5" />
+                              ) : (
+                                <Waves className="h-2.5 w-2.5" />
+                              )}
+                              {cat === "water_quality" ? "Quality" : "Level"}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {representative ? <WaterStatusPill status={representative.status} /> : <WaterStatusPill status="inactive" />}
                   </div>
 
                   <div className="mt-4">
-                    <div className="flex items-end justify-between text-sm">
-                      <div>
-                        <p className="text-xs text-slate-500">Water level</p>
-                        <p className="font-semibold text-slate-800">
-                          {reading ? `${reading.waterLevelM.toFixed(2)} m` : "—"}
-                        </p>
+                    {isWq ? (
+                      /* Water-quality summary */
+                      <div className="flex items-end justify-between text-sm">
+                        <div>
+                          <p className="text-xs text-slate-500">Water quality</p>
+                          <p className="font-semibold text-slate-800">{wqHeadline(reading?.parameters)}</p>
+                        </div>
+                        <span className="text-xs font-medium text-slate-500">
+                          {reading ? "Live" : "No readings yet"}
+                        </span>
                       </div>
-                      <span className="text-xs font-medium text-slate-500">
-                        {reading ? `${percent.toFixed(0)}%` : "No readings yet"}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-[width] duration-700",
-                          status === "critical"
-                            ? "bg-gradient-to-r from-rose-400 to-red-500"
-                            : status === "warning"
-                              ? "bg-gradient-to-r from-amber-400 to-orange-500"
-                              : status === "active"
-                                ? "bg-gradient-to-r from-cyan-400 to-sky-500"
-                                : "bg-slate-300"
-                        )}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
+                    ) : (
+                      /* Water-level bar (unchanged behaviour) */
+                      <div className="flex items-end justify-between text-sm">
+                        <div>
+                          <p className="text-xs text-slate-500">Water level</p>
+                          <p className="font-semibold text-slate-800">
+                            {reading ? `${(reading.waterLevelM ?? 0).toFixed(2)} m` : "—"}
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium text-slate-500">
+                          {reading ? `${percent.toFixed(0)}%` : "No readings yet"}
+                        </span>
+                      </div>
+                    )}
+                    {!isWq && (
+                      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-[width] duration-700",
+                            status === "critical"
+                              ? "bg-gradient-to-r from-rose-400 to-red-500"
+                              : status === "warning"
+                                ? "bg-gradient-to-r from-amber-400 to-orange-500"
+                                : status === "active"
+                                  ? "bg-gradient-to-r from-cyan-400 to-sky-500"
+                                  : "bg-slate-300"
+                          )}
+                          style={{ width: `${percent}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">

@@ -3,6 +3,7 @@ Schemas for the hydraulic model launch and snapshot integration.
 """
 
 from datetime import datetime
+from app.schemas.utc_datetime import UTCDateTime
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -50,7 +51,7 @@ class HydraulicModelPrepareResponse(BaseModel):
     ready: bool
     status: str
     launch_url: Optional[str] = None
-    expires_at: datetime
+    expires_at: UTCDateTime
     message: str
 
 
@@ -69,7 +70,7 @@ class HydraulicSimulationSnapshotCreate(BaseModel):
     nodes_geojson: Optional[dict[str, Any]] = None
     pipes_geojson: Optional[dict[str, Any]] = None
     hotspots_geojson: Optional[dict[str, Any]] = None
-    completed_at: Optional[datetime] = None
+    completed_at: Optional[UTCDateTime] = None
     execution_duration_seconds: Optional[float] = Field(None, ge=0)
     snapshot_version: int = Field(1, ge=1)
     result_quality: Optional[str] = None
@@ -91,12 +92,12 @@ class HydraulicSimulationSnapshotResponse(BaseModel):
     created_by_email: Optional[str]
     utility_name: Optional[str]
     dma_name: Optional[str]
-    completed_at: Optional[datetime]
+    completed_at: Optional[UTCDateTime]
     execution_duration_seconds: Optional[float]
     snapshot_version: int
     result_quality: Optional[str]
     error_message: Optional[str]
-    created_at: datetime
+    created_at: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -142,7 +143,7 @@ class HydraulicScenarioComparisonItem(BaseModel):
     dma_id: Optional[str] = None
     dma_name: Optional[str] = None
     created_by_name: Optional[str] = None
-    completed_at: Optional[datetime] = None
+    completed_at: Optional[UTCDateTime] = None
     snapshot_version: int = 1
     inputs: dict[str, Any] = Field(default_factory=dict)
     pressure: dict[str, Any] = Field(default_factory=dict)

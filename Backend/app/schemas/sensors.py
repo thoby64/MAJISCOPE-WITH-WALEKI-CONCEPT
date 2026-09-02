@@ -4,7 +4,8 @@ Request and response models for the water-level monitoring API.
 """
 
 from datetime import datetime
-from typing import Any, List, Optional
+from app.schemas.utc_datetime import UTCDateTime
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -43,9 +44,9 @@ class TankRead(BaseModel):
     status: str
     sensor_count: int = 0
     active_sensor_count: int = 0
-    created_at: datetime
-    updated_at: datetime
-    deactivated_at: Optional[datetime] = None
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+    deactivated_at: Optional[UTCDateTime] = None
 
     class Config:
         from_attributes = True
@@ -74,15 +75,44 @@ class TankSyncSummary(BaseModel):
 # Sensor Device Schemas
 # ============================================================================
 
-class SensorRegisterRequest(BaseModel):
-    """Schema for registering a new water-level sensor"""
-    device_id: str = Field(..., min_length=1, max_length=100)
-    tank_id: str
+class WaterLevelConfig(BaseModel):
+    """Category configuration for water-level sensors."""
     h1_m: Optional[float] = Field(None, ge=0)
     depth_m: Optional[float] = Field(None, ge=0)
     warning_height_m: Optional[float] = Field(None, gt=0)
     critical_height_m: Optional[float] = Field(None, ge=0)
+
+
+class WaterQualityThresholds(BaseModel):
+    """Per-parameter threshold bounds for one water-quality parameter.
+
+    Any bound may be omitted; omitted bounds are not evaluated. There are no
+    universal defaults for ORP (WHO: case-specific).
+    """
+    warning_below: Optional[float] = None
+    warning_above: Optional[float] = None
+    critical_below: Optional[float] = None
+    critical_above: Optional[float] = None
+
+
+class WaterQualityConfig(BaseModel):
+    """Category configuration for water-quality sensors."""
+    parameters: Dict[str, WaterQualityThresholds] = Field(default_factory=dict)
+
+
+class SensorRegisterRequest(BaseModel):
+    """Schema for registering a new sensor device (any category)."""
+    device_id: str = Field(..., min_length=1, max_length=100)
+    tank_id: str
+    category: str = Field("water_level", pattern="^(water_level|water_quality)$")
     activated: bool = False
+    # Water-level configuration (ignored unless category == water_level)
+    h1_m: Optional[float] = Field(None, ge=0)
+    depth_m: Optional[float] = Field(None, ge=0)
+    warning_height_m: Optional[float] = Field(None, gt=0)
+    critical_height_m: Optional[float] = Field(None, ge=0)
+    # Water-quality threshold overrides (ignored unless category == water_quality)
+    parameter_thresholds: Optional[Dict[str, WaterQualityThresholds]] = None
 
 
 class SensorUpdateRequest(BaseModel):
@@ -94,24 +124,23 @@ class SensorUpdateRequest(BaseModel):
     critical_height_m: Optional[float] = Field(None, ge=0)
     activated: Optional[bool] = None
     dma_id: Optional[str] = None
+    parameter_thresholds: Optional[Dict[str, WaterQualityThresholds]] = None
 
 
 class SensorRegisterResponse(BaseModel):
     """Schema for sensor registration response"""
     id: str
     device_id: str
+    category: str
     tank_id: str
     utility_id: str
     dma_id: Optional[str] = None
     dma_auto_assigned: bool = False
-    h1_m: Optional[float] = None
-    depth_m: Optional[float] = None
-    warning_height_m: float
-    critical_height_m: float
+    config: Optional[Dict[str, Any]] = None
     activated: bool
     promoted_readings: int = 0
-    created_at: datetime
-    updated_at: datetime
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -123,20 +152,25 @@ class SensorPendingIngestResponse(BaseModel):
     is_pending: bool = True
     reading_id: str
     device_id: str
-    occurred_at: datetime
+    occurred_at: UTCDateTime
     dedup_key: Optional[str] = None
     is_duplicate: bool = False
 
 
 class SensorIngestRequest(BaseModel):
-    """Schema for a raw sensor message received via the ingest endpoint"""
+    """Schema for a raw sensor message received via the ingest endpoint.
+
+    Water-level flat fields (how real LoRa firmware sends data) plus
+    water-quality flat fields are all optional; parsing is dispatched by the
+    registered device's category.
+    """
     device_id: str
-    h1_m: Optional[float] = Field(None, ge=0)
     raw_data: Optional[str] = None
     properties: Optional[dict[str, Any]] = None
     occurred_at: Optional[Any] = None
     Timestamp: Optional[Any] = None
-    # Flat top-level fields (how real LoRa firmware sends data)
+    # ── water level ──────────────────────────────────────────────────────────
+    h1_m: Optional[float] = Field(None, ge=0)
     depth_m: Optional[float] = Field(None, ge=0)
     Depth: Optional[float] = Field(None, ge=0)
     depth: Optional[float] = Field(None, ge=0)
@@ -144,11 +178,36 @@ class SensorIngestRequest(BaseModel):
     h2: Optional[float] = Field(None, ge=0)
     Depth_mm: Optional[float] = Field(None, ge=0)
     depth_mm: Optional[float] = Field(None, ge=0)
+    # ── water quality (flat top-level, alias-matched) ───────────────────────
+    temperature_c: Optional[float] = None
+    Temperature: Optional[float] = None
+    ph: Optional[float] = None
+    pH: Optional[float] = None
+    ec_uscm: Optional[float] = None
+    Conductivity: Optional[float] = None
+    do_mgl: Optional[float] = None
+    DissolvedOxygen: Optional[float] = None
+    do_pct_sat: Optional[float] = None
+    turbidity_ntu: Optional[float] = None
+    Turbidity: Optional[float] = None
+    orp_mv: Optional[float] = None
+    free_chlorine_mgl: Optional[float] = None
+    nitrate_mgl: Optional[float] = None
+    ammonia_mgl: Optional[float] = None
+    phosphate_mgl: Optional[float] = None
+    chlorophyll_ugl: Optional[float] = None
+    phycocyanin_ugl: Optional[float] = None
+
+    class Config:
+        # Vendor payloads may include arbitrary extra fields — accept them so
+        # the raw payload can be buffered verbatim for unregistered devices.
+        extra = "allow"
 
 
-class SensorIngestResponse(BaseModel):
-    """Schema for a processed sensor reading response"""
+class WaterLevelIngestResponse(BaseModel):
+    """Schema for a processed water-level reading response"""
     ok: bool = True
+    category: str = "water_level"
     reading_id: str
     sensor_id: str
     tank_id: str
@@ -158,8 +217,46 @@ class SensorIngestResponse(BaseModel):
     h1_m: float
     depth_m: float
     status: str
-    occurred_at: datetime
-    dedup_key: Optional[str] = None
+    occurred_at: UTCDateTime
+    is_duplicate: bool = False
+
+
+class WaterQualityIngestResponse(BaseModel):
+    """Schema for a processed water-quality reading response"""
+    ok: bool = True
+    category: str = "water_quality"
+    reading_id: str
+    sensor_id: str
+    tank_id: str
+    utility_id: str
+    dma_id: Optional[str] = None
+    status: str
+    parameters: Dict[str, float] = Field(default_factory=dict)
+    occurred_at: UTCDateTime
+    is_duplicate: bool = False
+
+
+# Backwards-compatible union used by ingest route + reading history helpers.
+SensorIngestResponse = WaterLevelIngestResponse
+
+
+class SensorLastReading(BaseModel):
+    """Category-aware last-reading summary for sensor lists."""
+    ok: bool = True
+    category: str
+    reading_id: str
+    sensor_id: str
+    tank_id: str
+    utility_id: str
+    dma_id: Optional[str] = None
+    status: str
+    occurred_at: UTCDateTime
+    # water level
+    water_level_m: Optional[float] = None
+    h1_m: Optional[float] = None
+    depth_m: Optional[float] = None
+    # water quality
+    parameters: Optional[Dict[str, float]] = None
     is_duplicate: bool = False
 
 
@@ -167,19 +264,17 @@ class SensorRead(BaseModel):
     """Schema for a sensor in list/detail responses with live status"""
     id: str
     device_id: str
+    category: str
     tank_id: str
     tank_name: Optional[str] = None
     utility_id: str
     dma_id: Optional[str] = None
-    h1_m: Optional[float] = None
-    depth_m: Optional[float] = None
-    warning_height_m: float
-    critical_height_m: float
+    config: Optional[Dict[str, Any]] = None
     activated: bool
     status: str
-    last_reading: Optional[SensorIngestResponse] = None
-    created_at: datetime
-    updated_at: datetime
+    last_reading: Optional[SensorLastReading] = None
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
     class Config:
         from_attributes = True
@@ -194,4 +289,4 @@ class SensorListResponse(BaseModel):
 class TankReadingsResponse(BaseModel):
     """Schema for a tank's reading history (newest first)."""
     total: int
-    items: List[SensorIngestResponse]
+    items: List[Any]

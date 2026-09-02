@@ -12,6 +12,7 @@
 
 import CONFIG from '@/lib/config';
 import { transformKeysToSnakeCase } from '@/lib/transform-data';
+import { normalizeNaiveIsoAsUtc } from '@/lib/date-time';
 
 /**
  * Standard API Response Format
@@ -23,6 +24,28 @@ export interface ApiResponse<T = any> {
   error?: string;
   code?: string;
   details?: any;
+}
+
+/**
+ * Recursively normalise naive ISO datetime strings in API responses to
+ * explicit UTC ("Z" suffix). The backend stores naive UTC timestamps; without
+ * a timezone designator `new Date()` would treat them as browser-local time.
+ */
+function normalizeTimestampValues(value: any): any {
+  if (Array.isArray(value)) {
+    return value.map(normalizeTimestampValues);
+  }
+  if (typeof value === 'string') {
+    return normalizeNaiveIsoAsUtc(value);
+  }
+  if (value !== null && typeof value === 'object') {
+    const result: any = {};
+    for (const key of Object.keys(value)) {
+      result[key] = normalizeTimestampValues(value[key]);
+    }
+    return result;
+  }
+  return value;
 }
 
 /**
@@ -269,7 +292,7 @@ class ApiClient {
           // Success
           const apiResponse: ApiResponse<T> = {
             success: true,
-            data: data.data || data,
+            data: normalizeTimestampValues(data.data || data),
           };
           if (isCacheableGet && cacheTtl > 0) {
             this.writeCache(requestKey, apiResponse, cacheTtl);

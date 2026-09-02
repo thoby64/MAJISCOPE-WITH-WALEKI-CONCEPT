@@ -30,6 +30,7 @@ from datetime import datetime
 import logging
 import re
 from datetime import timedelta
+from app.schemas.utc_datetime import UTCDateTime
 from app.services.hierarchy import (
     find_dma_within_utility_by_boundary,
     find_dma_within_utility_by_district_name,
@@ -88,10 +89,10 @@ class ReportWithDetails(BaseModel):
     engineer_submission_notes: Optional[str] = None
     team_leader_review_notes: Optional[str] = None
     dma_review_notes: Optional[str] = None
-    sla_deadline: Optional[datetime] = None
-    resolved_at: Optional[datetime] = None
-    created_at: datetime
-    updated_at: datetime
+    sla_deadline: Optional[UTCDateTime] = None
+    resolved_at: Optional[UTCDateTime] = None
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
 
 
 class AssignReportRequest(BaseModel):

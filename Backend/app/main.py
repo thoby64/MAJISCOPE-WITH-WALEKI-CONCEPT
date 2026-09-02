@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from contextlib import asynccontextmanager
 
 from app.config import settings
-from app.database.session import engine
+from app.database.session import engine, SessionLocal
 from app.middleware import LoggingMiddleware, RequestIDMiddleware, RateLimitMiddleware, register_exception_handlers
 from app.models import Base
 from app.api import (
@@ -68,6 +68,31 @@ async def lifespan(app: FastAPI):
         run_heavy_startup_migrations(engine)
     if startup_schema_sync_enabled:
         Base.metadata.create_all(bind=engine)
+
+    # ── Sensor platform DB: ensure tables, drain mirror backlog ────────────
+    try:
+        from app.database.sensor_session import sensor_engine
+        from app.models.sensor_platform import SensorBase
+        from app.services.sensor_platform_sync import (
+            drain_outbox,
+            ensure_outbox_table,
+            reconcile_all_tanks,
+        )
+
+        SensorBase.metadata.create_all(bind=sensor_engine)
+        with SessionLocal() as boot_db:
+            ensure_outbox_table(boot_db)
+            boot_db.commit()
+            drained = drain_outbox(boot_db)
+            if drained:
+                print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
+            result = reconcile_all_tanks(boot_db)
+            print(
+                f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
+            )
+    except Exception as exc:
+        print(f"   Sensor platform startup sync failed (non-fatal): {exc}")
+
     if settings.legacy_duwasa_import_on_startup:
         csv_path = (
             settings.legacy_duwasa_import_csv_path.strip()
@@ -85,7 +110,6 @@ async def lifespan(app: FastAPI):
             if settings.legacy_duwasa_import_strict:
                 raise
     if settings.run_tank_gpkg_sync_on_startup:
-        from app.database.session import SessionLocal
         from app.services.gpkg_startup_sync import run_tank_gpkg_sync_on_startup
 
         try:
@@ -109,6 +133,13 @@ app = FastAPI(
     description="Water Leakage Management System - Backend API",
     lifespan=lifespan,
 )
+
+# Serialise all API datetimes as explicit UTC (Z suffix). The app stores naive
+# UTC values; without this clients read them as local time and display the
+# wrong hour.
+from app.utils.tz_serialization import install_utc_datetime_serialization
+
+install_utc_datetime_serialization()
 
 # ============================================================
 # Global Middleware & Exception Handlers

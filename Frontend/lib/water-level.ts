@@ -1,3 +1,5 @@
+import { normalizeNaiveIsoAsUtc } from "@/lib/date-time"
+
 export const WATER_LEVEL_POLL_INTERVAL_MS = 10_000
 export const DEFAULT_TANK_LENGTH_M = 2
 export const READING_HISTORY_LIMIT = 30
@@ -19,10 +21,11 @@ export function stashTankLength(tankId: string, meters: number) {
 }
 
 export function tankLengthFor(
-  sensor: { h1M?: number | null },
+  sensor: { h1M?: number | null; config?: Record<string, unknown> | null },
   override: number | null
 ): number {
-  const fallback = Math.max(sensor?.h1M ?? 0, DEFAULT_TANK_LENGTH_M)
+  const configH1 = typeof sensor?.config?.h1_m === "number" ? (sensor.config.h1_m as number) : null
+  const fallback = Math.max(sensor?.h1M ?? configH1 ?? 0, DEFAULT_TANK_LENGTH_M)
   return override && override > 0 ? override : fallback
 }
 
@@ -32,7 +35,7 @@ export function fillPercent(waterLevelM: number, tankLengthM: number): number {
 }
 
 export function formatRelativeTime(iso: string, now = Date.now()): string {
-  const date = new Date(iso)
+  const date = new Date(normalizeNaiveIsoAsUtc(iso))
   if (Number.isNaN(date.getTime())) return "unknown"
   const seconds = Math.max(0, Math.round((now - date.getTime()) / 1000))
   if (seconds < 5) return "just now"

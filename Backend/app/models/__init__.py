@@ -37,11 +37,7 @@ from app.models.uploads import (
 )
 from app.models.sensors import (
     Tank,
-    SensorDevice,
-    SensorReading,
-    SensorPendingReading,
     TankStatusEnum,
-    SensorStatusEnum,
 )
 
 __all__ = [
@@ -66,11 +62,8 @@ __all__ = [
     "PushDeviceToken",
     # Upload models
     "ImageUpload",
-    # Sensor models
+    # Sensor-era models (tank remains; sensors/readings live in the sensor platform DB)
     "Tank",
-    "SensorDevice",
-    "SensorReading",
-    "SensorPendingReading",
     # Enums
     "EntityStatusEnum",
     "UtilityServiceAreaCategoryEnum",
@@ -81,5 +74,4 @@ __all__ = [
     "NotificationTypeEnum",
     "ImageTypeEnum",
     "TankStatusEnum",
-    "SensorStatusEnum",
 ]

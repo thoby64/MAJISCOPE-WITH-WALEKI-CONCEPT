@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models import (
-    SensorDevice,
     Tank,
     TankStatusEnum,
     UtilityInfrastructureLayer,
@@ -356,16 +355,13 @@ def sync_tanks_from_layer(
         tank.status = TankStatusEnum.DEACTIVATED
         tank.deactivated_at = datetime.utcnow()
         deactivated_count += 1
-        has_active_sensor = (
-            db.query(SensorDevice.id)
-            .filter(
-                SensorDevice.tank_id == tank.id,
-                SensorDevice.activated.is_(True),
-            )
-            .first()
-        )
+        has_active_sensor = _tank_has_active_sensor(db, tank.id)
         if has_active_sensor:
             deactivated_with_sensors += 1
+
+    # Mirror every touched tank into the sensor platform DB (best effort;
+    # failures queue in the outbox and drain later).
+    _mirror_synced_tanks(db, existing_tanks.values(), seen_source_keys)
 
     return _sync_summary(
         created=stats["created"],
@@ -376,3 +372,39 @@ def sync_tanks_from_layer(
         skipped_duplicates=stats["skipped_duplicates"],
         total=len(existing_tanks) + stats["created"],
     )
+
+
+def _tank_has_active_sensor(db: Session, tank_id: str) -> bool:
+    """True when the tank has any activated sensor (sensor platform DB)."""
+    try:
+        from app.database.sensor_session import SensorSessionLocal
+        from app.models.sensor_platform import SensorDevice as PlatformSensorDevice
+
+        with SensorSessionLocal() as sensor_db:
+            return (
+                sensor_db.query(PlatformSensorDevice.id)
+                .filter(
+                    PlatformSensorDevice.tank_id == tank_id,
+                    PlatformSensorDevice.activated.is_(True),
+                )
+                .first()
+                is not None
+            )
+    except Exception:
+        # Sensor DB unavailable during a main-DB sync: don't block the sync.
+        return False
+
+
+def _mirror_synced_tanks(db: Session, tanks, seen_source_keys) -> None:
+    """Best-effort mirror of tanks touched by a storage-layer sync."""
+    from app.services.sensor_platform_sync import mirror_tank
+
+    created_or_updated = [t for t in tanks if t.source_key in seen_source_keys]
+    # Deactivated tanks are also mirrored (status change matters downstream).
+    for tank in list(created_or_updated) + [
+        t for t in tanks if t.status == TankStatusEnum.DEACTIVATED and t.deactivated_at is not None
+    ]:
+        try:
+            mirror_tank(db, tank)
+        except Exception:
+            continue

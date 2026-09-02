@@ -58,9 +58,9 @@ export default function DashboardLayout({
       <TopbarTitleProvider>
         <div className="flex w-full h-screen">
           <AppSidebar />
-          <div className="flex flex-col flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
             <TopNavbar />
-            <SidebarInset className="relative m-0 min-h-[calc(100svh-3.5rem)] rounded-none bg-background">
+            <SidebarInset className="relative m-0 min-h-[calc(100svh-3.5rem)] min-w-0 rounded-none bg-background">
               <main
                 className={cn(
                   "flex-1 bg-background text-slate-900 dark:text-slate-100",

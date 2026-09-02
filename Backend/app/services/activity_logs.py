@@ -4,7 +4,7 @@ Activity log helpers for auditable workflow events.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Optional
@@ -37,7 +37,11 @@ def _safe_json_value(value: Any) -> Any:
         return value
     if isinstance(value, Decimal):
         return float(value)
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, Enum):
         return value.value

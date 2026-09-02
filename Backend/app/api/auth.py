@@ -12,6 +12,7 @@ from app.database.session import get_db
 from app.models import User
 from app.models.user import UtilityManager, DMAManager, Engineer
 from app.schemas.user import UserResponse
+from app.schemas.utc_datetime import utc_datetime_isoformat
 from app.security.auth import (
     hash_password,
     verify_password,
@@ -546,7 +547,7 @@ async def validate_invitation(token: str, db: Session = Depends(get_db)):
         utility_name=utility_name,
         dma_name=dma_name,
         team_name=team_name,
-        expires_at=account.invite_expires_at.isoformat() if account.invite_expires_at else None,
+        expires_at=utc_datetime_isoformat(account.invite_expires_at) if account.invite_expires_at else None,
     )
 
 
@@ -688,7 +689,7 @@ async def validate_password_reset(token: str, db: Session = Depends(get_db)):
         account_type=account_type,
         email=account.email,
         role=_api_account_role(account, account_type),
-        expires_at=account.password_reset_expires_at.isoformat() if account.password_reset_expires_at else None,
+        expires_at=utc_datetime_isoformat(account.password_reset_expires_at) if account.password_reset_expires_at else None,
     )
 
 

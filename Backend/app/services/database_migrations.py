@@ -82,8 +82,6 @@ def run_safe_startup_migrations(engine: Engine) -> None:
     _migrate_utility_infrastructure_layer_table(engine)
     _migrate_sensor_tables(engine)
     _migrate_tank_key_field(engine)
-    _migrate_sensor_ingest_fields(engine)
-    _migrate_sensor_pending_reading_table(engine)
     _migrate_hydraulic_model_tables(engine)
     _migrate_hydraulic_snapshot_report_columns(engine)
     _drop_legacy_utility_pipe_network_table(engine)
@@ -221,116 +219,15 @@ def _migrate_tank_key_field(engine: Engine) -> None:
             connection.exec_driver_sql("ALTER TABLE utility_infrastructure_layer ADD COLUMN tank_key_field VARCHAR(100)")
 
 
-def _migrate_sensor_ingest_fields(engine: Engine) -> None:
-    """Add dedup_key for idempotent ingest; drop removed location columns."""
-    inspector = inspect(engine)
-    is_postgres = engine.dialect.name.startswith("postgresql")
-    dialect = engine.dialect.name
-
-    # --- sensor_reading: ensure dedup_key column + unique index ---
-    if "sensor_reading" in inspector.get_table_names():
-        columns = {column["name"] for column in inspector.get_columns("sensor_reading")}
-        with engine.begin() as connection:
-            if "dedup_key" not in columns:
-                if is_postgres:
-                    if not _run_postgres_ddl_without_timeout(
-                        connection,
-                        "ALTER TABLE sensor_reading ADD COLUMN IF NOT EXISTS dedup_key VARCHAR(300)",
-                    ):
-                        return
-                else:
-                    connection.exec_driver_sql("ALTER TABLE sensor_reading ADD COLUMN dedup_key VARCHAR(300)")
-
-        with engine.begin() as connection:
-            if is_postgres:
-                _run_postgres_ddl_without_timeout(
-                    connection,
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_sensor_reading_dedup_key ON sensor_reading (dedup_key) WHERE dedup_key IS NOT NULL",
-                )
-            else:
-                connection.exec_driver_sql(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS ix_sensor_reading_dedup_key ON sensor_reading (dedup_key) WHERE dedup_key IS NOT NULL"
-                )
-
-    # --- best-effort DROP of removed location columns ---
-    # These may exist on DBs that ran the earlier migration before this revert.
-    _safe_drop_column(engine, "sensor_device", "location_tolerance_km")
-    for col in ("device_latitude", "device_longitude", "location_verified", "location_distance_km"):
-        _safe_drop_column(engine, "sensor_reading", col)
-
-
-def _migrate_sensor_pending_reading_table(engine: Engine) -> None:
-    """Create the pending-reading buffer table for unregistered devices."""
-    inspector = inspect(engine)
-    existing_tables = set(inspector.get_table_names())
-
-    if "sensor_pending_reading" in existing_tables:
-        return
-
-    if engine.dialect.name.startswith("postgresql"):
-        ddl_statements = [
-            """
-            CREATE TABLE IF NOT EXISTS sensor_pending_reading (
-                id VARCHAR(36) PRIMARY KEY,
-                device_id VARCHAR(100) NOT NULL,
-                depth_m FLOAT NOT NULL,
-                raw_data TEXT,
-                occurred_at TIMESTAMP NOT NULL,
-                dedup_key VARCHAR(300) NOT NULL UNIQUE,
-                created_at TIMESTAMP NOT NULL
-            )
-            """,
-            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_device_id ON sensor_pending_reading (device_id)",
-            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_occurred_at ON sensor_pending_reading (occurred_at)",
-        ]
-    else:
-        ddl_statements = [
-            """
-            CREATE TABLE IF NOT EXISTS sensor_pending_reading (
-                id VARCHAR(36) PRIMARY KEY,
-                device_id VARCHAR(100) NOT NULL,
-                depth_m FLOAT NOT NULL,
-                raw_data TEXT,
-                occurred_at DATETIME NOT NULL,
-                dedup_key VARCHAR(300) NOT NULL UNIQUE,
-                created_at DATETIME NOT NULL
-            )
-            """,
-            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_device_id ON sensor_pending_reading (device_id)",
-            "CREATE INDEX IF NOT EXISTS ix_sensor_pending_reading_occurred_at ON sensor_pending_reading (occurred_at)",
-        ]
-    with engine.begin() as connection:
-        for statement in ddl_statements:
-            if engine.dialect.name.startswith("postgresql"):
-                if not _run_postgres_ddl_without_timeout(connection, statement, required=False):
-                    return
-            else:
-                connection.exec_driver_sql(statement)
-
-
-def _safe_drop_column(engine: Engine, table_name: str, column_name: str) -> None:
-    """Best-effort DROP COLUMN; harmless if column or table doesn't exist."""
-    inspector = inspect(engine)
-    if table_name not in inspector.get_table_names():
-        return
-    columns = {column["name"] for column in inspector.get_columns(table_name)}
-    if column_name not in columns:
-        return
-    is_postgres = engine.dialect.name.startswith("postgresql")
-    try:
-        with engine.begin() as connection:
-            if is_postgres:
-                _run_postgres_ddl_without_timeout(
-                    connection,
-                    f"ALTER TABLE {table_name} DROP COLUMN IF EXISTS {column_name} CASCADE",
-                )
-            else:
-                connection.exec_driver_sql(f"ALTER TABLE {table_name} DROP COLUMN {column_name}")
-    except Exception:
-        pass
-
-
 def _migrate_sensor_tables(engine: Engine) -> None:
+    """
+    Ensure the tank table exists (main DB source of truth), and DROP the
+    legacy sensor tables that moved to the sensor platform database.
+
+    Legacy tables (sensor_device, sensor_reading, sensor_pending_reading) were
+    migrated to the sensor platform DB via scripts/migrate_sensor_data.py;
+    they are removed here so the main DB no longer carries stale copies.
+    """
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
     if "utility" not in existing_tables or "dma" not in existing_tables:
@@ -391,116 +288,18 @@ def _migrate_sensor_tables(engine: Engine) -> None:
                 else:
                     connection.exec_driver_sql(statement)
 
-    if "sensor_device" not in existing_tables:
-        if engine.dialect.name.startswith("postgresql"):
-            ddl_statements = [
-                """
-                CREATE TABLE IF NOT EXISTS sensor_device (
-                    id VARCHAR(36) PRIMARY KEY,
-                    device_id VARCHAR(100) NOT NULL UNIQUE,
-                    tank_id VARCHAR(36) NOT NULL REFERENCES tank(id) ON DELETE CASCADE,
-                    h1_m FLOAT,
-                    depth_m FLOAT,
-                    warning_height_m FLOAT NOT NULL DEFAULT 10.0,
-                    critical_height_m FLOAT NOT NULL DEFAULT 0.0,
-                    activated BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP NOT NULL
-                )
-                """,
-                "CREATE INDEX IF NOT EXISTS ix_sensor_device_device_id ON sensor_device (device_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_device_tank_id ON sensor_device (tank_id)",
-            ]
-        else:
-            ddl_statements = [
-                """
-                CREATE TABLE IF NOT EXISTS sensor_device (
-                    id VARCHAR(36) PRIMARY KEY,
-                    device_id VARCHAR(100) NOT NULL UNIQUE,
-                    tank_id VARCHAR(36) NOT NULL,
-                    h1_m FLOAT,
-                    depth_m FLOAT,
-                    warning_height_m FLOAT NOT NULL DEFAULT 10.0,
-                    critical_height_m FLOAT NOT NULL DEFAULT 0.0,
-                    activated BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at DATETIME NOT NULL,
-                    updated_at DATETIME NOT NULL,
-                    FOREIGN KEY(tank_id) REFERENCES tank(id) ON DELETE CASCADE
-                )
-                """,
-                "CREATE INDEX IF NOT EXISTS ix_sensor_device_device_id ON sensor_device (device_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_device_tank_id ON sensor_device (tank_id)",
-            ]
-        with engine.begin() as connection:
-            for statement in ddl_statements:
-                if engine.dialect.name.startswith("postgresql"):
-                    if not _run_postgres_ddl_without_timeout(connection, statement, required=False):
-                        return
-                else:
-                    connection.exec_driver_sql(statement)
-
-    if "sensor_reading" not in existing_tables:
-        if engine.dialect.name.startswith("postgresql"):
-            ddl_statements = [
-                """
-                CREATE TABLE IF NOT EXISTS sensor_reading (
-                    id VARCHAR(36) PRIMARY KEY,
-                    sensor_id VARCHAR(36) NOT NULL REFERENCES sensor_device(id) ON DELETE CASCADE,
-                    tank_id VARCHAR(36) NOT NULL REFERENCES tank(id) ON DELETE CASCADE,
-                    utility_id VARCHAR(36) NOT NULL REFERENCES utility(id) ON DELETE CASCADE,
-                    dma_id VARCHAR(36) REFERENCES dma(id) ON DELETE SET NULL,
-                    h1_m FLOAT NOT NULL,
-                    depth_m FLOAT NOT NULL DEFAULT 0.0,
-                    water_height_m FLOAT NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    raw_data TEXT,
-                    occurred_at TIMESTAMP NOT NULL,
-                    created_at TIMESTAMP NOT NULL
-                )
-                """,
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_sensor_id ON sensor_reading (sensor_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_tank_id ON sensor_reading (tank_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_utility_id ON sensor_reading (utility_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_dma_id ON sensor_reading (dma_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_status ON sensor_reading (status)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_occurred_at ON sensor_reading (occurred_at)",
-            ]
-        else:
-            ddl_statements = [
-                """
-                CREATE TABLE IF NOT EXISTS sensor_reading (
-                    id VARCHAR(36) PRIMARY KEY,
-                    sensor_id VARCHAR(36) NOT NULL,
-                    tank_id VARCHAR(36) NOT NULL,
-                    utility_id VARCHAR(36) NOT NULL,
-                    dma_id VARCHAR(36),
-                    h1_m FLOAT NOT NULL,
-                    depth_m FLOAT NOT NULL DEFAULT 0.0,
-                    water_height_m FLOAT NOT NULL,
-                    status VARCHAR(20) NOT NULL,
-                    raw_data TEXT,
-                    occurred_at DATETIME NOT NULL,
-                    created_at DATETIME NOT NULL,
-                    FOREIGN KEY(sensor_id) REFERENCES sensor_device(id) ON DELETE CASCADE,
-                    FOREIGN KEY(tank_id) REFERENCES tank(id) ON DELETE CASCADE,
-                    FOREIGN KEY(utility_id) REFERENCES utility(id) ON DELETE CASCADE,
-                    FOREIGN KEY(dma_id) REFERENCES dma(id) ON DELETE SET NULL
-                )
-                """,
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_sensor_id ON sensor_reading (sensor_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_tank_id ON sensor_reading (tank_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_utility_id ON sensor_reading (utility_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_dma_id ON sensor_reading (dma_id)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_status ON sensor_reading (status)",
-                "CREATE INDEX IF NOT EXISTS ix_sensor_reading_occurred_at ON sensor_reading (occurred_at)",
-            ]
-        with engine.begin() as connection:
-            for statement in ddl_statements:
-                if engine.dialect.name.startswith("postgresql"):
-                    if not _run_postgres_ddl_without_timeout(connection, statement, required=False):
-                        return
-                else:
-                    connection.exec_driver_sql(statement)
+    # Drop legacy sensor tables (data lives in the sensor platform DB now).
+    for legacy_table in (
+        "sensor_pending_reading",
+        "sensor_reading",
+        "sensor_device",
+    ):
+        if legacy_table in existing_tables:
+            with engine.begin() as connection:
+                try:
+                    connection.exec_driver_sql(f"DROP TABLE IF EXISTS {legacy_table} CASCADE")
+                except Exception as exc:  # non-fatal: best effort cleanup
+                    print(f"   Legacy table drop skipped for {legacy_table}: {exc}")
 
 
 def _drop_legacy_utility_pipe_network_table(engine: Engine) -> None:

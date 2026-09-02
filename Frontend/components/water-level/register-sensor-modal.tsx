@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { AlertTriangle, Loader2 } from "lucide-react"
+import { AlertTriangle, FlaskConical, Loader2, Waves } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { TankCombobox } from "@/components/water-level/tank-combobox"
 import { useAuthStore } from "@/store/auth-store"
-import { useDataStore, type RegisterSensorInput, type SensorSnap } from "@/store/data-store"
+import { useDataStore, type RegisterSensorInput, type SensorCategory, type SensorSnap } from "@/store/data-store"
 
 interface RegisterSensorModalProps {
   open: boolean
@@ -30,10 +30,15 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
 
   const [deviceId, setDeviceId] = useState("")
   const [tankId, setTankId] = useState("")
+  const [category, setCategory] = useState<SensorCategory>("water_level")
   const [h1M, setH1M] = useState("")
   const [depthM, setDepthM] = useState("")
   const [warningHeightM, setWarningHeightM] = useState("")
   const [criticalHeightM, setCriticalHeightM] = useState("")
+  const [phWarnBelow, setPhWarnBelow] = useState("")
+  const [turbWarnAbove, setTurbWarnAbove] = useState("")
+  const [chlorineWarnAbove, setChlorineWarnAbove] = useState("")
+  const [nitrateWarnAbove, setNitrateWarnAbove] = useState("")
   const [activated, setActivated] = useState(true)
   const [dmaId, setDmaId] = useState("")
   const [detectedDmaId, setDetectedDmaId] = useState<string | null>(null)
@@ -52,10 +57,20 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     if (sensor) {
       setDeviceId(sensor.deviceId)
       setTankId(sensor.tankId)
-      setH1M(sensor.h1M != null ? String(sensor.h1M) : "")
-      setDepthM(sensor.depthM != null ? String(sensor.depthM) : "")
-      setWarningHeightM(sensor.warningHeightM != null ? String(sensor.warningHeightM) : "")
-      setCriticalHeightM(sensor.criticalHeightM != null ? String(sensor.criticalHeightM) : "")
+      setCategory(sensor.category ?? "water_level")
+      const cfg = (sensor.config ?? {}) as Record<string, any>
+      setH1M(cfg.h1_m != null ? String(cfg.h1_m) : "")
+      setDepthM(cfg.depth_m != null ? String(cfg.depth_m) : "")
+      setWarningHeightM(cfg.warning_height_m != null ? String(cfg.warning_height_m) : "")
+      setCriticalHeightM(cfg.critical_height_m != null ? String(cfg.critical_height_m) : "")
+      const phBounds = cfg.parameters?.ph ?? {}
+      const turbBounds = cfg.parameters?.turbidity_ntu ?? {}
+      setPhWarnBelow(phBounds.warning_below != null ? String(phBounds.warning_below) : "")
+      setTurbWarnAbove(turbBounds.warning_above != null ? String(turbBounds.warning_above) : "")
+      const clBounds = cfg.parameters?.free_chlorine_mgl ?? {}
+      setChlorineWarnAbove(clBounds.warning_above != null ? String(clBounds.warning_above) : "")
+      const no3Bounds = cfg.parameters?.nitrate_mgl ?? {}
+      setNitrateWarnAbove(no3Bounds.warning_above != null ? String(no3Bounds.warning_above) : "")
       setActivated(sensor.activated)
       setDmaId(sensor.dmaId ?? "")
       setDetectedDmaId(null)
@@ -65,10 +80,15 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     } else {
       setDeviceId("")
       setTankId(defaultTankId ?? "")
+      setCategory("water_level")
       setH1M("")
       setDepthM("")
       setWarningHeightM("")
       setCriticalHeightM("")
+      setPhWarnBelow("")
+      setTurbWarnAbove("")
+      setChlorineWarnAbove("")
+      setNitrateWarnAbove("")
       setActivated(true)
       setDmaId("")
       setDetectedDmaId(null)
@@ -77,6 +97,19 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, sensor, defaultTankId])
 
+  // Active categories per tank (for the one-active-sensor-per-category rule)
+  const activeCategoriesByTank = useMemo(() => {
+    const { sensors: all } = useDataStore.getState()
+    const map = new Map<string, Set<string>>()
+    for (const s of all) {
+      if (!s.activated) continue
+      const set = map.get(s.tankId) ?? new Set<string>()
+      set.add(s.category)
+      map.set(s.tankId, set)
+    }
+    return map
+  }, [tanks, isEdit])
+
   const scopedTanks = useMemo(() => {
     if (!tanks.length) return []
     let filtered = tanks
@@ -84,26 +117,47 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       const myUtility = currentUser?.utilityId
       filtered = myUtility ? tanks.filter((t) => t.utilityId === myUtility) : tanks
     }
-    // For new sensor registration, hide tanks that already have an activated sensor
-    if (!isEdit) {
-      const { sensors } = useDataStore.getState()
-      const tanksWithActiveSensor = new Set(
-        sensors.filter((s) => s.activated).map((s) => s.tankId)
-      )
-      filtered = filtered.filter((t) => !tanksWithActiveSensor.has(t.id))
-    }
     return filtered
-  }, [currentUser?.utilityId, role, tanks, isEdit])
+  }, [currentUser?.utilityId, role, tanks])
+
+  // A tank is selectable for NEW registration when the chosen category is not
+  // yet active on it (edit keeps the sensor's own tank selectable).
+  const selectableTanks = useMemo(() => {
+    if (isEdit) return scopedTanks
+    return scopedTanks.filter((t) => {
+      const active = activeCategoriesByTank.get(t.id)
+      return !active?.has(category)
+    })
+  }, [scopedTanks, activeCategoriesByTank, category, isEdit])
+
+  const categoryUnavailable = useMemo(() => {
+    if (!tankId) return false
+    const active = activeCategoriesByTank.get(tankId)
+    if (!active) return false
+    if (isEdit && sensor) {
+      // Only other sensors count for edit
+      const { sensors: all } = useDataStore.getState()
+      const others = all.filter((s) => s.activated && s.tankId === tankId && s.id !== sensor.id)
+      return others.some((s) => s.category === category)
+    }
+    return active.has(category)
+  }, [tankId, activeCategoriesByTank, category, isEdit, sensor])
+
+  // Submit is enabled only when every required input is satisfied:
+  // device ID + tank (+ valid category combination for that tank).
+  const formValid = Boolean(
+    deviceId.trim() && tankId && !categoryUnavailable
+  )
 
   const tankOptions = useMemo(
     () =>
-      scopedTanks.map((tank) => ({
+      selectableTanks.map((tank) => ({
         id: tank.id,
         name: tank.name || tank.sourceKey || tank.id,
         latitude: tank.latitude,
         longitude: tank.longitude,
       })),
-    [scopedTanks]
+    [selectableTanks]
   )
 
   const selectedTankName = useMemo(() => {
@@ -154,24 +208,41 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     setConfirmOpen(false)
     setSaving(true)
     try {
+      const isWq = category === "water_quality"
+      const parameterThresholds: Record<string, Record<string, number>> = {}
+      if (isWq) {
+        if (parseOptional(phWarnBelow) != null) parameterThresholds.ph = { warning_below: parseOptional(phWarnBelow)! }
+        if (parseOptional(turbWarnAbove) != null) parameterThresholds.turbidity_ntu = { warning_above: parseOptional(turbWarnAbove)! }
+        if (parseOptional(chlorineWarnAbove) != null) parameterThresholds.free_chlorine_mgl = { warning_above: parseOptional(chlorineWarnAbove)! }
+        if (parseOptional(nitrateWarnAbove) != null) parameterThresholds.nitrate_mgl = { warning_above: parseOptional(nitrateWarnAbove)! }
+      }
       const payload: RegisterSensorInput = {
         device_id: deviceId.trim(),
         tank_id: tankId,
-        h1_m: parseOptional(h1M),
-        depth_m: parseOptional(depthM),
-        warning_height_m: parseOptional(warningHeightM),
-        critical_height_m: parseOptional(criticalHeightM),
+        category,
         activated,
+        ...(isWq
+          ? { parameter_thresholds: Object.keys(parameterThresholds).length ? parameterThresholds : undefined }
+          : {
+              h1_m: parseOptional(h1M),
+              depth_m: parseOptional(depthM),
+              warning_height_m: parseOptional(warningHeightM),
+              critical_height_m: parseOptional(criticalHeightM),
+            }),
       }
       if (isEdit && sensor) {
         await updateSensor(sensor.deviceId, {
           tank_id: tankId,
-          h1_m: payload.h1_m,
-          depth_m: payload.depth_m,
-          warning_height_m: payload.warning_height_m,
-          critical_height_m: payload.critical_height_m,
           activated,
           dma_id: dmaId || null,
+          ...(isWq
+            ? { parameter_thresholds: Object.keys(parameterThresholds).length ? parameterThresholds : undefined }
+            : {
+                h1_m: payload.h1_m,
+                depth_m: payload.depth_m,
+                warning_height_m: payload.warning_height_m,
+                critical_height_m: payload.critical_height_m,
+              }),
         })
         toast.success("Sensor updated.")
       } else {
@@ -212,13 +283,13 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
           onOpenChange(false)
         }
       }}>
-        <DialogContent className="bg-white/95 backdrop-blur-xl border-slate-200/50 shadow-2xl rounded-2xl max-w-lg">
+        <DialogContent className="max-h-[80vh] bg-white/95 backdrop-blur-xl border-slate-200/50 shadow-2xl rounded-2xl max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-xl">{isEdit ? "Edit sensor" : "Register sensor"}</DialogTitle>
             <DialogDescription>
               {isEdit
                 ? "Update the sensor configuration and tank assignment."
-                : "Connect a water-level sensor to a tank."}
+                : "Connect a water-level or water-quality sensor to a tank."}
             </DialogDescription>
           </DialogHeader>
 
@@ -231,16 +302,53 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             </AlertDescription>
           </Alert>
 
-          <div className="grid gap-4 py-2">
+          <div className="grid gap-3.5 py-1">
             <div className="grid gap-1.5">
               <Label htmlFor="device-id">Device ID</Label>
               <Input
                 id="device-id"
                 value={deviceId}
                 onChange={(e) => setDeviceId(e.target.value)}
-                placeholder="e.g. tl-001-42"
+                placeholder="e.g. JKA_NHW_003"
               />
             </div>
+
+            {!isEdit && (
+              <div className="grid gap-1.5">
+                <Label>Category</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["water_level", "water_quality"] as SensorCategory[]).map((cat) => {
+                    const disabledByTank = Boolean(tankId) && (activeCategoriesByTank.get(tankId)?.has(cat) ?? false)
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        disabled={disabledByTank}
+                        onClick={() => setCategory(cat)}
+                        className={`rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                          category === cat
+                            ? "border-cyan-500 bg-cyan-50 text-cyan-800"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                        } ${disabledByTank ? "cursor-not-allowed opacity-50" : ""}`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {cat === "water_level" ? <Waves className="h-4 w-4" /> : <FlaskConical className="h-4 w-4" />}
+                          {cat === "water_level" ? "Water Level" : "Water Quality"}
+                        </span>
+                        {disabledByTank && (
+                          <span className="mt-0.5 block text-[11px] font-normal text-amber-600">
+                            Already active on this tank
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-slate-400">
+                  One active sensor per category per tank. Tanks with the chosen category already active are hidden from the list.
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-1.5">
               <Label>Tank</Label>
@@ -250,8 +358,13 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
                 options={tankOptions}
                 placeholder="Select a tank…"
                 searchPlaceholder="Type to search tanks…"
-                emptyText="No tanks match your search."
+                emptyText={category === "water_quality" ? "All tanks already have an active water-quality sensor." : "No tanks match your search."}
               />
+              {isEdit && categoryUnavailable && (
+                <p className="text-xs text-amber-600">
+                  Another {category === "water_quality" ? "water-quality" : "water-level"} sensor is already active on this tank.
+                </p>
+              )}
             </div>
 
             {isEdit ? (
@@ -290,24 +403,49 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="h1">Sensor hanging (h1, m)</Label>
-                <Input id="h1" type="number" min="0" step="0.1" value={h1M} onChange={(e) => setH1M(e.target.value)} />
+            {category === "water_level" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="h1">Sensor hanging (h1, m)</Label>
+                  <Input id="h1" type="number" min="0" step="0.1" value={h1M} onChange={(e) => setH1M(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="depth">Depth (m)</Label>
+                  <Input id="depth" type="number" min="0" step="0.1" value={depthM} onChange={(e) => setDepthM(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="warning">Warning height (m)</Label>
+                  <Input id="warning" type="number" min="0" step="0.1" value={warningHeightM} onChange={(e) => setWarningHeightM(e.target.value)} />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="critical">Critical height (m)</Label>
+                  <Input id="critical" type="number" min="0" step="0.1" value={criticalHeightM} onChange={(e) => setCriticalHeightM(e.target.value)} />
+                </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="depth">Depth (m)</Label>
-                <Input id="depth" type="number" min="0" step="0.1" value={depthM} onChange={(e) => setDepthM(e.target.value)} />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ph-warn">pH warning below</Label>
+                  <Input id="ph-warn" type="number" step="0.1" value={phWarnBelow} onChange={(e) => setPhWarnBelow(e.target.value)} placeholder="default 6.5" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="turb-warn">Turbidity warning above (NTU)</Label>
+                  <Input id="turb-warn" type="number" step="0.1" value={turbWarnAbove} onChange={(e) => setTurbWarnAbove(e.target.value)} placeholder="default 5" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cl-warn">Free chlorine warning above (mg/L)</Label>
+                  <Input id="cl-warn" type="number" step="0.1" value={chlorineWarnAbove} onChange={(e) => setChlorineWarnAbove(e.target.value)} placeholder="default 2" />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="no3-warn">Nitrate warning above (mg/L)</Label>
+                  <Input id="no3-warn" type="number" step="0.1" value={nitrateWarnAbove} onChange={(e) => setNitrateWarnAbove(e.target.value)} placeholder="default 50" />
+                </div>
+                <p className="col-span-2 text-xs text-slate-400">
+                  Thresholds drive warning/critical statuses. Leave blank for conservative defaults
+                  (pH 6.5–8.5 warning band, turbidity &gt; 5 NTU, chlorine 0.2–2.0 mg/L, nitrate &gt; 50 mg/L).
+                </p>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="warning">Warning height (m)</Label>
-                <Input id="warning" type="number" min="0" step="0.1" value={warningHeightM} onChange={(e) => setWarningHeightM(e.target.value)} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="critical">Critical height (m)</Label>
-                <Input id="critical" type="number" min="0" step="0.1" value={criticalHeightM} onChange={(e) => setCriticalHeightM(e.target.value)} />
-              </div>
-            </div>
+            )}
 
             <div className="flex items-center justify-between rounded-xl border border-slate-200/80 px-4 py-3">
               <div>
@@ -322,15 +460,22 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <Button variant="outline" onClick={() => { setDialogOpen(false); onOpenChange(false) }} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={() => {
-              if (!deviceId.trim() || !tankId) {
-                toast.error("Device ID and tank are required.")
-                return
-              }
-              setDialogOpen(false); setConfirmOpen(true)
-            }} disabled={saving}>
-              {saving ? "Saving…" : isEdit ? "Save changes" : "Register sensor"}
-            </Button>
+            <div className="flex flex-col items-end gap-1.5">
+              {!formValid && (
+                <span className="text-[11px] font-medium text-slate-400">
+                  {isEdit ? "Select a tank to save changes" : "Enter Device ID and select a tank to continue"}
+                </span>
+              )}
+              <Button
+                onClick={() => {
+                  if (!formValid) return
+                  setDialogOpen(false); setConfirmOpen(true)
+                }}
+                disabled={saving || !formValid}
+              >
+                {saving ? "Saving…" : isEdit ? "Save changes" : "Register sensor"}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -358,6 +503,14 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <span className="text-slate-500">Tank</span>
             <span className="font-medium text-slate-800">{selectedTankName || "—"}</span>
           </div>
+          {!isEdit && (
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Category</span>
+              <span className="font-medium text-slate-800">
+                {category === "water_quality" ? "Water Quality" : "Water Level"}
+              </span>
+            </div>
+          )}
           {isEdit && (
             <div className="flex justify-between text-sm">
               <span className="text-slate-500">DMA</span>
@@ -368,24 +521,45 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             </div>
           )}
           <div className="border-t border-slate-200/80" />
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-slate-500">h1</span>
-              <span className="text-slate-800">{h1M ? `${h1M} m` : "—"}</span>
+          {category === "water_level" ? (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">h1</span>
+                <span className="text-slate-800">{h1M ? `${h1M} m` : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Depth</span>
+                <span className="text-slate-800">{depthM ? `${depthM} m` : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Warning</span>
+                <span className="text-slate-800">{warningHeightM ? `${warningHeightM} m` : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Critical</span>
+                <span className="text-slate-800">{criticalHeightM ? `${criticalHeightM} m` : "—"}</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Depth</span>
-              <span className="text-slate-800">{depthM ? `${depthM} m` : "—"}</span>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-500">pH warn &lt;</span>
+                <span className="text-slate-800">{phWarnBelow || "default (6.5)"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Turbidity warn &gt;</span>
+                <span className="text-slate-800">{turbWarnAbove || "default (5 NTU)"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Chlorine warn &gt;</span>
+                <span className="text-slate-800">{chlorineWarnAbove || "default (2 mg/L)"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Nitrate warn &gt;</span>
+                <span className="text-slate-800">{nitrateWarnAbove || "default (50 mg/L)"}</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Warning</span>
-              <span className="text-slate-800">{warningHeightM ? `${warningHeightM} m` : "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Critical</span>
-              <span className="text-slate-800">{criticalHeightM ? `${criticalHeightM} m` : "—"}</span>
-            </div>
-          </div>
+          )}
           <div className="border-t border-slate-200/80" />
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Activated</span>

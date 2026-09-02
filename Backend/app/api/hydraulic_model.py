@@ -5,7 +5,7 @@ This API prepares scoped MajiScope data for the external hydraulic model while
 keeping user access decisions inside MajiScope.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import secrets
@@ -48,6 +48,7 @@ from app.schemas.hydraulic_model import (
 from app.security.dependencies import CurrentUser, get_current_user
 from app.models.user import DMAManager, UtilityManager, User
 from app.services.activity_logs import audit_log
+from app.schemas.utc_datetime import utc_datetime_isoformat
 
 
 hydraulic_model_router = APIRouter(prefix="/api/hydraulic-model", tags=["hydraulic-model"])
@@ -504,7 +505,7 @@ def _build_reported_leaks_geojson(
                     "status": report.status.value if hasattr(report.status, "value") else str(report.status),
                     "priority": report.priority.value if hasattr(report.priority, "value") else str(report.priority),
                     "address": report.address,
-                    "created_at": report.created_at.isoformat() if report.created_at else None,
+                    "created_at": utc_datetime_isoformat(report.created_at) if report.created_at else None,
                     "utility_id": report.utility_id,
                     "dma_id": report.dma_id,
                     "diameter_m": 0.01,
@@ -547,7 +548,7 @@ def _call_hydraulic_gpkg_builder(
     data = {
         "session_id": session.id,
         "launch_token": launch_token,
-        "expires_at": session.expires_at.isoformat(),
+        "expires_at": utc_datetime_isoformat(session.expires_at),
         "utility_id": session.utility_id,
         "dma_id": dma.id,
         "dma_name": dma.name,
@@ -685,7 +686,7 @@ def prepare_hydraulic_model(
             "utility_id": session.utility_id,
             "dma_id": session.dma_id,
             "hydraulic_filename": session.hydraulic_filename,
-            "expires_at": session.expires_at.isoformat(),
+            "expires_at": utc_datetime_isoformat(session.expires_at),
             "reported_leak_count": reported_leak_count,
         },
         utility_id=session.utility_id,
@@ -887,6 +888,10 @@ def create_hydraulic_simulation_snapshot(
 
     actor_name, actor_email = _snapshot_actor(launch_session, db)
     completed_at = payload.completed_at or datetime.utcnow()
+    # Normalise to the naive-UTC storage convention (the epanet worker may send
+    # offset-aware timestamps now that it emits explicit UTC).
+    if completed_at.tzinfo is not None:
+        completed_at = completed_at.astimezone(timezone.utc).replace(tzinfo=None)
     execution_duration = payload.execution_duration_seconds
     if execution_duration is None and launch_session and launch_session.created_at:
         execution_duration = _elapsed_seconds(launch_session.created_at, completed_at)
@@ -1125,7 +1130,7 @@ def mark_hydraulic_model_session_cleaned(
             "session_id": session.id,
             "utility_id": session.utility_id,
             "dma_id": session.dma_id,
-            "cleaned_at": session.cleaned_at.isoformat() if session.cleaned_at else None,
+            "cleaned_at": utc_datetime_isoformat(session.cleaned_at) if session.cleaned_at else None,
         },
         utility_id=session.utility_id,
         dma_id=session.dma_id,
