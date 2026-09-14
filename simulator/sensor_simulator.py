@@ -124,7 +124,9 @@ class DepthGenerator:
 class WaterQualityGenerator:
     """Simulates a multi-parameter sonde: Tier A core + optional Tier B/C probes."""
 
-    def __init__(self):
+    def __init__(self, pressure_range=(0, 2000), pressure_unit="kPa"):
+        self.pressure_range = pressure_range  # (min, max) in kPa
+        self.pressure_unit = pressure_unit
         self.values = {
             # Tier A (core)
             "temperature_c": 21.5,
@@ -141,6 +143,8 @@ class WaterQualityGenerator:
             "phosphate_mgl": 0.35,
             "chlorophyll_ugl": 2.8,
             "phycocyanin_ugl": 1.4,
+            # Pressure (Tier B/C)
+            "pressure": 101.325,  # standard atmospheric pressure ~101.325 kPa
         }
         self.steps = {
             "temperature_c": 0.15,
@@ -156,7 +160,10 @@ class WaterQualityGenerator:
             "phosphate_mgl": 0.04,
             "chlorophyll_ugl": 0.25,
             "phycocyanin_ugl": 0.15,
+            "pressure": 0.5,  # kPa steps (small gradual changes)
         }
+        self.pressure_range = pressure_range
+        self.pressure_unit = pressure_unit
 
     def next(self) -> dict:
         out = {}
@@ -179,6 +186,16 @@ class WaterQualityGenerator:
         out["phosphate_mgl"] = max(0.0, out["phosphate_mgl"])
         out["chlorophyll_ugl"] = max(0.0, out["chlorophyll_ugl"])
         out["phycocyanin_ugl"] = max(0.0, out["phycocyanin_ugl"])
+        # Pressure: gradual change with occasional spikes
+        if "pressure" in out:
+            step = random.gauss(0, 0.5)
+            if random.random() < 0.05:  # 5% chance of spike
+                step *= random.uniform(3, 5)
+            self.values["pressure"] += step
+            out["pressure"] = round(
+                max(self.pressure_range[0], min(self.pressure_range[1], self.values["pressure"])),
+                2,
+            )
         return out
 
 

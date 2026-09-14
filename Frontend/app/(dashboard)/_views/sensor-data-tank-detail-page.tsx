@@ -3,7 +3,7 @@
 import type { ChangeEvent } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { Activity, ArrowLeft, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Plus, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
+import { Activity, ArrowLeft, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Pencil, Plus, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { SensorIcon } from "@/components/icons/sensor-icon"
 import { useDataStore, type SensorCategory, type SensorSnap, type TankReading } from "@/store/data-store"
@@ -86,6 +86,7 @@ const WQ_PARAM_META: Record<
   phosphate_mgl: { label: "Phosphate", unit: "mg/L", tile: { text: "PO₄", tint: "text-indigo-600 bg-indigo-50" }, tint: "text-indigo-500 bg-indigo-50", chip: "text-indigo-600" },
   chlorophyll_ugl: { label: "Chlorophyll-a", unit: "µg/L", icon: Leaf, tint: "text-green-500 bg-green-50", chip: "text-green-600" },
   phycocyanin_ugl: { label: "Phycocyanin", unit: "µg/L", tile: { text: "PC", tint: "text-cyan-700 bg-cyan-50" }, tint: "text-cyan-500 bg-cyan-50", chip: "text-cyan-700" },
+  pressure: { label: "Pressure", unit: "kPa", icon: Gauge, tint: "text-purple-600 bg-purple-50", chip: "text-purple-600" },
 }
 
 function wqLabel(key: string): string {
@@ -136,6 +137,7 @@ export default function WaterLevelTankDetailPage() {
 
   const { currentUser } = useAuthStore()
   const [registerOpen, setRegisterOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const canRegister = currentUser?.role === "admin" || currentUser?.role === "utility_manager"
 
   const tankSensors = useMemo(
@@ -246,6 +248,10 @@ export default function WaterLevelTankDetailPage() {
                         <span className="text-sm font-semibold text-slate-800">
                           {categoryLabel(sensor.category)}
                         </span>
+{categoryIcon(sensor.category)}
+                        <span className="text-sm font-semibold text-slate-800">
+                          {categoryLabel(sensor.category)}
+                        </span>
                         <span
                           className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
                             sensor.activated
@@ -315,19 +321,24 @@ export default function WaterLevelTankDetailPage() {
   // ═══════════════════════════════════════════════════════════════════════
   if (selectedCategory === "water_level") {
     return (
-      <WaterLevelReadingsView
-        tankId={tankId ?? ""}
-        tankName={tankName}
-        sensor={selected}
-        readings={readings}
-        tank={tank ?? null}
-        lengthOverride={lengthOverride}
-        onLengthChange={(v) => {
-          setLengthOverride(v)
-          if (tankId) stashTankLength(tankId, v)
-        }}
-        onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
-      />
+      <>
+        <WaterLevelReadingsView
+          tankId={tankId ?? ""}
+          tankName={tankName}
+          sensor={selected}
+          readings={readings}
+          tank={tank ?? null}
+          lengthOverride={lengthOverride}
+          canEdit={canRegister}
+          onEdit={() => setEditOpen(true)}
+          onLengthChange={(v) => {
+            setLengthOverride(v)
+            if (tankId) stashTankLength(tankId, v)
+          }}
+          onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
+        />
+        <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
+      </>
     )
   }
 
@@ -335,12 +346,18 @@ export default function WaterLevelTankDetailPage() {
   // Water-quality readings view (parameter cards + history)
   // ═══════════════════════════════════════════════════════════════════════
   return (
-    <WaterQualityReadingsView
-      tankName={tankName}
-      sensor={selected}
-      readings={readings}
-      onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
-    />
+    <>
+      <WaterQualityReadingsView
+        tankName={tankName}
+        sensor={selected}
+        readings={readings}
+        tank={tank ?? null}
+        canEdit={canRegister}
+        onEdit={() => setEditOpen(true)}
+        onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
+      />
+      <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
+    </>
   )
 }
 
@@ -353,6 +370,8 @@ function WaterLevelReadingsView({
   readings,
   tank,
   lengthOverride,
+  canEdit,
+  onEdit,
   onLengthChange,
   onBack,
 }: {
@@ -362,14 +381,16 @@ function WaterLevelReadingsView({
   readings: TankReading[]
   tank: { latitude: number | null; longitude: number | null } | null
   lengthOverride: number | null
+  canEdit: boolean
+  onEdit: () => void
   onLengthChange: (value: number) => void
   onBack: () => void
 }) {
   const latest = sensor.lastReading ?? null
   const status = latest?.status ?? sensor.status ?? "inactive"
   const tankLength = tankLengthFor(sensor, lengthOverride)
-  const h1 = (sensor.config?.h1_m as number | undefined) ?? 0
-  const depthDefault = (sensor.config?.depth_m as number | undefined) ?? 0
+  const h1 = (sensor.config?.h1M ?? sensor.config?.h1_m) as number | undefined ?? 0
+  const depthDefault = (sensor.config?.depthM ?? sensor.config?.depth_m) as number | undefined ?? 0
 
   const summary = useMemo(() => {
     const heights = readings.map((r) => r.waterLevelM ?? 0)
@@ -415,6 +436,15 @@ function WaterLevelReadingsView({
 
         <Card className="border-slate-200/70 bg-white shadow-sm">
           <CardContent className="p-6">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold text-slate-800">Sensor details</h2>
+              {canEdit && (
+                <Button size="sm" variant="outline" className="rounded-xl" onClick={onEdit}>
+                  <Pencil className="mr-1.5 h-4 w-4" />
+                  Edit sensor
+                </Button>
+              )}
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center gap-3">
                 <Droplets className="h-4 w-4 shrink-0 text-cyan-600" />
@@ -539,11 +569,17 @@ function WaterQualityReadingsView({
   tankName,
   sensor,
   readings,
+  tank,
+  canEdit,
+  onEdit,
   onBack,
 }: {
   tankName: string
   sensor: SensorSnap
   readings: TankReading[]
+  tank: { latitude: number | null; longitude: number | null } | null
+  canEdit: boolean
+  onEdit: () => void
   onBack: () => void
 }) {
   const latest = sensor.lastReading ?? null
@@ -581,6 +617,36 @@ function WaterQualityReadingsView({
           Water quality readings from <span className="font-mono">{sensor.deviceId}</span>.
         </p>
       </div>
+
+      <Card className="border-slate-200/70 bg-white shadow-sm">
+        <CardContent className="p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-slate-800">Sensor details</h2>
+            {canEdit && (
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={onEdit}>
+                <Pencil className="mr-1.5 h-4 w-4" />
+                Edit sensor
+              </Button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex items-center gap-3">
+              <SensorIcon className="h-4 w-4 shrink-0 text-cyan-600" />
+              <span className="text-sm text-slate-500">Sensor ID</span>
+              <strong className="ml-auto font-mono font-semibold text-slate-800">{sensor.deviceId}</strong>
+            </div>
+            <div className="flex items-center gap-3">
+              <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
+              <span className="text-sm text-slate-500">Coordinates</span>
+              <strong className="ml-auto font-mono font-semibold text-slate-800">
+                {tank?.latitude != null && tank?.longitude != null
+                  ? `${tank.latitude.toFixed(6)}°, ${tank.longitude.toFixed(6)}°`
+                  : "Not available"}
+              </strong>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Parameter cards (latest values) — 3 per row on md+ screens */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

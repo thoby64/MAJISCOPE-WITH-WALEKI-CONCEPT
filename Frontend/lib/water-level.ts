@@ -1,6 +1,9 @@
 import { normalizeNaiveIsoAsUtc } from "@/lib/date-time"
 
-export const WATER_LEVEL_POLL_INTERVAL_MS = 10_000
+// Polling more often than this can overwhelm the hosted API when a user has
+// multiple dashboard tabs open. Live updates remain frequent without creating
+// a burst of parallel requests every ten seconds.
+export const WATER_LEVEL_POLL_INTERVAL_MS = 30_000
 export const DEFAULT_TANK_LENGTH_M = 2
 export const READING_HISTORY_LIMIT = 30
 
@@ -24,7 +27,8 @@ export function tankLengthFor(
   sensor: { h1M?: number | null; config?: Record<string, unknown> | null },
   override: number | null
 ): number {
-  const configH1 = typeof sensor?.config?.h1_m === "number" ? (sensor.config.h1_m as number) : null
+  const configH1Value = sensor?.config?.h1M ?? sensor?.config?.h1_m
+  const configH1 = typeof configH1Value === "number" ? configH1Value : null
   const fallback = Math.max(sensor?.h1M ?? configH1 ?? 0, DEFAULT_TANK_LENGTH_M)
   return override && override > 0 ? override : fallback
 }

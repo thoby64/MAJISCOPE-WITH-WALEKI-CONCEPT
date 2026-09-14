@@ -56,6 +56,7 @@ WQ_PARAMETERS: Dict[str, Dict[str, Any]] = {
     "phosphate_mgl": {"aliases": ("phosphate_mgl", "Phosphate", "PO4", "po4"), "min": 0.0, "max": 500.0},
     "chlorophyll_ugl": {"aliases": ("chlorophyll_ugl", "Chlorophyll", "chla", "chlorophyll_a"), "min": 0.0, "max": 1_000.0},
     "phycocyanin_ugl": {"aliases": ("phycocyanin_ugl", "Phycocyanin", "pc_ugl"), "min": 0.0, "max": 1_000.0},
+    "pressure": {"aliases": ("pressure", "Pressure", "P", "press", "Press"), "min": 0.0, "max": 2000.0},
 }
 
 # Keys that are lowercased before alias matching (vendor spellings vary).

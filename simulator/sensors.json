@@ -1,17 +1,5 @@
 [
   {
-    "device_id": "DUW_KIS_001",
-    "category": "water_level"
-  },
-  {
-    "device_id": "DUW_NZUG_001",
-    "category": "water_level"
-  },
-  {
-    "device_id": "DUW_NTY_004",
-    "category": "water_level"
-  },
-  {
     "device_id": "AU_NAM_9001",
     "category": "water_level"
   },

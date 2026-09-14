@@ -21,9 +21,14 @@ interface RegisterSensorModalProps {
   sensor?: SensorSnap | null
 }
 
+function configValue(config: Record<string, unknown>, snakeCaseKey: string): unknown {
+  const camelCaseKey = snakeCaseKey.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase())
+  return config[camelCaseKey] ?? config[snakeCaseKey]
+}
+
 export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor }: RegisterSensorModalProps) {
   const { currentUser } = useAuthStore()
-  const { tanks, dmas, fetchTanks, fetchDMAs, registerSensor, updateSensor, detectSensorDma } = useDataStore()
+  const { tanks, dmas, fetchTanks, fetchSensor, fetchDMAs, registerSensor, updateSensor, detectSensorDma } = useDataStore()
 
   const role = currentUser?.role
   const isEdit = Boolean(sensor)
@@ -43,6 +48,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
   const [dmaId, setDmaId] = useState("")
   const [detectedDmaId, setDetectedDmaId] = useState<string | null>(null)
   const [detecting, setDetecting] = useState(false)
+  const [loadingSensor, setLoadingSensor] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -52,32 +58,52 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
   }, [open])
 
   useEffect(() => {
+    let cancelled = false
     if (!open) return
-    void fetchTanks()
+    if (!tanks.length) void fetchTanks()
     if (sensor) {
-      setDeviceId(sensor.deviceId)
-      setTankId(sensor.tankId)
-      setCategory(sensor.category ?? "water_level")
-      const cfg = (sensor.config ?? {}) as Record<string, any>
-      setH1M(cfg.h1_m != null ? String(cfg.h1_m) : "")
-      setDepthM(cfg.depth_m != null ? String(cfg.depth_m) : "")
-      setWarningHeightM(cfg.warning_height_m != null ? String(cfg.warning_height_m) : "")
-      setCriticalHeightM(cfg.critical_height_m != null ? String(cfg.critical_height_m) : "")
-      const phBounds = cfg.parameters?.ph ?? {}
-      const turbBounds = cfg.parameters?.turbidity_ntu ?? {}
-      setPhWarnBelow(phBounds.warning_below != null ? String(phBounds.warning_below) : "")
-      setTurbWarnAbove(turbBounds.warning_above != null ? String(turbBounds.warning_above) : "")
-      const clBounds = cfg.parameters?.free_chlorine_mgl ?? {}
-      setChlorineWarnAbove(clBounds.warning_above != null ? String(clBounds.warning_above) : "")
-      const no3Bounds = cfg.parameters?.nitrate_mgl ?? {}
-      setNitrateWarnAbove(no3Bounds.warning_above != null ? String(no3Bounds.warning_above) : "")
-      setActivated(sensor.activated)
-      setDmaId(sensor.dmaId ?? "")
-      setDetectedDmaId(null)
-      setDetecting(false)
-      void fetchDMAs(sensor.utilityId)
-      void runDmaDetection(sensor.tankId)
+      setLoadingSensor(true)
+      void fetchSensor(sensor.deviceId)
+        .then((liveSensor) => {
+          if (cancelled) return
+          setDeviceId(liveSensor.deviceId)
+          setTankId(liveSensor.tankId)
+          setCategory(liveSensor.category ?? "water_level")
+          const cfg = (liveSensor.config ?? {}) as Record<string, any>
+          const configText = (key: string) => {
+            const value = configValue(cfg, key)
+            return value != null ? String(value) : ""
+          }
+          const parameters = (configValue(cfg, "parameters") ?? configValue(cfg, "parameter_thresholds") ?? {}) as Record<string, Record<string, unknown>>
+          const thresholdText = (parameter: string, bound: string) => {
+            const value = configValue(parameters[parameter] ?? {}, bound)
+            return value != null ? String(value) : ""
+          }
+
+          setH1M(configText("h1_m"))
+          setDepthM(configText("depth_m"))
+          setWarningHeightM(configText("warning_height_m"))
+          setCriticalHeightM(configText("critical_height_m"))
+          setPhWarnBelow(thresholdText("ph", "warning_below"))
+          setTurbWarnAbove(thresholdText("turbidity_ntu", "warning_above"))
+          setChlorineWarnAbove(thresholdText("free_chlorine_mgl", "warning_above"))
+          setNitrateWarnAbove(thresholdText("nitrate_mgl", "warning_above"))
+          setActivated(liveSensor.activated)
+          setDmaId(liveSensor.dmaId ?? "")
+          setDetectedDmaId(null)
+          setDetecting(false)
+          if (!dmas.some((dma) => dma.utilityId === liveSensor.utilityId)) {
+            void fetchDMAs(liveSensor.utilityId)
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) toast.error(error instanceof Error ? error.message : "Failed to load the latest sensor details.")
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingSensor(false)
+        })
     } else {
+      setLoadingSensor(false)
       setDeviceId("")
       setTankId(defaultTankId ?? "")
       setCategory("water_level")
@@ -95,6 +121,9 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       setDetecting(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true
+    }
   }, [open, sensor, defaultTankId])
 
   // Active categories per tank (for the one-active-sensor-per-category rule)
@@ -302,7 +331,11 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             </AlertDescription>
           </Alert>
 
-          <div className="grid gap-3.5 py-1">
+          {loadingSensor && (
+            <p className="text-sm text-slate-500">Loading the latest sensor details…</p>
+          )}
+
+          <fieldset disabled={loadingSensor || saving} className="grid gap-3.5 py-1 disabled:opacity-60">
             <div className="grid gap-1.5">
               <Label htmlFor="device-id">Device ID</Label>
               <Input
@@ -454,7 +487,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
               </div>
               <Switch checked={activated} onCheckedChange={setActivated} />
             </div>
-          </div>
+          </fieldset>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => { setDialogOpen(false); onOpenChange(false) }} disabled={saving}>
@@ -471,7 +504,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
                   if (!formValid) return
                   setDialogOpen(false); setConfirmOpen(true)
                 }}
-                disabled={saving || !formValid}
+                disabled={loadingSensor || saving || !formValid}
               >
                 {saving ? "Saving…" : isEdit ? "Save changes" : "Register sensor"}
               </Button>

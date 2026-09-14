@@ -90,6 +90,7 @@ class WaterQualityReading(SensorBase):
     phosphate_mgl = Column(Float, nullable=True)
     chlorophyll_ugl = Column(Float, nullable=True)
     phycocyanin_ugl = Column(Float, nullable=True)
+    pressure = Column(Float, nullable=True)  # Pressure in kPa
 
     occurred_at = Column(DateTime, nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

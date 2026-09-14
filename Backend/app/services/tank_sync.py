@@ -22,6 +22,7 @@ from app.models import (
 )
 
 TANK_NAME_KEY_CANDIDATES: Tuple[str, ...] = (
+    "fid",
     "name",
     "tank_name",
     "tank",
@@ -152,7 +153,25 @@ def detect_tank_key_field(properties: Dict[str, Any]) -> Optional[str]:
         _canonical_key(str(key)): key
         for key in properties.keys()
     }
+
+    # Special handling for 'fid' - use it as the primary key if available
+    # since it's guaranteed to be unique (feature ID from GPKG)
+    fid_key = None
+    for candidate in ("fid", "FID", "Fid"):
+        canonical_candidate = _canonical_key(candidate)
+        original_key = canonical_to_original.get(canonical_candidate)
+        if original_key is not None:
+            fid_key = original_key
+            break
+
+    if fid_key and fid_key in properties:
+        fid_value = properties.get(fid_key)
+        if fid_key is not None and fid_key != "":
+            return fid_key
+
     for candidate in TANK_NAME_KEY_CANDIDATES:
+        if candidate == "fid":
+            continue  # Already handled above
         canonical_candidate = _canonical_key(candidate)
         original_key = canonical_to_original.get(canonical_candidate)
         if original_key is None:
@@ -160,6 +179,7 @@ def detect_tank_key_field(properties: Dict[str, Any]) -> Optional[str]:
         value = properties.get(original_key)
         if _is_usable_name(value):
             return original_key
+
     return None
 
 
@@ -187,7 +207,9 @@ def _to_float_pair(coordinates) -> Optional[Tuple[float, float]]:
     return latitude, longitude
 
 
-def coordinate_hash(latitude: float, longitude: float) -> str:
+def coordinate_hash(latitude: float, longitude: float, fid: Optional[int] = None) -> str:
+    if fid is not None:
+        return f"{COORDINATE_KEY_PREFIX}{latitude:.6f},{longitude:.6f},{fid}"
     return f"{COORDINATE_KEY_PREFIX}{latitude:.6f},{longitude:.6f}"
 
 
@@ -272,6 +294,13 @@ def sync_tanks_from_layer(
         if centroid is not None:
             latitude, longitude = centroid
 
+        # Extract fid for unique coordinate hashing
+        fid = properties.get("fid")
+        if isinstance(fid, (int, float)) and not isinstance(fid, bool):
+            fid = int(fid)
+        else:
+            fid = None
+
         name: Optional[str] = None
         source_key: Optional[str] = None
         if key_field is not None:
@@ -287,7 +316,7 @@ def sync_tanks_from_layer(
             # (with or without names) never create duplicate tanks.
             if latitude is None or longitude is None:
                 continue
-            coords_hash = coordinate_hash(latitude, longitude)
+            coords_hash = coordinate_hash(latitude, longitude, fid)
             existing_by_coords = coords_index.get(coords_hash)
             if existing_by_coords is not None:
                 seen_source_keys.add(existing_by_coords.source_key)
@@ -297,7 +326,8 @@ def sync_tanks_from_layer(
                     existing_by_coords.name = candidate
                 stats["skipped_duplicates"] += 1
                 continue
-            source_key = coords_hash
+            # Include fid in source_key when derived from coordinates to ensure uniqueness
+            source_key = f"{coords_hash}#{fid}" if fid is not None else coords_hash
 
         if not source_key:
             continue
@@ -305,8 +335,31 @@ def sync_tanks_from_layer(
         # Human-readable fallback: never display coordinates as a tank name.
         fallback_name = name or _resolve_tank_name(raw_name_value)
 
+        # Check if we've already seen this source_key in the current batch
+        # to avoid creating duplicate tanks within the same batch.
+        if source_key in seen_source_keys:
+            stats["skipped_duplicates"] += 1
+            continue
+
         seen_source_keys.add(source_key)
+
+        # Also check the database directly for any tanks that may have been
+        # created in this transaction but not yet in existing_tanks.
+        # This handles the case where a previous feature in this batch
+        # created a tank with the same source_key that was flushed to the DB.
+        # Flush first to ensure any pending changes are visible to the query.
+        db.flush()
         existing = existing_tanks.get(source_key)
+        if existing is None:
+            # Double-check the database directly in case a tank with this
+            # source_key was created and flushed earlier in this transaction.
+            from app.models import Tank as MainTank
+            existing = db.query(Tank).filter(
+                Tank.utility_id == utility_id,
+                Tank.source_key == source_key
+            ).first()
+            if existing:
+                existing_tanks[source_key] = existing
 
         if existing is None:
             tank = Tank(

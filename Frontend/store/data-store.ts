@@ -12,6 +12,10 @@ import { transformKeys } from "@/lib/transform-data"
 const REFERENCE_CACHE_TTL = 30_000
 const NOTIFICATION_CACHE_TTL = 10_000
 const BOOTSTRAP_CACHE_TTL = 10_000
+const SENSOR_CACHE_TTL = 15_000
+const TANK_CACHE_TTL = 30_000
+const TANK_READING_CACHE_TTL = 5_000
+const REPORTS_CACHE_TTL = 10_000
 
 // Type imports for proper typing
 import type {
@@ -36,8 +40,9 @@ function isAbortLikeError(error: unknown, code?: string) {
 
   return (
     code === "ABORTED" ||
+    code === "RATE_LIMIT_EXCEEDED" ||
     error instanceof DOMException && error.name === "AbortError" ||
-    /operation was aborted|aborterror|aborted/i.test(message)
+    /operation was aborted|aborterror|aborted|rate.limit.exceeded/i.test(message)
   )
 }
 
@@ -430,6 +435,7 @@ interface DataState {
   fetchLogs: (utilityId?: string, dmaId?: string) => Promise<void>
   fetchNotifications: (userId: string) => Promise<void>
   fetchSensors: () => Promise<void>
+  fetchSensor: (deviceId: string) => Promise<SensorSnap>
   fetchTanks: () => Promise<void>
   fetchTankReadings: (tankId: string, limit?: number, category?: SensorCategory) => Promise<void>
   registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
@@ -609,11 +615,11 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set({ engineers: transformed })
-      } else {
+      } else if (!isAbortLikeError(response.error, response.code)) {
         console.error("Error fetching engineers:", response.error)
       }
     } catch (error) {
-      console.error("Error fetching engineers:", error)
+      if (!isAbortLikeError(error)) console.error("Error fetching engineers:", error)
     }
   },
 
@@ -625,11 +631,11 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set({ teams: transformed })
-      } else {
+      } else if (!isAbortLikeError(response.error, response.code)) {
         console.error("Error fetching teams:", response.error)
       }
     } catch (error) {
-      console.error("Error fetching teams:", error)
+      if (!isAbortLikeError(error)) console.error("Error fetching teams:", error)
     }
   },
 
@@ -647,7 +653,9 @@ export const useDataStore = create<DataState>((set, get) => ({
       params.set("skip", String(filters?.skip ?? 0))
 
       const endpoint = `/reports${params.toString() ? `?${params}` : ""}`
-      const response = await apiClient.get<{ total?: number; items?: unknown[] }>(endpoint)
+      const response = await apiClient.get<{ total?: number; items?: unknown[] }>(endpoint, {
+        cacheTtl: REPORTS_CACHE_TTL,
+      })
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set({
@@ -655,11 +663,11 @@ export const useDataStore = create<DataState>((set, get) => ({
           reportsListTotal:
             typeof response.data.total === "number" ? response.data.total : transformed.length,
         })
-      } else {
+      } else if (!isAbortLikeError(response.error, response.code)) {
         console.error("Error fetching reports:", response.error)
       }
     } catch (error) {
-      console.error("Error fetching reports:", error)
+      if (!isAbortLikeError(error)) console.error("Error fetching reports:", error)
     }
   },
 
@@ -781,7 +789,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   fetchSensors: async () => {
     try {
-      const response = await apiClient.get("/sensors", { skipCache: true })
+      const response = await apiClient.get("/sensors", { cacheTtl: SENSOR_CACHE_TTL })
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set({ sensors: transformed })
@@ -793,9 +801,28 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
+  fetchSensor: async (deviceId: string) => {
+    try {
+      const response = await apiClient.get(`/sensors/${encodeURIComponent(deviceId)}`, { skipCache: true })
+      if (!response.success || !response.data) throw new Error(response.error || "Failed to fetch sensor")
+      const payload = (response.data as { sensor?: unknown }).sensor ?? response.data
+      const sensor = transformKeys(payload) as SensorSnap
+      if (!sensor.deviceId) throw new Error("The sensor response did not include a Device ID")
+      set((state) => ({ sensors: upsertEntity(state.sensors, sensor) }))
+      return sensor
+    } catch (error) {
+      // Older API deployments may not expose the single-sensor endpoint. A
+      // cache-bypassing list refresh still gives the modal current database data.
+      await get().fetchSensors()
+      const sensor = get().sensors.find((item) => item.deviceId === deviceId)
+      if (sensor) return sensor
+      throw error
+    }
+  },
+
   fetchTanks: async () => {
     try {
-      const response = await apiClient.get("/tanks", { skipCache: true })
+      const response = await apiClient.get("/tanks", { cacheTtl: TANK_CACHE_TTL })
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys) as TankSnap[]
         set({ tanks: transformed })
@@ -811,7 +838,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const response = await apiClient.get(
         `/tanks/${tankId}/readings?limit=${limit}&category=${category}`,
-        { skipCache: true }
+        { cacheTtl: TANK_READING_CACHE_TTL }
       )
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)

@@ -301,6 +301,16 @@ def _migrate_sensor_tables(engine: Engine) -> None:
                 except Exception as exc:  # non-fatal: best effort cleanup
                     print(f"   Legacy table drop skipped for {legacy_table}: {exc}")
 
+    # Ensure water_quality_reading has the pressure column (added in v2.1)
+    if "water_quality_reading" in existing_tables:
+        with engine.begin() as connection:
+            try:
+                connection.exec_driver_sql(
+                    "ALTER TABLE water_quality_reading ADD COLUMN IF NOT EXISTS pressure FLOAT;"
+                )
+            except Exception as exc:
+                print(f"   Pressure column add skipped: {exc}")
+
 
 def _drop_legacy_utility_pipe_network_table(engine: Engine) -> None:
     inspector = inspect(engine)
