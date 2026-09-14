@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/dashboard/layout,_N_T_/(dashboard)/dashboard/storage-facilities/layout,_N_T_/(dashboard)/dashboard/storage-facilities/new/layout,_N_T_/(dashboard)/dashboard/storage-facilities/new/page,_N_T_/dashboard/storage-facilities/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGRhc2hib2FyZCk/dashboard/storage-facilities/new/__PAGE__",
+    "/!KGRhc2hib2FyZCk/dashboard/storage-facilities/new",
+    "/!KGRhc2hib2FyZCk/dashboard/storage-facilities",
+    "/!KGRhc2hib2FyZCk/dashboard",
+    "/!KGRhc2hib2FyZCk",
+    "/_index",
+    "/_head"
+  ]
+}

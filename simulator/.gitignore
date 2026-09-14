@@ -1,0 +1,9 @@
+# Environment (contains secrets — never commit)
+.env
+
+# Runtime state (sensors added via UI; ephemeral on hosts)
+sensors.json
+
+# Python
+__pycache__/
+*.py[cod]

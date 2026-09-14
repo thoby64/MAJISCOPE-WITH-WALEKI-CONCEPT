@@ -56,6 +56,11 @@ def c(text, colour):
 
 # ─── .env reader/writer ──────────────────────────────────────────────────────
 def load_env() -> dict:
+    """Read config from .env file, then overlay real environment variables.
+
+    OS environment variables win (Render/hosts inject config there), so a
+    committed .env only provides local defaults.
+    """
     cfg = {}
     if ENV_FILE.exists():
         for line in ENV_FILE.read_text().splitlines():
@@ -65,6 +70,9 @@ def load_env() -> dict:
             if "=" in line:
                 key, _, val = line.partition("=")
                 cfg[key.strip()] = val.strip()
+    for key in ("MAJISCOPE_URL", "INGEST_KEY", "INTERVAL", "PORT"):
+        if os.environ.get(key):
+            cfg[key] = os.environ[key]
     return cfg
 
 
@@ -386,6 +394,9 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
 
         if path == "" or path == "/index.html":
             self._serve_html()
+        elif path == "/health" or path == "/healthz":
+            # Lightweight endpoint for Render health checks & uptime pingers
+            self._json_response({"status": "ok"})
         elif path == "/api/sensors":
             self._json_response(self.sim.all_sensors_status())
         elif path == "/api/config":
@@ -815,8 +826,12 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
 
 # ─── Web server launcher ─────────────────────────────────────────────────────
 def run_web(sim: Simulator, port: int = 8081):
+    # ThreadingHTTPServer: sensor threads + concurrent browser requests must
+    # not block each other (single-threaded HTTPServer deadlocks under load).
+    from http.server import ThreadingHTTPServer
+
     SimHTTPHandler.sim = sim
-    server = HTTPServer(("0.0.0.0", port), SimHTTPHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", port), SimHTTPHandler)
 
     print(f"\n{c(' MajiScope Sensor Simulator — Web UI ', CYAN + BOLD)}")
     print(f"  Endpoint : {c(sim.cfg['MAJISCOPE_URL'], DIM)}")
@@ -845,7 +860,7 @@ def run_web(sim: Simulator, port: int = 8081):
 def main():
     parser = argparse.ArgumentParser(description="MajiScope Sensor Simulator")
     parser.add_argument("--web", action="store_true", help="Launch browser-based UI")
-    parser.add_argument("--port", type=int, default=8081, help="Web UI port (default: 8081)")
+    parser.add_argument("--port", type=int, default=None, help="Web UI port (default: PORT env var or 8081)")
     parser.add_argument("--once", action="store_true", help="Send one round and exit")
     parser.add_argument("--interval", type=int, default=None, help="Override send interval (seconds)")
     args = parser.parse_args()
@@ -862,9 +877,13 @@ def main():
         sys.exit(0)
 
     signal.signal(signal.SIGINT, handle_sigint)
+    # Render (and most hosts) send SIGTERM on stop/redeploy
+    signal.signal(signal.SIGTERM, handle_sigint)
 
     if args.web:
-        run_web(sim, port=args.port)
+        # Render injects PORT; --port still wins if explicitly given
+        port = args.port or int(sim.cfg.get("PORT", 8081))
+        run_web(sim, port=port)
     else:
         run_cli(sim, once=args.once, interval_override=args.interval)
 

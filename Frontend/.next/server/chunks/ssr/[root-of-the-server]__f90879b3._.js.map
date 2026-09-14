@@ -1,0 +1,1 @@
+{"version":3,"sources":["../../../../app/%28dashboard%29/reports/page.tsx"],"sourcesContent":["import { redirect } from \"next/navigation\"\n\nexport default function ReportsRedirectPage() {\n  redirect(\"/dashboard/reports\")\n}\n"],"names":[],"mappings":"8VAAA,EAAA,CAAA,CAAA,OAAA,IAAA,EAAA,EAAA,CAAA,CAAA,OAEe,SAAS,IACtB,CAAA,EAAA,EAAA,QAAA,AAAQ,EAAC,qBACX"}

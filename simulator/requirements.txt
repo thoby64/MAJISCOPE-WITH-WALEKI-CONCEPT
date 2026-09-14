@@ -1,0 +1,3 @@
+# MajiScope Sensor Simulator
+# Uses Python standard library only (urllib, http.server, json) — nothing to install.
+# Render requires this file to detect the runtime.

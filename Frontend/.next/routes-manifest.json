@@ -1,0 +1,441 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/upload-payload/[imageId]",
+      "regex": "^/api/upload\\-payload/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPimageId": "nxtPimageId"
+      },
+      "namedRegex": "^/api/upload\\-payload/(?<nxtPimageId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/dmas/[dmaId]",
+      "regex": "^/dashboard/dmas/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPdmaId": "nxtPdmaId"
+      },
+      "namedRegex": "^/dashboard/dmas/(?<nxtPdmaId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/dmas/[dmaId]/edit",
+      "regex": "^/dashboard/dmas/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPdmaId": "nxtPdmaId"
+      },
+      "namedRegex": "^/dashboard/dmas/(?<nxtPdmaId>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/dashboard/hydraulic-reports/[snapshotId]",
+      "regex": "^/dashboard/hydraulic\\-reports/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPsnapshotId": "nxtPsnapshotId"
+      },
+      "namedRegex": "^/dashboard/hydraulic\\-reports/(?<nxtPsnapshotId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/reports/[reportId]",
+      "regex": "^/dashboard/reports/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPreportId": "nxtPreportId"
+      },
+      "namedRegex": "^/dashboard/reports/(?<nxtPreportId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/sensor-data/[tankId]",
+      "regex": "^/dashboard/sensor\\-data/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtankId": "nxtPtankId"
+      },
+      "namedRegex": "^/dashboard/sensor\\-data/(?<nxtPtankId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/teams/[teamId]",
+      "regex": "^/dashboard/teams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPteamId": "nxtPteamId"
+      },
+      "namedRegex": "^/dashboard/teams/(?<nxtPteamId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/utilities/[utilityId]",
+      "regex": "^/dashboard/utilities/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPutilityId": "nxtPutilityId"
+      },
+      "namedRegex": "^/dashboard/utilities/(?<nxtPutilityId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/dashboard/utilities/[utilityId]/edit",
+      "regex": "^/dashboard/utilities/([^/]+?)/edit(?:/)?$",
+      "routeKeys": {
+        "nxtPutilityId": "nxtPutilityId"
+      },
+      "namedRegex": "^/dashboard/utilities/(?<nxtPutilityId>[^/]+?)/edit(?:/)?$"
+    },
+    {
+      "page": "/dashboard/water-level/[tankId]",
+      "regex": "^/dashboard/water\\-level/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPtankId": "nxtPtankId"
+      },
+      "namedRegex": "^/dashboard/water\\-level/(?<nxtPtankId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/reports/[reportId]",
+      "regex": "^/reports/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPreportId": "nxtPreportId"
+      },
+      "namedRegex": "^/reports/(?<nxtPreportId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/teams/[id]",
+      "regex": "^/teams/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/teams/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/analytics",
+      "regex": "^/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/analytics(?:/)?$"
+    },
+    {
+      "page": "/api/dma-boundary/extract",
+      "regex": "^/api/dma\\-boundary/extract(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/dma\\-boundary/extract(?:/)?$"
+    },
+    {
+      "page": "/api/utility-boundary/extract",
+      "regex": "^/api/utility\\-boundary/extract(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/utility\\-boundary/extract(?:/)?$"
+    },
+    {
+      "page": "/branches",
+      "regex": "^/branches(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/branches(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/dashboard/analytics",
+      "regex": "^/dashboard/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/analytics(?:/)?$"
+    },
+    {
+      "page": "/dashboard/branches",
+      "regex": "^/dashboard/branches(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/branches(?:/)?$"
+    },
+    {
+      "page": "/dashboard/dma-managers",
+      "regex": "^/dashboard/dma\\-managers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/dma\\-managers(?:/)?$"
+    },
+    {
+      "page": "/dashboard/dmas",
+      "regex": "^/dashboard/dmas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/dmas(?:/)?$"
+    },
+    {
+      "page": "/dashboard/dmas/new",
+      "regex": "^/dashboard/dmas/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/dmas/new(?:/)?$"
+    },
+    {
+      "page": "/dashboard/engineers",
+      "regex": "^/dashboard/engineers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/engineers(?:/)?$"
+    },
+    {
+      "page": "/dashboard/hydraulic-model",
+      "regex": "^/dashboard/hydraulic\\-model(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/hydraulic\\-model(?:/)?$"
+    },
+    {
+      "page": "/dashboard/hydraulic-model/workspace",
+      "regex": "^/dashboard/hydraulic\\-model/workspace(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/hydraulic\\-model/workspace(?:/)?$"
+    },
+    {
+      "page": "/dashboard/hydraulic-reports",
+      "regex": "^/dashboard/hydraulic\\-reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/hydraulic\\-reports(?:/)?$"
+    },
+    {
+      "page": "/dashboard/hydraulic-reports/compare",
+      "regex": "^/dashboard/hydraulic\\-reports/compare(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/hydraulic\\-reports/compare(?:/)?$"
+    },
+    {
+      "page": "/dashboard/location-routing",
+      "regex": "^/dashboard/location\\-routing(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/location\\-routing(?:/)?$"
+    },
+    {
+      "page": "/dashboard/logs",
+      "regex": "^/dashboard/logs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/logs(?:/)?$"
+    },
+    {
+      "page": "/dashboard/managers",
+      "regex": "^/dashboard/managers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/managers(?:/)?$"
+    },
+    {
+      "page": "/dashboard/map",
+      "regex": "^/dashboard/map(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/map(?:/)?$"
+    },
+    {
+      "page": "/dashboard/notifications",
+      "regex": "^/dashboard/notifications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/notifications(?:/)?$"
+    },
+    {
+      "page": "/dashboard/profile",
+      "regex": "^/dashboard/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/profile(?:/)?$"
+    },
+    {
+      "page": "/dashboard/reports",
+      "regex": "^/dashboard/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/reports(?:/)?$"
+    },
+    {
+      "page": "/dashboard/sensor-data",
+      "regex": "^/dashboard/sensor\\-data(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/sensor\\-data(?:/)?$"
+    },
+    {
+      "page": "/dashboard/sensors",
+      "regex": "^/dashboard/sensors(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/sensors(?:/)?$"
+    },
+    {
+      "page": "/dashboard/settings",
+      "regex": "^/dashboard/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/settings(?:/)?$"
+    },
+    {
+      "page": "/dashboard/storage-facilities/new",
+      "regex": "^/dashboard/storage\\-facilities/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/storage\\-facilities/new(?:/)?$"
+    },
+    {
+      "page": "/dashboard/team-leaders",
+      "regex": "^/dashboard/team\\-leaders(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/team\\-leaders(?:/)?$"
+    },
+    {
+      "page": "/dashboard/teams",
+      "regex": "^/dashboard/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/teams(?:/)?$"
+    },
+    {
+      "page": "/dashboard/users",
+      "regex": "^/dashboard/users(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/users(?:/)?$"
+    },
+    {
+      "page": "/dashboard/utilities",
+      "regex": "^/dashboard/utilities(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/utilities(?:/)?$"
+    },
+    {
+      "page": "/dashboard/utilities/new",
+      "regex": "^/dashboard/utilities/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/utilities/new(?:/)?$"
+    },
+    {
+      "page": "/dashboard/utility-infrastructure",
+      "regex": "^/dashboard/utility\\-infrastructure(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/utility\\-infrastructure(?:/)?$"
+    },
+    {
+      "page": "/dashboard/water-level",
+      "regex": "^/dashboard/water\\-level(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/water\\-level(?:/)?$"
+    },
+    {
+      "page": "/dmas",
+      "regex": "^/dmas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dmas(?:/)?$"
+    },
+    {
+      "page": "/engineers",
+      "regex": "^/engineers(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/engineers(?:/)?$"
+    },
+    {
+      "page": "/location-routing",
+      "regex": "^/location\\-routing(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/location\\-routing(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/map",
+      "regex": "^/map(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/map(?:/)?$"
+    },
+    {
+      "page": "/notifications",
+      "regex": "^/notifications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/notifications(?:/)?$"
+    },
+    {
+      "page": "/profile",
+      "regex": "^/profile(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/profile(?:/)?$"
+    },
+    {
+      "page": "/report/thanks",
+      "regex": "^/report/thanks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/report/thanks(?:/)?$"
+    },
+    {
+      "page": "/reports",
+      "regex": "^/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reports(?:/)?$"
+    },
+    {
+      "page": "/reset-password",
+      "regex": "^/reset\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/reset\\-password(?:/)?$"
+    },
+    {
+      "page": "/settings",
+      "regex": "^/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/settings(?:/)?$"
+    },
+    {
+      "page": "/setup-account",
+      "regex": "^/setup\\-account(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/setup\\-account(?:/)?$"
+    },
+    {
+      "page": "/teams",
+      "regex": "^/teams(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/teams(?:/)?$"
+    },
+    {
+      "page": "/utilities",
+      "regex": "^/utilities(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/utilities(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

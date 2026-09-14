@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(dashboard)/layout,_N_T_/(dashboard)/dashboard/layout,_N_T_/(dashboard)/dashboard/hydraulic-reports/layout,_N_T_/(dashboard)/dashboard/hydraulic-reports/compare/layout,_N_T_/(dashboard)/dashboard/hydraulic-reports/compare/page,_N_T_/dashboard/hydraulic-reports/compare"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KGRhc2hib2FyZCk/dashboard/hydraulic-reports/compare/__PAGE__",
+    "/!KGRhc2hib2FyZCk/dashboard/hydraulic-reports/compare",
+    "/!KGRhc2hib2FyZCk/dashboard/hydraulic-reports",
+    "/!KGRhc2hib2FyZCk/dashboard",
+    "/!KGRhc2hib2FyZCk",
+    "/_index",
+    "/_head"
+  ]
+}
