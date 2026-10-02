@@ -1,3 +1,0 @@
-{
-  "/(dashboard)/dashboard/water-level/[tankId]/page": "app/(dashboard)/dashboard/water-level/[tankId]/page.js"
-}

@@ -1,3 +1,0 @@
-{
-  "/(dashboard)/dashboard/sensor-data/[tankId]/page": "app/(dashboard)/dashboard/sensor-data/[tankId]/page.js"
-}

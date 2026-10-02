@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     print(f"   Frontend URL: {settings.frontend_url}")
     print(f"   CORS Origins: {settings.get_cors_origins()}")
     print(f"   CORS Origin Regex: {settings.cors_origin_regex}")
-    print(f"   Safe Startup Migrations: always on")
+    print(f"   Startup Migrations Enabled: {settings.run_startup_migrations}")
     print(f"   Heavy Startup Migrations Enabled: {settings.run_startup_migrations}")
     startup_schema_sync_enabled = (
         settings.run_startup_schema_sync
@@ -63,8 +63,8 @@ async def lifespan(app: FastAPI):
         print("   Startup Schema Sync Skipped: disabled for PostgreSQL web startup")
     print(f"   Legacy DUWASA Startup Import: {settings.legacy_duwasa_import_on_startup}")
     print("=" * 60)
-    run_safe_startup_migrations(engine)
     if settings.run_startup_migrations:
+        run_safe_startup_migrations(engine)
         run_heavy_startup_migrations(engine)
     if startup_schema_sync_enabled:
         Base.metadata.create_all(bind=engine)
@@ -79,10 +79,12 @@ async def lifespan(app: FastAPI):
             reconcile_all_tanks,
         )
 
-        SensorBase.metadata.create_all(bind=sensor_engine)
+        if settings.run_startup_schema_sync:
+            SensorBase.metadata.create_all(bind=sensor_engine)
         with SessionLocal() as boot_db:
-            ensure_outbox_table(boot_db)
-            boot_db.commit()
+            if settings.run_startup_migrations or startup_schema_sync_enabled:
+                ensure_outbox_table(boot_db)
+                boot_db.commit()
             drained = drain_outbox(boot_db)
             if drained:
                 print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")

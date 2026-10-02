@@ -1,1 +1,0 @@
-{"version":3,"sources":["../../../../app/%28dashboard%29/utilities/page.tsx"],"sourcesContent":["import { redirect } from \"next/navigation\"\n\nexport default function UtilitiesRedirectPage() {\n  redirect(\"/dashboard/utilities\")\n}\n"],"names":[],"mappings":"8VAAA,EAAA,CAAA,CAAA,OAAA,IAAA,EAAA,EAAA,CAAA,CAAA,OAEe,SAAS,IACtB,CAAA,EAAA,EAAA,QAAA,AAAQ,EAAC,uBACX"}

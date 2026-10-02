@@ -1,9 +1,9 @@
 """
 Runtime database migrations for local/dev deployments.
 
-This project does not currently use a full Alembic workflow in active
-development, so startup migrations keep the local SQLite/Postgres database in
-sync with the live backend models.
+These compatibility migrations support legacy development databases. Production
+schema changes are managed by reviewed Alembic revisions from a controlled
+deployment job; application replicas must not run DDL concurrently.
 """
 
 from __future__ import annotations

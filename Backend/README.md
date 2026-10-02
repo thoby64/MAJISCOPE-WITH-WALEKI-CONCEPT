@@ -38,6 +38,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```env
 ENVIRONMENT=development
 DATABASE_URL=sqlite:///./majiscope.db
+SENSOR_DATABASE_URL=sqlite:///./sensor_platform.db
 FRONTEND_URL=http://localhost:3000
 SECRET_KEY=change-me
 HOST=0.0.0.0
@@ -46,15 +47,16 @@ PORT=8000
 
 ## Startup behavior
 
-On startup the backend now:
+In local development, startup can:
 
-1. runs runtime schema migrations
-2. removes old branch-linked columns if they still exist
-3. adds notification metadata columns if needed
-4. creates current tables such as `push_device_token`
+1. run runtime schema migrations
+2. remove old branch-linked columns if they still exist
+3. add notification metadata columns if needed
+4. create current tables such as `push_device_token`
 
-For SQLite, the migration creates a timestamped backup before rewriting the old
-schema.
+For SQLite, the legacy branch-removal migration creates a timestamped backup
+before rewriting the old schema. Production web startup does not run schema DDL;
+use the controlled Alembic workflow in `migrations/README.md` for both stores.
 
 ## Key API groups
 
@@ -83,10 +85,20 @@ Key flow:
 
 ## Production notes
 
-- set `DATABASE_URL`, `FRONTEND_URL`, and `SECRET_KEY` explicitly
+- set `DATABASE_URL`, `SENSOR_DATABASE_URL`, `FRONTEND_URL`, and `SECRET_KEY` explicitly
 - do not rely on localhost fallbacks outside development
 - use a real ASGI process manager for production
-- if you deploy on Postgres, let the startup migrator run once on the updated code before traffic
+- verify and baseline existing schemas, then run reviewed Alembic upgrades from one controlled deployment job before routing traffic to code that requires the new schema
+- do not run schema migrations from each horizontally scaled API replica
+
+## Database schema changes
+
+The main and sensor stores have separate Alembic histories. Follow
+[`migrations/README.md`](migrations/README.md) for fresh-database bootstrap,
+existing-database verification and baseline stamping, revision review, and
+controlled deployment. The SQLite/PostgreSQL and sensor-transfer utilities
+default to read-only preflight and must not run automatically at application
+startup.
 
 ## Historical DUWASA import on deploy
 

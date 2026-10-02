@@ -39,6 +39,7 @@ from app.models.sensors import (
     Tank,
     TankStatusEnum,
 )
+from app.models.sensor_mirror_outbox import SensorMirrorOutbox
 
 __all__ = [
     "Base",
@@ -64,6 +65,7 @@ __all__ = [
     "ImageUpload",
     # Sensor-era models (tank remains; sensors/readings live in the sensor platform DB)
     "Tank",
+    "SensorMirrorOutbox",
     # Enums
     "EntityStatusEnum",
     "UtilityServiceAreaCategoryEnum",
