@@ -205,3 +205,12 @@ simulator stops sending readings. Prevent that with a free uptime pinger:
 - The simulator's `sensors.json` is wiped on every simulator redeploy (free tier has no persistent disk). Sensors are quick to re-add via the browser UI.
 - Both Neon DBs are already created, tables initialized, and seeded — no DB setup needed on Render.
 - Old `majiscope-2wzv` / `full-nfjr` Render URLs and their references have been removed from the codebase.
+
+
+
+ "The backend and frontend are stateless, shared-nothing services — they support                                                
+     horizontal scaling, where identical nodes share all incoming work simultaneously                                               
+     behind a load balancer, with all state in external Neon Postgres. There's no per-                                              
+     node job dispatching except one specialized case: hydraulic simulations are                                                    
+     delegated to an external EPANET worker service. The simulator is intentionally                                                 
+     single-instance." 
