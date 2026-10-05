@@ -893,15 +893,19 @@ async def update_sensor_tank(
 async def list_tank_readings(
     tank_id: str,
     category: str = Query("water_level", pattern="^(water_level|water_quality)$"),
-    limit: int = Query(30, ge=1, le=200),
+    limit: int = Query(30, ge=1, le=5000),
+    sensor_id: Optional[str] = Query(None),
+    start_at: Optional[datetime] = Query(None),
+    end_at: Optional[datetime] = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     sensor_db: Session = Depends(get_sensor_db),
 ):
     """
-    Reading history for a tank's active sensors of the given category, newest
-    first. Scoped to the caller's utility/DMA. Only readings from *activated*
-    sensors are returned; inactive sensors and their history are excluded.
+    Reading history for active sensors on a tank, newest first. An optional
+    sensor_id narrows the result to one sensor; start_at/end_at bound the
+    occurrence time. Scoped to the caller's utility/DMA. Inactive sensors and
+    their history are excluded.
     """
     tank_ref = _get_tank_ref_or_404(sensor_db, tank_id)
     _ensure_tank_access(tank_ref, current_user, db, action="access")
@@ -919,10 +923,19 @@ async def list_tank_readings(
 
     model = WaterQualityReading if category == "water_quality" else WaterLevelReading
     query = sensor_db.query(model)
-    if active_sensor_ids:
+    if sensor_id:
+        if sensor_id not in active_sensor_ids:
+            raise HTTPException(status_code=404, detail="Active sensor not found on this tank")
+        query = query.filter(model.sensor_id == sensor_id)
+    elif active_sensor_ids:
         query = query.filter(model.sensor_id.in_(active_sensor_ids))
     else:
         query = query.filter(model.id.is_(None))
+
+    if start_at is not None:
+        query = query.filter(model.occurred_at >= start_at)
+    if end_at is not None:
+        query = query.filter(model.occurred_at <= end_at)
 
     total = query.count()
     readings = (

@@ -3,7 +3,7 @@
 import type { ChangeEvent } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { Activity, ArrowLeft, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Pencil, Plus, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
+import { Activity, ArrowLeft, BarChart3, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Pencil, Plus, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { SensorIcon } from "@/components/icons/sensor-icon"
 import { useDataStore, type SensorCategory, type SensorSnap, type TankReading } from "@/store/data-store"
@@ -335,6 +335,7 @@ export default function WaterLevelTankDetailPage() {
             setLengthOverride(v)
             if (tankId) stashTankLength(tankId, v)
           }}
+          onAnalytics={() => router.push(`/dashboard/sensor-data/${tankId}/analytics?sensor=${selected.id}`)}
           onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
         />
         <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
@@ -354,6 +355,7 @@ export default function WaterLevelTankDetailPage() {
         tank={tank ?? null}
         canEdit={canRegister}
         onEdit={() => setEditOpen(true)}
+        onAnalytics={() => router.push(`/dashboard/sensor-data/${tankId}/water-quality-analytics?sensor=${selected.id}`)}
         onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
       />
       <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
@@ -373,6 +375,7 @@ function WaterLevelReadingsView({
   canEdit,
   onEdit,
   onLengthChange,
+  onAnalytics,
   onBack,
 }: {
   tankId: string
@@ -384,6 +387,7 @@ function WaterLevelReadingsView({
   canEdit: boolean
   onEdit: () => void
   onLengthChange: (value: number) => void
+  onAnalytics: () => void
   onBack: () => void
 }) {
   const latest = sensor.lastReading ?? null
@@ -413,9 +417,15 @@ function WaterLevelReadingsView({
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Back to sensors
         </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
-          <WaterStatusPill status={status} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
+            <WaterStatusPill status={status} />
+          </div>
+          <Button variant="default" onClick={onAnalytics} className="rounded-xl shadow-sm shadow-primary/20">
+            <BarChart3 className="mr-1.5 h-4 w-4" />
+            Analytics
+          </Button>
         </div>
         <p className="text-sm text-slate-500">
           Water level readings from <span className="font-mono">{sensor.deviceId}</span>.
@@ -519,6 +529,7 @@ function WaterLevelReadingsView({
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-cyan-600" />
             <h2 className="text-sm font-semibold text-slate-800">Recent readings</h2>
+            <span className="text-xs text-slate-400">Latest {Math.min(readings.length, 20)}{readings.length > 20 ? ` of ${readings.length}` : ""}</span>
           </div>
           {readings.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">No readings found for this sensor yet.</p>
@@ -537,7 +548,7 @@ function WaterLevelReadingsView({
                     </tr>
                   </thead>
                   <tbody>
-                    {readings.slice(0, 30).map((reading) => (
+                    {readings.slice(0, 20).map((reading) => (
                       <tr key={reading.readingId} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
                         <td className="sticky left-0 z-10 bg-white py-3 pl-4 pr-4 whitespace-nowrap text-slate-600">
                           {formatTanzaniaDateTime(reading.occurredAt)}
@@ -572,6 +583,7 @@ function WaterQualityReadingsView({
   tank,
   canEdit,
   onEdit,
+  onAnalytics,
   onBack,
 }: {
   tankName: string
@@ -580,6 +592,7 @@ function WaterQualityReadingsView({
   tank: { latitude: number | null; longitude: number | null } | null
   canEdit: boolean
   onEdit: () => void
+  onAnalytics: () => void
   onBack: () => void
 }) {
   const latest = sensor.lastReading ?? null
@@ -609,9 +622,15 @@ function WaterQualityReadingsView({
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           Back to sensors
         </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
-          <WaterStatusPill status={status} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
+            <WaterStatusPill status={status} />
+          </div>
+          <Button variant="default" onClick={onAnalytics} className="rounded-xl shadow-sm shadow-primary/20">
+            <BarChart3 className="mr-1.5 h-4 w-4" />
+            Analytics
+          </Button>
         </div>
         <p className="text-sm text-slate-500">
           Water quality readings from <span className="font-mono">{sensor.deviceId}</span>.
@@ -702,6 +721,7 @@ function WaterQualityReadingsView({
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-cyan-600" />
             <h2 className="text-sm font-semibold text-slate-800">Recent readings</h2>
+            <span className="text-xs text-slate-400">Latest {Math.min(readings.length, 20)}{readings.length > 20 ? ` of ${readings.length}` : ""}</span>
           </div>
           {readings.length === 0 ? (
             <p className="mt-4 text-sm text-slate-500">No readings found for this sensor yet.</p>
@@ -727,7 +747,7 @@ function WaterQualityReadingsView({
                     </tr>
                   </thead>
                   <tbody>
-                    {readings.slice(0, 30).map((reading) => (
+                    {readings.slice(0, 20).map((reading) => (
                       <tr key={reading.readingId} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70">
                         <td className="sticky left-0 z-10 bg-white py-3 pl-4 pr-4 whitespace-nowrap text-slate-600 group-hover:bg-slate-50/70">
                           {formatTanzaniaDateTime(reading.occurredAt)}

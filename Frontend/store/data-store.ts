@@ -438,6 +438,7 @@ interface DataState {
   fetchSensor: (deviceId: string) => Promise<SensorSnap>
   fetchTanks: () => Promise<void>
   fetchTankReadings: (tankId: string, limit?: number, category?: SensorCategory) => Promise<void>
+  fetchSensorReadings: (tankId: string, sensorId: string, options?: { limit?: number; startAt?: string; endAt?: string; category?: SensorCategory }) => Promise<TankReading[]>
   registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
   updateSensor: (deviceId: string, data: Partial<RegisterSensorInput>) => Promise<SensorSnap>
   deleteSensor: (deviceId: string) => Promise<void>
@@ -854,6 +855,21 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch (error) {
       if (!isAbortLikeError(error)) console.error("Error fetching tank readings:", error)
     }
+  },
+
+  fetchSensorReadings: async (tankId, sensorId, options = {}) => {
+    const params = new URLSearchParams({
+      category: options.category ?? "water_level",
+      limit: String(options.limit ?? 5000),
+      sensor_id: sensorId,
+    })
+    if (options.startAt) params.set("start_at", options.startAt)
+    if (options.endAt) params.set("end_at", options.endAt)
+    const response = await apiClient.get(`/tanks/${tankId}/readings?${params.toString()}`, { skipCache: true })
+    if (!response.success || !response.data) {
+      throw new Error(response.error || "Failed to load sensor analytics readings")
+    }
+    return ((response.data as { items?: unknown[] }).items ?? []).map(transformKeys) as TankReading[]
   },
 
   registerSensor: async (data: RegisterSensorInput) => {
