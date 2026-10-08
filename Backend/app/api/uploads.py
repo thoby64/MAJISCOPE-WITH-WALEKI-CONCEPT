@@ -4,17 +4,21 @@ API endpoints for image and video upload and retrieval.
 """
 
 import logging
+import hashlib
 from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.models import ImageUpload, Report
+from app.models import ImageUpload, MediaStorageDeletion, Report, Team
+from app.config import settings
 from app.models.uploads import ImageTypeEnum
 from app.security.dependencies import CurrentUser, get_current_user
 from app.services.activity_logs import audit_log
 from app.services.image_service import compress_image_if_needed, validate_image
+from app.services.media_storage import delete_object, get_object, new_storage_key, put_object
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +34,9 @@ def _build_upload_response(image_upload: ImageUpload):
         "fileSize": image_upload.file_size,
         "width": image_upload.width,
         "height": image_upload.height,
+        "storage_backend": image_upload.storage_backend,
+        "storage_key": image_upload.storage_key,
+        "sha256": image_upload.sha256,
         "mimeType": image_upload.mime_type,
         "imageType": image_upload.image_type,
         "createdAt": image_upload.created_at,
@@ -91,6 +98,43 @@ def _validate_media_upload(file: UploadFile, file_data: bytes) -> Tuple[bytes, s
     )
 
 
+def _store_media(db: Session, **fields) -> ImageUpload:
+    data = fields.pop("file_data")
+    key = new_storage_key()
+    put_object(key, data, fields["mime_type"])
+    image_upload = ImageUpload(
+        file_data=None,
+        storage_backend=settings.media_storage_backend,
+        storage_key=key,
+        sha256=hashlib.sha256(data).hexdigest(),
+        **fields,
+    )
+    try:
+        db.add(image_upload)
+        db.flush()
+        return image_upload
+    except Exception:
+        db.rollback()
+        try:
+            delete_object(key, settings.media_storage_backend)
+        except Exception:
+            logger.exception("Failed to clean up object after media metadata write failed")
+        raise
+
+
+def _read_media_payload(image_upload: ImageUpload) -> bytes:
+    payload = image_upload.file_data
+    if payload is None and image_upload.storage_key:
+        payload = get_object(image_upload.storage_key, image_upload.storage_backend)
+    if payload is None:
+        raise HTTPException(status_code=410, detail="Media payload is unavailable")
+    payload = bytes(payload)
+    if image_upload.sha256 and hashlib.sha256(payload).hexdigest() != image_upload.sha256:
+        logger.error("Media checksum mismatch for upload %s", image_upload.id)
+        raise HTTPException(status_code=502, detail="Media integrity verification failed")
+    return payload
+
+
 @uploads_router.post("", status_code=status.HTTP_201_CREATED)
 async def upload_image(
     request: Request,
@@ -101,7 +145,7 @@ async def upload_image(
     db: Session = Depends(get_db),
 ):
     """
-    Upload an image or video file and store it in PostgreSQL.
+    Upload an image or video file and store media bytes in configured object storage.
     """
     try:
         file_data = await file.read()
@@ -114,8 +158,30 @@ async def upload_image(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Report not found",
                 )
+            if current_user.user_type == "engineer":
+                is_team_leader = bool(
+                    db.query(Team.id)
+                    .filter(Team.id == report.team_id, Team.leader_id == current_user.id)
+                    .first()
+                )
+                is_team_member = bool(
+                    current_user.team_id and report.team_id == current_user.team_id
+                )
+                if not report.team_id or not (is_team_leader or is_team_member):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is outside your assigned team")
+                if (
+                    current_user.role != "team_leader"
+                    and report.assigned_engineer_id
+                    and report.assigned_engineer_id != current_user.id
+                ):
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is assigned to another engineer")
+                if image_type not in {ImageTypeEnum.SUBMISSION_BEFORE.value, ImageTypeEnum.SUBMISSION_AFTER.value}:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Engineers may upload only before/after repair evidence",
+                    )
 
-        image_upload = ImageUpload(
+        image_upload = _store_media(db,
             file_data=stored_data,
             file_name=file.filename,
             file_type=file.content_type,
@@ -155,6 +221,14 @@ async def upload_image(
     except HTTPException:
         raise
     except Exception as exc:
+        db.rollback()
+        if "image_upload" in locals() and image_upload.storage_key:
+            row_exists = db.query(ImageUpload.id).filter(ImageUpload.id == image_upload.id).first()
+            if not row_exists:
+                try:
+                    delete_object(image_upload.storage_key, image_upload.storage_backend)
+                except Exception:
+                    logger.exception("Failed to clean up object after upload transaction failed")
         logger.error("Media upload error: %s", str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -174,7 +248,7 @@ async def upload_public_image(
         file_data = await file.read()
         stored_data, mime_type, final_width, final_height = _validate_media_upload(file, file_data)
 
-        image_upload = ImageUpload(
+        image_upload = _store_media(db,
             file_data=stored_data,
             file_name=file.filename,
             file_type=file.content_type,
@@ -214,6 +288,14 @@ async def upload_public_image(
     except HTTPException:
         raise
     except Exception as exc:
+        db.rollback()
+        if "image_upload" in locals() and image_upload.storage_key:
+            row_exists = db.query(ImageUpload.id).filter(ImageUpload.id == image_upload.id).first()
+            if not row_exists:
+                try:
+                    delete_object(image_upload.storage_key, image_upload.storage_backend)
+                except Exception:
+                    logger.exception("Failed to clean up object after public upload transaction failed")
         logger.error("Public media upload error: %s", str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -235,11 +317,12 @@ async def download_image(image_id: str, db: Session = Depends(get_db)):
                 detail="Image not found",
             )
 
+        payload = _read_media_payload(image)
         return {
             "id": image.id,
             "fileName": image.file_name,
             "mimeType": image.mime_type,
-            "data": image.file_data.hex(),
+            "data": payload.hex(),
             "width": image.width,
             "height": image.height,
         }
@@ -252,6 +335,30 @@ async def download_image(image_id: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Image download failed",
         )
+
+
+@uploads_router.get("/{image_id}/content")
+async def download_image_content(image_id: str, db: Session = Depends(get_db)):
+    """Stream the original media bytes for first-party clients."""
+    image = db.query(ImageUpload).filter(ImageUpload.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+    try:
+        payload = _read_media_payload(image)
+        return Response(
+            content=payload,
+            media_type=image.mime_type,
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "private, no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Media content download failed: %s", str(exc))
+        raise HTTPException(status_code=502, detail="Media storage is temporarily unavailable")
 
 
 @uploads_router.delete("/{image_id}")
@@ -296,8 +403,17 @@ async def delete_image(
             dma_id=getattr(report, "dma_id", None),
             metadata={"image_type": image.image_type},
         )
+        if image.storage_key and image.storage_backend:
+            db.add(MediaStorageDeletion(storage_key=image.storage_key, storage_backend=image.storage_backend))
         db.delete(image)
         db.commit()
+
+        # Fast path; the committed queue entry remains available for background retry.
+        try:
+            from app.services.media_storage_cleanup import drain_media_deletion_queue
+            drain_media_deletion_queue(limit=20)
+        except Exception:
+            logger.exception("Media deletion queued for retry")
 
         logger.info("Media deleted: %s", image_id)
         return {"message": "Image deleted successfully"}

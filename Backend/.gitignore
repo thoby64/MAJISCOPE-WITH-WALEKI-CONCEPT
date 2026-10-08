@@ -61,3 +61,5 @@ database.db
 # OS
 .DS_Store
 Thumbs.db
+# Local development object storage; never commit uploaded media.
+.media_objects/

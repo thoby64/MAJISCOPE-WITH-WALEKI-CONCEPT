@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from contextlib import asynccontextmanager
+import asyncio
 
 from app.config import settings
 from app.database.session import engine, SessionLocal
@@ -69,6 +70,26 @@ async def lifespan(app: FastAPI):
     if startup_schema_sync_enabled:
         Base.metadata.create_all(bind=engine)
 
+    if settings.media_backfill_on_startup:
+        from app.services.media_storage_migration import migrate_report_media
+        from app.services.database_migrations import ensure_media_object_storage_schema
+
+        ensure_media_object_storage_schema(engine)
+        with SessionLocal() as media_db:
+            result = migrate_report_media(media_db, purge_binary=True)
+        print("   Report media object storage migration:", result)
+
+    async def media_deletion_worker():
+        while True:
+            try:
+                from app.services.media_storage_cleanup import drain_media_deletion_queue
+                await asyncio.to_thread(drain_media_deletion_queue)
+            except Exception as exc:
+                print(f"Media object deletion queue drain failed: {exc}")
+            await asyncio.sleep(30)
+
+    media_worker_task = asyncio.create_task(media_deletion_worker())
+
     # ── Sensor platform DB: ensure tables, drain mirror backlog ────────────
     try:
         from app.database.sensor_session import sensor_engine
@@ -85,13 +106,16 @@ async def lifespan(app: FastAPI):
             if settings.run_startup_migrations or startup_schema_sync_enabled:
                 ensure_outbox_table(boot_db)
                 boot_db.commit()
-            drained = drain_outbox(boot_db)
-            if drained:
-                print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
-            result = reconcile_all_tanks(boot_db)
-            print(
-                f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
-            )
+            if settings.run_sensor_platform_startup_reconcile:
+                drained = drain_outbox(boot_db)
+                if drained:
+                    print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
+                result = reconcile_all_tanks(boot_db)
+                print(
+                    f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
+                )
+            else:
+                print("   Sensor platform startup reconciliation disabled by configuration")
     except Exception as exc:
         print(f"   Sensor platform startup sync failed (non-fatal): {exc}")
 
@@ -120,6 +144,11 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             print(f"Tank GPKG startup sync failed: {exc}")
     yield
+    media_worker_task.cancel()
+    try:
+        await media_worker_task
+    except asyncio.CancelledError:
+        pass
     print("=" * 60)
     print(f"🛑 {settings.app_name} Shutting Down...")
     print("=" * 60)

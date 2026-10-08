@@ -17,21 +17,13 @@ const toAbsoluteUrl = (uri: string) => {
   return uri
 }
 
-const hexToBase64 = (hex: string) => {
-  const bytes = new Uint8Array(hex.match(/.{1,2}/g)?.map((chunk) => parseInt(chunk, 16)) ?? [])
-  let binary = ""
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte)
-  })
-  return btoa(binary)
-}
-
 const getUploadId = (uri: string) => uri.match(UPLOAD_URL_PATTERN)?.[1] ?? null
 
 const isVideoUri = (uri: string) => {
   const normalized = uri.toLowerCase()
   return (
     normalized.startsWith("data:video/") ||
+    normalized.includes("#media-video") ||
     normalized.endsWith(".mp4") ||
     normalized.endsWith(".mov") ||
     normalized.endsWith(".webm") ||
@@ -50,12 +42,10 @@ const resolveUploadUrl = async (uri: string) => {
     throw new Error(`Failed to load image payload (${response.status})`)
   }
 
-  const payload = await response.json()
-  if (!payload?.data || !payload?.mimeType) {
-    throw new Error("Invalid upload payload")
-  }
-
-  return `data:${payload.mimeType};base64,${hexToBase64(payload.data)}`
+  const blob = await response.blob()
+  if (!blob.size || !blob.type) throw new Error("Invalid upload payload")
+  const objectUrl = URL.createObjectURL(blob)
+  return blob.type.startsWith("video/") ? `${objectUrl}#media-video` : objectUrl
 }
 
 interface ResolvedImageProps {
@@ -72,6 +62,7 @@ export function ResolvedImage({ uri, alt, className, fallbackClassName, onClick 
 
   useEffect(() => {
     let active = true
+    let objectUrl: string | null = null
 
     const load = async () => {
       if (!uri) {
@@ -85,9 +76,11 @@ export function ResolvedImage({ uri, alt, className, fallbackClassName, onClick 
           return
         }
 
-      const resolved = await resolveUploadUrl(uri)
-      if (active) setResolvedUri(resolved)
-    } catch (error) {
+        const resolved = await resolveUploadUrl(uri)
+        objectUrl = resolved.startsWith("blob:") ? resolved.split("#")[0] : null
+        if (active) setResolvedUri(resolved)
+        else if (objectUrl) URL.revokeObjectURL(objectUrl)
+      } catch (error) {
         console.warn("Media preview unavailable:", error instanceof Error ? error.message : error)
         if (active) setFailed(true)
       }
@@ -99,6 +92,7 @@ export function ResolvedImage({ uri, alt, className, fallbackClassName, onClick 
 
     return () => {
       active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [uri])
 
@@ -130,7 +124,7 @@ export function ResolvedImage({ uri, alt, className, fallbackClassName, onClick 
     return (
       <button type="button" onClick={() => onClick(resolvedUri)} className="block w-full text-left">
         {isVideoUri(resolvedUri) ? (
-          <video src={resolvedUri} className={className} muted playsInline />
+          <video src={resolvedUri} className={className} muted playsInline controls />
         ) : (
           <img src={resolvedUri} alt={alt} className={className} />
         )}
@@ -139,7 +133,7 @@ export function ResolvedImage({ uri, alt, className, fallbackClassName, onClick 
   }
 
   if (isVideoUri(resolvedUri)) {
-    return <video src={resolvedUri} className={className} muted playsInline />
+    return <video src={resolvedUri} className={className} muted playsInline controls />
   }
 
   return <img src={resolvedUri} alt={alt} className={className} />

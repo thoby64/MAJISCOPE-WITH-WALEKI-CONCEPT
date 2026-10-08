@@ -100,6 +100,54 @@ controlled deployment. The SQLite/PostgreSQL and sensor-transfer utilities
 default to read-only preflight and must not run automatically at application
 startup.
 
+## Report media object storage
+
+Report images and videos are stored as private objects. PostgreSQL retains the
+upload metadata, report relationships, checksums, and object keys. Development
+defaults to `.media_objects/`; production refuses to start unless
+`MEDIA_STORAGE_BACKEND=s3` and `MEDIA_S3_BUCKET` are configured. For AWS, use
+the service's IAM role or credential chain when available. Configure a private
+bucket with public access blocked, lifecycle/versioning and encryption policies
+appropriate to your retention requirements. S3-compatible endpoints can be set
+with `MEDIA_S3_ENDPOINT_URL`.
+
+Before deploying the new backend code, back up the main database and run the
+controlled migration once:
+
+```bash
+cd Backend
+make db-main-upgrade
+```
+
+Configure object storage before accepting uploads. New uploads use the object
+store; old database-backed uploads remain readable. The idempotent migration
+copies every `image_upload` payload, converts legacy inline report data URIs to
+upload records, verifies each object by SHA-256, updates report media references,
+and can then clear the old database bytes.
+
+```bash
+python scripts/backfill_media_object_storage.py
+python scripts/backfill_media_object_storage.py --apply --purge-binary
+```
+
+For a local single-instance setup, `MEDIA_BACKFILL_ON_STARTUP=true` runs the
+same verified, resumable migration after the media schema is prepared. It is
+disabled by default. Hosted deployments should keep it off and run the
+controlled script once after backing up PostgreSQL and object storage. Render
+pre-deploys should apply schema revisions with `bash
+scripts/render_predeploy.sh`; then run the media backfill as a one-off operation
+after the new S3 endpoint is configured and any existing external objects have
+been copied. The backfill verifies each object before clearing old database
+bytes. Object deletions are recorded transactionally and retried by the backend
+worker.
+
+The existing Alembic revision `0002_media_object_storage` adds nullable media
+payloads, S3 object references, SHA-256 checksums, and the deletion retry queue.
+Production startup keeps schema DDL disabled on web replicas. The Render
+pre-deploy script applies both Alembic histories once before the backend
+process starts; normal sensor and tank reconciliation remain enabled at
+application startup.
+
 ## Historical DUWASA import on deploy
 
 The backend includes a deployment-safe importer for the committed backend-local

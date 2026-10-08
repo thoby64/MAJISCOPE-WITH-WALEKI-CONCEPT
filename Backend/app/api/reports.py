@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database.session import get_db
-from app.models import Report, Team, Engineer, DMA, Utility, ImageUpload, ImageTypeEnum, ActivityLog
+from app.models import Report, Team, Engineer, DMA, Utility, ImageUpload, ImageTypeEnum, ActivityLog, MediaStorageDeletion
 from app.models.business import LeakageTypeEnum, ReportStatusEnum, ReportPriorityEnum, ReportTypeEnum, NotificationTypeEnum
 from app.models.user import DMAManager
 from app.schemas.business import (
@@ -1312,14 +1312,59 @@ async def update_report_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Report not found",
         )
-    
-    # Check access
-    if current_user.user_type == "utility_manager" and current_user.utility_id:
-        if report.utility_id != current_user.utility_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    elif current_user.user_type == "dma_manager" and current_user.dma_id:
-        if report.dma_id != current_user.dma_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    # Status updates are field-work transitions. DMA managers must use the
+    # dedicated approve/reject routes so every final decision is audited.
+    if current_user.user_type != "engineer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only assigned engineers and team leaders can update field-work status",
+        )
+
+    is_team_leader = bool(
+        db.query(Team.id)
+        .filter(Team.id == report.team_id, Team.leader_id == current_user.id)
+        .first()
+    )
+    is_team_member = bool(
+        db.query(Engineer.id)
+        .filter(Engineer.id == current_user.id, Engineer.team_id == report.team_id)
+        .first()
+    )
+    user_is_team_leader = current_user.role == "team_leader"
+    if not report.team_id or not (is_team_leader or is_team_member):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is outside your assigned team")
+    if user_is_team_leader and not is_team_leader:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not the leader of this report's team")
+    if (
+        not user_is_team_leader
+        and report.assigned_engineer_id
+        and report.assigned_engineer_id != current_user.id
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is assigned to another engineer")
+
+    current_status = report.status if isinstance(report.status, ReportStatusEnum) else ReportStatusEnum(report.status)
+    target_status = status_update.status
+    if target_status == ReportStatusEnum.IN_PROGRESS:
+        allowed = current_status in {ReportStatusEnum.ASSIGNED, ReportStatusEnum.IN_PROGRESS}
+    elif target_status == ReportStatusEnum.PENDING_APPROVAL:
+        allowed = current_status in {
+            ReportStatusEnum.ASSIGNED,
+            ReportStatusEnum.IN_PROGRESS,
+            ReportStatusEnum.PENDING_APPROVAL,
+        }
+    elif target_status == ReportStatusEnum.ASSIGNED:
+        allowed = user_is_team_leader and current_status in {
+            ReportStatusEnum.IN_PROGRESS,
+            ReportStatusEnum.PENDING_APPROVAL,
+        }
+    else:
+        allowed = False
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This role cannot make the requested report status transition",
+        )
     
     before_data = _report_audit_snapshot(report)
     report.status = status_update.status
@@ -1404,7 +1449,7 @@ async def assign_report(
     db: Session = Depends(get_db),
 ):
     """Assign report to a team (DMA Manager only)"""
-    if current_user.user_type != "dma_manager":
+    if current_user.user_type != "dma_manager" or not current_user.dma_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only DMA Managers can assign reports",
@@ -1419,7 +1464,7 @@ async def assign_report(
         )
     
     # Check access
-    if current_user.dma_id and report.dma_id != current_user.dma_id:
+    if report.dma_id != current_user.dma_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     # Verify team exists and belongs to same DMA
@@ -1479,7 +1524,7 @@ async def approve_report(
     db: Session = Depends(get_db),
 ):
     """Approve a completed report (DMA Manager only)"""
-    if current_user.user_type != "dma_manager":
+    if current_user.user_type != "dma_manager" or not current_user.dma_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only DMA Managers can approve reports",
@@ -1494,7 +1539,7 @@ async def approve_report(
         )
     
     # Check access
-    if current_user.dma_id and report.dma_id != current_user.dma_id:
+    if report.dma_id != current_user.dma_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     if report.status != ReportStatusEnum.PENDING_APPROVAL:
@@ -1567,7 +1612,7 @@ async def reject_report(
     db: Session = Depends(get_db),
 ):
     """Reject a completed report (DMA Manager only)"""
-    if current_user.user_type != "dma_manager":
+    if current_user.user_type != "dma_manager" or not current_user.dma_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only DMA Managers can reject reports",
@@ -1582,7 +1627,7 @@ async def reject_report(
         )
     
     # Check access
-    if current_user.dma_id and report.dma_id != current_user.dma_id:
+    if report.dma_id != current_user.dma_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     
     if report.status != ReportStatusEnum.PENDING_APPROVAL:
@@ -1686,6 +1731,11 @@ async def delete_report(
         dma_id=report.dma_id,
         metadata={"tracking_id": report.tracking_id},
     )
+    # Report deletion cascades image_upload rows in PostgreSQL. Enqueue external
+    # objects in this same transaction so the storage worker can remove them.
+    for upload in db.query(ImageUpload).filter(ImageUpload.report_id == report.id).all():
+        if upload.storage_key and upload.storage_backend:
+            db.add(MediaStorageDeletion(storage_key=upload.storage_key, storage_backend=upload.storage_backend))
     db.delete(report)
     db.commit()
 

@@ -40,6 +40,22 @@ class Settings(BaseSettings):
         alias="SENSOR_DATABASE_URL",
     )
 
+    # ===== Report media object storage =====
+    media_storage_backend: str = Field(default="local", alias="MEDIA_STORAGE_BACKEND")
+    media_storage_path: str = Field(default=".media_objects", alias="MEDIA_STORAGE_PATH")
+    media_s3_bucket: str = Field(default="", alias="MEDIA_S3_BUCKET")
+    media_s3_region: str = Field(default="", alias="MEDIA_S3_REGION")
+    media_s3_endpoint_url: str = Field(default="", alias="MEDIA_S3_ENDPOINT_URL")
+    media_s3_access_key_id: str = Field(default="", alias="MEDIA_S3_ACCESS_KEY_ID")
+    media_s3_secret_access_key: str = Field(default="", alias="MEDIA_S3_SECRET_ACCESS_KEY")
+    media_s3_session_token: str = Field(default="", alias="MEDIA_S3_SESSION_TOKEN")
+    media_s3_addressing_style: str = Field(default="auto", alias="MEDIA_S3_ADDRESSING_STYLE")
+    media_s3_sse: str = Field(default="", alias="MEDIA_S3_SSE")
+    media_s3_kms_key_id: str = Field(default="", alias="MEDIA_S3_KMS_KEY_ID")
+    # One-time-compatible, idempotent migration of legacy report media on boot.
+    # Keep opt-in so large or remote deployments can run the migration as a job.
+    media_backfill_on_startup: bool = Field(default=False, alias="MEDIA_BACKFILL_ON_STARTUP")
+
     # ===== Security Settings =====
     secret_key: str = Field(
         default="your-secret-key-change-in-production-12345",
@@ -112,6 +128,7 @@ class Settings(BaseSettings):
     # ===== Runtime database startup behavior =====
     run_startup_migrations: bool = Field(default=True, alias="RUN_STARTUP_MIGRATIONS")
     run_startup_schema_sync: bool = Field(default=True, alias="RUN_STARTUP_SCHEMA_SYNC")
+    run_sensor_platform_startup_reconcile: bool = Field(default=True, alias="RUN_SENSOR_PLATFORM_STARTUP_RECONCILE")
 
     # ===== Optional startup import =====
     legacy_duwasa_import_on_startup: bool = Field(default=False, alias="LEGACY_DUWASA_IMPORT_ON_STARTUP")
@@ -139,6 +156,8 @@ class Settings(BaseSettings):
         "smtp_use_tls",
         "run_startup_migrations",
         "run_startup_schema_sync",
+        "run_sensor_platform_startup_reconcile",
+        "media_backfill_on_startup",
         "legacy_duwasa_import_on_startup",
         "legacy_duwasa_import_strict",
         "run_tank_gpkg_sync_on_startup",
@@ -155,6 +174,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def normalize_runtime_fields(self) -> "Settings":
         self.environment = self.environment.strip().lower()
+        self.media_storage_backend = self.media_storage_backend.strip().lower()
+        self.media_s3_region = self.media_s3_region.strip()
         self.public_backend_url = self.public_backend_url.rstrip("/")
         self.hydraulic_model_base_url = self.hydraulic_model_base_url.rstrip("/")
         if self.environment == "production" and "frontend_url" not in self.__pydantic_fields_set__:
@@ -162,6 +183,14 @@ class Settings(BaseSettings):
         if self.environment == "production":
             self.run_startup_migrations = False
             self.run_startup_schema_sync = False
+            if self.media_backfill_on_startup:
+                raise ValueError("Run report media backfill as a controlled migration job in production")
+            if self.media_storage_backend != "s3":
+                raise ValueError("Production requires MEDIA_STORAGE_BACKEND=s3")
+        if self.media_storage_backend not in {"local", "s3"}:
+            raise ValueError("MEDIA_STORAGE_BACKEND must be 'local' or 's3'")
+        if self.media_storage_backend == "s3" and not self.media_s3_bucket.strip():
+            raise ValueError("MEDIA_S3_BUCKET is required when MEDIA_STORAGE_BACKEND=s3")
         if "debug" not in self.__pydantic_fields_set__:
             self.debug = self.environment == "development"
         if self.environment != "production" and "run_startup_migrations" not in self.__pydantic_fields_set__:

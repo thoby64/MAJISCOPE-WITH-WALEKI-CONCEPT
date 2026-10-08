@@ -9,6 +9,7 @@ import sys
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -33,13 +34,11 @@ def stamp(database: str) -> None:
         url = _normalize_database_url(settings.database_url)
         metadata = Base.metadata
         version_table = "alembic_version_main"
-        revision = "0001_main_baseline"
         ini_path = Path(__file__).resolve().parents[1] / "alembic.ini"
     else:
         url = _normalize_sensor_database_url(settings.sensor_database_url)
         metadata = SensorBase.metadata
         version_table = "alembic_version_sensor"
-        revision = "0001_sensor_baseline"
         ini_path = Path(__file__).resolve().parents[1] / "alembic.sensor.ini"
 
     engine = create_engine(url, pool_pre_ping=True)
@@ -53,8 +52,11 @@ def stamp(database: str) -> None:
         engine.dispose()
 
     config = Config(str(ini_path))
+    revision = ScriptDirectory.from_config(config).get_current_head()
+    if revision is None:
+        raise RuntimeError(f"No Alembic head revision is configured for {database} database")
     command.stamp(config, revision)
-    print(f"Stamped {database} database at {revision}.")
+    print(f"Stamped verified {database} schema at current head {revision}.")
 
 
 def main() -> int:

@@ -8,6 +8,9 @@ export async function GET(
   context: { params: Promise<{ imageId: string }> }
 ) {
   const { imageId } = await context.params
+  if (!/^[0-9a-fA-F-]{36}$/.test(imageId)) {
+    return NextResponse.json({ error: "Invalid upload ID" }, { status: 400 })
+  }
 
   try {
     if (CONFIG.backend.usingFallbackBaseUrl) {
@@ -16,19 +19,22 @@ export async function GET(
       )
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/uploads/${imageId}`, {
+    const response = await fetch(`${BACKEND_URL}/api/uploads/${imageId}/content`, {
       cache: "no-store",
     })
 
     if (!response.ok) {
-      return NextResponse.json(
-        { error: `Failed to load upload payload (${response.status})` },
-        { status: response.status }
-      )
+      return NextResponse.json({ error: `Failed to load upload payload (${response.status})` }, { status: response.status })
     }
 
-    const payload = await response.json()
-    return NextResponse.json(payload, { status: 200 })
+    return new Response(response.body, {
+      status: 200,
+      headers: {
+        "Content-Type": response.headers.get("content-type") || "application/octet-stream",
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
   } catch (error) {
     console.error("Upload payload proxy error:", error)
     return NextResponse.json(

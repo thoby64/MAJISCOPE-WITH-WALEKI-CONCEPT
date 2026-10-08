@@ -34,6 +34,7 @@ from app.models.business import (
 from app.models.uploads import (
     ImageUpload,
     ImageTypeEnum,
+    MediaStorageDeletion,
 )
 from app.models.sensors import (
     Tank,
@@ -63,6 +64,7 @@ __all__ = [
     "PushDeviceToken",
     # Upload models
     "ImageUpload",
+    "MediaStorageDeletion",
     # Sensor-era models (tank remains; sensors/readings live in the sensor platform DB)
     "Tank",
     "SensorMirrorOutbox",

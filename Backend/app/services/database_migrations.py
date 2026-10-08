@@ -84,7 +84,54 @@ def run_safe_startup_migrations(engine: Engine) -> None:
     _migrate_tank_key_field(engine)
     _migrate_hydraulic_model_tables(engine)
     _migrate_hydraulic_snapshot_report_columns(engine)
+    ensure_media_object_storage_schema(engine)
     _drop_legacy_utility_pipe_network_table(engine)
+
+
+def ensure_media_object_storage_schema(engine: Engine) -> None:
+    """Ensure media object reference columns exist before any backfill runs."""
+    inspector = inspect(engine)
+    if "image_upload" not in inspector.get_table_names():
+        return
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    import sqlalchemy as sa
+
+    columns = {column["name"]: column for column in inspector.get_columns("image_upload")}
+    unique_names = {item["name"] for item in inspector.get_unique_constraints("image_upload") if item.get("name")}
+    index_names = {item["name"] for item in inspector.get_indexes("image_upload") if item.get("name")}
+    needs_change = (
+        not columns.get("file_data", {}).get("nullable", True)
+        or any(name not in columns for name in ("storage_backend", "storage_key", "sha256"))
+        or "uq_image_upload_storage_key" not in unique_names | index_names
+    )
+
+    if needs_change:
+        with engine.begin() as connection:
+            operations = Operations(MigrationContext.configure(connection))
+            with operations.batch_alter_table(
+                "image_upload",
+                recreate="always" if engine.dialect.name == "sqlite" else "auto",
+            ) as batch:
+                if not columns.get("file_data", {}).get("nullable", True):
+                    batch.alter_column(
+                        "file_data",
+                        existing_type=sa.LargeBinary(),
+                        existing_nullable=False,
+                        nullable=True,
+                    )
+                if "storage_backend" not in columns:
+                    batch.add_column(sa.Column("storage_backend", sa.String(length=16), nullable=True))
+                if "storage_key" not in columns:
+                    batch.add_column(sa.Column("storage_key", sa.String(length=512), nullable=True))
+                if "sha256" not in columns:
+                    batch.add_column(sa.Column("sha256", sa.String(length=64), nullable=True))
+                if "uq_image_upload_storage_key" not in unique_names | index_names:
+                    batch.create_unique_constraint("uq_image_upload_storage_key", ["storage_key"])
+
+    from app.models.uploads import MediaStorageDeletion
+    MediaStorageDeletion.__table__.create(bind=engine, checkfirst=True)
 
 
 def run_heavy_startup_migrations(engine: Engine) -> None:

@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: cs3-object-storage
+    runtime: python
+    region: frankfurt
+    plan: 1c-2g
+    rootDir: CS3-OBJECT-STORAGE-SERVER
+    buildCommand: ./render-build.sh
+    startCommand: ./render-start.sh
+    disk:
+      name: cs3-object-storage-data
+      mountPath: /var/data
+      sizeGB: 20
+    envVars:
+      - key: GARAGE_DEFAULT_ACCESS_KEY
+        sync: false
+      - key: GARAGE_DEFAULT_SECRET_KEY
+        sync: false
+      - key: GARAGE_DEFAULT_BUCKET
+        value: majiscope-report-media
+      - key: CS3_STORAGE_ROOT
+        value: /var/data
+
+  - type: web
+    name: cs3-storage-browser
+    runtime: python
+    region: frankfurt
+    plan: 0.5c-512mb
+    rootDir: CS3-OBJECT-STORAGE-SERVER
+    buildCommand: pip install --disable-pip-version-check -r requirements.txt
+    startCommand: python webui.py
+    healthCheckPath: /
+    envVars:
+      - key: CS3_S3_ENDPOINT_URL
+        value: http://${{cs3-object-storage.hostport}}
+      - key: CS3_S3_REGION
+        value: garage
+      - key: GARAGE_DEFAULT_ACCESS_KEY
+        sync: false
+      - key: GARAGE_DEFAULT_SECRET_KEY
+        sync: false
+      - key: GARAGE_DEFAULT_BUCKET
+        value: majiscope-report-media
+      - key: CS3_UI_PASSPHRASE
+        sync: false
+      - key: CS3_UI_BIND_ADDRESS
+        value: 0.0.0.0

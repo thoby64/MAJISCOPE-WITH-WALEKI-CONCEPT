@@ -1,0 +1,7 @@
+.env
+.ui-passphrase
+.runtime/
+.venv/
+.copy-venv/
+data/
+*.log

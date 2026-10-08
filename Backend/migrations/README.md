@@ -32,7 +32,11 @@ make db-main-stamp
 make db-sensor-stamp
 ```
 
-The baseline revisions intentionally contain no DDL. Stamping records that a manually verified schema is the starting point; it does not create, alter, or repair tables. If either existing database differs, do not stamp it. Bring it to the current schema with a separately reviewed migration first.
+The baseline revisions intentionally contain no DDL. The stamp commands record
+the current Alembic head only after confirming that the live schema matches
+current models; they do not create, alter, or repair tables. If either existing
+database differs, do not stamp it. Bring it to the expected schema with a
+separately reviewed migration first.
 
 ## Schema changes
 
