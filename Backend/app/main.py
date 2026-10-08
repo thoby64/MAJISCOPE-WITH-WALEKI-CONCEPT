@@ -90,34 +90,44 @@ async def lifespan(app: FastAPI):
 
     media_worker_task = asyncio.create_task(media_deletion_worker())
 
-    # ── Sensor platform DB: ensure tables, drain mirror backlog ────────────
-    try:
-        from app.database.sensor_session import sensor_engine
-        from app.models.sensor_platform import SensorBase
-        from app.services.sensor_platform_sync import (
-            drain_outbox,
-            ensure_outbox_table,
-            reconcile_all_tanks,
-        )
+    def run_optional_startup_syncs():
+        # ── Sensor platform DB: ensure tables, drain mirror backlog ────────
+        try:
+            from app.database.sensor_session import sensor_engine
+            from app.models.sensor_platform import SensorBase
+            from app.services.sensor_platform_sync import (
+                drain_outbox,
+                ensure_outbox_table,
+                reconcile_all_tanks,
+            )
 
-        if settings.run_startup_schema_sync:
-            SensorBase.metadata.create_all(bind=sensor_engine)
-        with SessionLocal() as boot_db:
-            if settings.run_startup_migrations or startup_schema_sync_enabled:
-                ensure_outbox_table(boot_db)
-                boot_db.commit()
-            if settings.run_sensor_platform_startup_reconcile:
-                drained = drain_outbox(boot_db)
-                if drained:
-                    print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
-                result = reconcile_all_tanks(boot_db)
-                print(
-                    f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
-                )
-            else:
-                print("   Sensor platform startup reconciliation disabled by configuration")
-    except Exception as exc:
-        print(f"   Sensor platform startup sync failed (non-fatal): {exc}")
+            if settings.run_startup_schema_sync:
+                SensorBase.metadata.create_all(bind=sensor_engine)
+            with SessionLocal() as boot_db:
+                if settings.run_startup_migrations or startup_schema_sync_enabled:
+                    ensure_outbox_table(boot_db)
+                    boot_db.commit()
+                if settings.run_sensor_platform_startup_reconcile:
+                    drained = drain_outbox(boot_db)
+                    if drained:
+                        print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
+                    result = reconcile_all_tanks(boot_db)
+                    print(
+                        f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
+                    )
+                else:
+                    print("   Sensor platform startup reconciliation disabled by configuration")
+        except Exception as exc:
+            print(f"   Sensor platform startup sync failed (non-fatal): {exc}")
+
+        if settings.run_tank_gpkg_sync_on_startup:
+            from app.services.gpkg_startup_sync import run_tank_gpkg_sync_on_startup
+
+            try:
+                with SessionLocal() as sync_db:
+                    run_tank_gpkg_sync_on_startup(sync_db)
+            except Exception as exc:
+                print(f"Tank GPKG startup sync failed: {exc}")
 
     if settings.legacy_duwasa_import_on_startup:
         csv_path = (
@@ -135,14 +145,11 @@ async def lifespan(app: FastAPI):
             print(f"Legacy DUWASA startup import failed: {exc}")
             if settings.legacy_duwasa_import_strict:
                 raise
-    if settings.run_tank_gpkg_sync_on_startup:
-        from app.services.gpkg_startup_sync import run_tank_gpkg_sync_on_startup
-
-        try:
-            with SessionLocal() as sync_db:
-                run_tank_gpkg_sync_on_startup(sync_db)
-        except Exception as exc:
-            print(f"Tank GPKG startup sync failed: {exc}")
+    startup_sync_task = None
+    if settings.environment == "production":
+        startup_sync_task = asyncio.create_task(asyncio.to_thread(run_optional_startup_syncs))
+    else:
+        run_optional_startup_syncs()
     yield
     media_worker_task.cancel()
     try:
