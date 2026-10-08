@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hmac
+import http.client
 import json
 import os
 import threading
@@ -16,15 +17,17 @@ import boto3
 from botocore.config import Config
 
 HOST = os.environ.get("CS3_UI_BIND_ADDRESS", "127.0.0.1")
-PORT = int(os.environ.get("CS3_UI_PORT") or os.environ.get("PORT", "3904"))
+PORT = int(os.environ.get("CS3_UI_PORT") or os.environ.get("PORT", "3900"))
 PASSPHRASE = os.environ["CS3_UI_PASSPHRASE"]
 BUCKET = os.environ["GARAGE_DEFAULT_BUCKET"]
+S3_ENDPOINT_URL = os.environ.get(
+    "CS3_S3_ENDPOINT_URL",
+    f"http://127.0.0.1:{os.environ.get('CS3_S3_PORT', '3901')}",
+)
+S3_ENDPOINT = urlparse(S3_ENDPOINT_URL)
 S3 = boto3.client(
     "s3",
-    endpoint_url=os.environ.get(
-        "CS3_S3_ENDPOINT_URL",
-        f"http://127.0.0.1:{os.environ.get('CS3_S3_PORT', '3900')}",
-    ),
+    endpoint_url=S3_ENDPOINT_URL,
     region_name=os.environ.get("CS3_S3_REGION", "garage"),
     aws_access_key_id=os.environ["GARAGE_DEFAULT_ACCESS_KEY"],
     aws_secret_access_key=os.environ["GARAGE_DEFAULT_SECRET_KEY"],
@@ -64,6 +67,7 @@ if(sessionStorage.getItem(tokenKey)){tokenInput.value=sessionStorage.getItem(tok
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "CS3StorageUI/1.0"
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt: str, *args) -> None:
         # Avoid logging bearer tokens or query strings that contain object keys.
@@ -93,15 +97,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/":
+        if parsed.path == "/" and not parsed.query and not self.headers.get("Authorization"):
             self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             return
         if parsed.path not in {"/api/objects", "/api/object"}:
-            self._json(404, {"error": "Not found"})
+            self._proxy_s3()
             return
         if not self._authorized():
             self._json(401, {"error": "Dashboard token required"})
             return
+        response_started = False
         try:
             if parsed.path == "/api/objects":
                 self._list_objects()
@@ -110,6 +115,127 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             print(f"[CS3 UI] S3 request failed: {type(exc).__name__}")
             self._json(502, {"error": "Could not communicate with the object storage service"})
+
+    def do_HEAD(self) -> None:
+        self._proxy_s3()
+
+    def do_PUT(self) -> None:
+        self._proxy_s3()
+
+    def do_POST(self) -> None:
+        self._proxy_s3()
+
+    def do_DELETE(self) -> None:
+        self._proxy_s3()
+
+    def do_OPTIONS(self) -> None:
+        self._proxy_s3()
+
+    def _proxy_s3(self) -> None:
+        if S3_ENDPOINT.scheme not in {"http", "https"} or not S3_ENDPOINT.hostname:
+            self._json(502, {"error": "Object storage proxy is not configured"})
+            return
+
+        connection_type = http.client.HTTPSConnection if S3_ENDPOINT.scheme == "https" else http.client.HTTPConnection
+        connection = connection_type(S3_ENDPOINT.hostname, S3_ENDPOINT.port, timeout=120)
+        hop_by_hop = {
+            "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
+            "te", "trailer", "transfer-encoding", "upgrade", "expect",
+        }
+        hop_by_hop.update(
+            name.strip().lower()
+            for name in self.headers.get("Connection", "").split(",")
+            if name.strip()
+        )
+
+        try:
+            if self.headers.get("Expect", "").lower() == "100-continue":
+                self.send_response_only(100)
+                self.end_headers()
+            connection.putrequest(self.command, self.path, skip_host=True, skip_accept_encoding=True)
+            if "host" not in {name.lower() for name in self.headers}:
+                connection.putheader("Host", S3_ENDPOINT.netloc)
+            for name, value in self.headers.items():
+                if name.lower() not in hop_by_hop:
+                    connection.putheader(name, value)
+            transfer_encoding = self.headers.get("Transfer-Encoding", "").lower()
+            if transfer_encoding:
+                connection.putheader("Transfer-Encoding", transfer_encoding)
+            connection.putheader("Connection", "close")
+            connection.endheaders()
+
+            if transfer_encoding:
+                if not transfer_encoding.endswith("chunked"):
+                    raise ValueError("Unsupported request transfer encoding")
+                while True:
+                    line = self.rfile.readline(65537)
+                    if not line or len(line) > 65536:
+                        raise ValueError("Invalid chunked request")
+                    connection.send(line)
+                    chunk_size = int(line.split(b";", 1)[0].strip(), 16)
+                    if chunk_size == 0:
+                        while True:
+                            trailer = self.rfile.readline(65537)
+                            if not trailer or len(trailer) > 65536:
+                                raise ValueError("Invalid chunked trailer")
+                            connection.send(trailer)
+                            if trailer in (b"\r\n", b"\n"):
+                                break
+                        break
+                    chunk = self.rfile.read(chunk_size + 2)
+                    if len(chunk) != chunk_size + 2:
+                        raise ValueError("Incomplete chunked request")
+                    connection.send(chunk)
+            else:
+                remaining = int(self.headers.get("Content-Length", "0"))
+                while remaining:
+                    chunk = self.rfile.read(min(65536, remaining))
+                    if not chunk:
+                        raise ValueError("Incomplete request body")
+                    connection.send(chunk)
+                    remaining -= len(chunk)
+
+            response = connection.getresponse()
+            self.send_response(response.status, response.reason)
+            response_hop_by_hop = hop_by_hop | {"transfer-encoding"} | {
+                name.strip().lower()
+                for name in response.getheader("Connection", "").split(",")
+                if name.strip()
+            }
+            for name, value in response.getheaders():
+                if name.lower() not in response_hop_by_hop:
+                    self.send_header(name, value)
+
+            content_length = response.getheader("Content-Length")
+            has_no_body = self.command == "HEAD" or response.status in {204, 304} or 100 <= response.status < 200
+            if not has_no_body and content_length is None:
+                self.send_header("Transfer-Encoding", "chunked")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            response_started = True
+            self.close_connection = True
+
+            if has_no_body:
+                return
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                if content_length is None:
+                    self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
+                else:
+                    self.wfile.write(chunk)
+            if content_length is None:
+                self.wfile.write(b"0\r\n\r\n")
+        except Exception as exc:
+            print(f"[CS3 UI] S3 proxy failed: {type(exc).__name__}")
+            if not response_started and not self.wfile.closed:
+                try:
+                    self._json(502, {"error": "Could not communicate with the object storage service"})
+                except (ConnectionError, OSError):
+                    pass
+        finally:
+            connection.close()
 
     def _list_objects(self) -> None:
         paginator = S3.get_paginator("list_objects_v2")

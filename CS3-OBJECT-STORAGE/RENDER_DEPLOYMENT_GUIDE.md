@@ -5,17 +5,17 @@ passphrase-protected, read-only browser on Render. It does not use Docker.
 
 ## What Render will run
 
-The Blueprint in [`render.yaml`](render.yaml) declares two services in
+The Blueprint in [`render.yaml`](render.yaml) declares one service in
 Frankfurt:
 
 | Service | Purpose | Storage |
 | --- | --- | --- |
-| `cs3-object-storage` | Public, SigV4-authenticated S3 API | 20 GB persistent disk at `CS3-OBJECT-STORAGE-SERVER/data` |
-| `cs3-storage-browser` | Passphrase-protected browser for listing and viewing objects | No local data |
+| `cs3-object-storage` | Dashboard at `/` and SigV4-authenticated S3 API on other paths | 20 GB persistent disk at `CS3-OBJECT-STORAGE-SERVER/data` |
 
-The Garage RPC and admin listeners bind to loopback inside the storage service.
-Only the S3 API uses Render's public `PORT`. The browser connects to the S3 API
-over Render's private network. Both services must stay in the same region.
+The dashboard/proxy uses Render's public `PORT`. Garage's S3, RPC, and admin
+listeners bind to loopback inside the service, so browsers see the dashboard at
+the root URL instead of Garage's XML response. S3 clients continue to use the
+same URL with their bucket and object paths.
 
 Garage is configured as a single node with replication factor 1. Render's disk
 preserves its files across restarts, but this design does not provide storage
@@ -38,15 +38,14 @@ Render can access. Do not commit `.env`, `.ui-passphrase`, `.runtime/`, or
 
 1. In Render, choose **New → Blueprint** and connect the repository.
 2. Set **Blueprint Path** to `CS3-OBJECT-STORAGE-SERVER/render.yaml`.
-3. Review the two services and the 20 GB persistent disk, then deploy the
-   Blueprint. The storage service uses a paid `1c-2g` plan so Render can attach
-   the disk.
+3. Review the service and its 20 GB persistent disk, then deploy the Blueprint.
+   The service uses a paid `1c-2g` plan so Render can attach the disk.
 4. In the Blueprint prompts, set `GARAGE_DEFAULT_ACCESS_KEY` and
    `GARAGE_DEFAULT_SECRET_KEY` to new, random credentials. Do not reuse the
-   local development credentials. Use the same values for both Render
-   services. Keep them in Render's secret environment fields.
-5. Set `CS3_UI_PASSPHRASE` to a new, long random passphrase in the browser
-   service's secret environment. Do not reuse the local `.ui-passphrase`.
+   local development credentials. Keep them in Render's secret environment
+   fields.
+5. Set `CS3_UI_PASSPHRASE` to a new, long random passphrase in the service's
+   secret environment. Do not reuse the local `.ui-passphrase`.
 
 If creating the storage web service manually instead of using the Blueprint,
 attach a persistent disk in **Advanced → Disk** (or the service's **Disks**
@@ -59,8 +58,8 @@ Set `CS3_STORAGE_ROOT` to the same path. Without the disk, Render's app
 filesystem is ephemeral and startup may fail with `Permission denied`.
 Save the disk settings and let Render redeploy before retrying.
 
-The bucket name is `majiscope-report-media` in both service definitions. If you
-change it, make the same change in both services and the backend configuration.
+The bucket name is `majiscope-report-media` in the service configuration. If you
+change it, make the same change in the backend configuration.
 The Garage binary is pinned to v2.4.1 and fetched over HTTPS during the build.
 
 Render's Blueprint supports a custom YAML path and internal service host/port
@@ -68,18 +67,17 @@ references; see [Blueprint setup](https://render.com/docs/infrastructure-as-code
 [Blueprint fields](https://render.com/docs/blueprint-spec), and [web service
 ports](https://render.com/docs/web-services).
 
-## 3. Confirm the services are ready
+## 3. Confirm the service is ready
 
-Copy the two `onrender.com` URLs from Render:
+Copy the service's `onrender.com` URL from Render:
 
-- S3 endpoint: `https://<cs3-object-storage-service>.onrender.com`
-- Browser: `https://<cs3-storage-browser-service>.onrender.com`
+- Dashboard and S3 endpoint: `https://<cs3-object-storage-service>.onrender.com`
 
-Opening the S3 endpoint in a browser may show Garage's XML `AccessDenied`
-response. That is expected: the S3 endpoint requires signed requests and does
-not allow anonymous access. Open the browser URL, enter the
-`CS3_UI_PASSPHRASE`, and confirm the bucket contents load. It is normal for the
-new bucket to be empty before the existing objects are copied.
+Opening the service URL in a browser displays the dashboard. Enter the
+`CS3_UI_PASSPHRASE` and confirm the bucket contents load. Signed S3 requests
+continue to use this same URL; the service routes bucket and object paths to
+Garage. It is normal for the new bucket to be empty before the existing objects
+are copied.
 
 Use an S3 client with the Render credentials to confirm authenticated access.
 For AWS CLI v2, set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and

@@ -59,6 +59,15 @@ done
 rpc_secret="$(<.runtime/rpc.secret)"
 admin_token="$(<.runtime/admin.secret)"
 metrics_token="$(<.runtime/metrics.secret)"
+UI_PORT="${CS3_UI_PORT:-3900}"
+S3_PORT="${CS3_S3_PORT:-3901}"
+if [[ "$UI_PORT" == 3904 && "$S3_PORT" == 3900 ]]; then
+  UI_PORT=3900
+fi
+if [[ "$UI_PORT" == "$S3_PORT" ]]; then
+  S3_PORT=3901
+  if [[ "$UI_PORT" == "$S3_PORT" ]]; then S3_PORT=3902; fi
+fi
 
 cat > .runtime/garage.toml <<EOF
 metadata_dir = "$SERVER_DIR/data/metadata"
@@ -71,7 +80,7 @@ rpc_secret = "$rpc_secret"
 
 [s3_api]
 s3_region = "garage"
-api_bind_addr = "${CS3_S3_BIND_ADDRESS:-127.0.0.1}:${CS3_S3_PORT:-3900}"
+api_bind_addr = "127.0.0.1:${S3_PORT}"
 root_domain = ".s3.localhost"
 
 [admin]
@@ -82,9 +91,9 @@ EOF
 chmod 600 .runtime/garage.toml
 
 export GARAGE_CONFIG_FILE="$SERVER_DIR/.runtime/garage.toml"
-export CS3_UI_PORT="${CS3_UI_PORT:-3904}"
+export CS3_UI_PORT="$UI_PORT"
+export CS3_S3_ENDPOINT_URL="http://127.0.0.1:${S3_PORT}"
 export CS3_UI_PASSPHRASE="$(<.ui-passphrase)"
-S3_PORT="${CS3_S3_PORT:-3900}"
 
 "$GARAGE_BINARY" server --single-node --default-bucket &
 GARAGE_PID=$!
@@ -110,14 +119,13 @@ for _ in $(seq 1 60); do
   sleep 1
 done
 if [[ "$ready" != 1 ]]; then
-  echo "Garage did not listen on 127.0.0.1:3900 within 60 seconds." >&2
+  echo "Garage did not listen on 127.0.0.1:${S3_PORT} within 60 seconds." >&2
   exit 1
 fi
 
 "$SERVER_PYTHON" "$SERVER_DIR/webui.py" &
 WEBUI_PID=$!
-echo "Garage S3 endpoint: http://${CS3_S3_BIND_ADDRESS:-127.0.0.1}:${S3_PORT}"
+echo "Browser and S3 endpoint: http://127.0.0.1:${CS3_UI_PORT}"
 echo "Private bucket: ${GARAGE_DEFAULT_BUCKET}"
-echo "Browser dashboard: http://127.0.0.1:${CS3_UI_PORT}"
-echo "Press Ctrl+C to stop both services."
+echo "Press Ctrl+C to stop the server."
 wait "$GARAGE_PID"
