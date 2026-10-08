@@ -70,6 +70,11 @@ async def lifespan(app: FastAPI):
     if startup_schema_sync_enabled:
         Base.metadata.create_all(bind=engine)
 
+    media_schema_ready = asyncio.Event()
+    if not settings.media_backfill_on_startup or settings.environment != "production":
+        media_schema_ready.set()
+    lifespan_loop = asyncio.get_running_loop()
+
     def run_media_backfill():
         from sqlalchemy import text
 
@@ -87,6 +92,7 @@ async def lifespan(app: FastAPI):
 
             print("   Report media object storage migration started")
             ensure_media_object_storage_schema(engine)
+            lifespan_loop.call_soon_threadsafe(media_schema_ready.set)
             with SessionLocal() as media_db:
                 result = migrate_report_media(media_db, purge_binary=True)
             print("   Report media object storage migration complete:", result)
@@ -110,6 +116,8 @@ async def lifespan(app: FastAPI):
             run_media_backfill()
 
     async def media_deletion_worker():
+        if settings.media_backfill_on_startup and settings.environment == "production":
+            await media_schema_ready.wait()
         while True:
             try:
                 from app.services.media_storage_cleanup import drain_media_deletion_queue

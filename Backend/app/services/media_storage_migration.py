@@ -70,6 +70,14 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
         ImageUpload.storage_backend != "s3",
         ImageUpload.sha256.is_(None),
     )
+    pending_count = db.execute(
+        select(func.count(ImageUpload.id)).where(pending)
+    ).scalar_one()
+    print(
+        "   Report media backfill inventory: "
+        f"uploads={counts['uploads_seen']}, pending={pending_count}, "
+        f"already_migrated={counts['objects_already_migrated']}"
+    )
     while True:
         # Bounded pages keep startup memory and transaction sizes predictable.
         images = db.execute(
@@ -112,6 +120,10 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
                 counts["payloads_purged"] += 1
             db.commit()
             counts["objects_verified"] += 1
+        print(
+            "   Report media backfill progress: "
+            f"verified={counts['objects_verified']}/{pending_count}"
+        )
 
     # Legacy mobile clients could embed report photos as data URIs instead of
     # first creating an upload row. Convert these references to the same object
