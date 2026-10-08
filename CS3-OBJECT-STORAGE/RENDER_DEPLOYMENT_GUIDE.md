@@ -10,7 +10,7 @@ Frankfurt:
 
 | Service | Purpose | Storage |
 | --- | --- | --- |
-| `cs3-object-storage` | Public, SigV4-authenticated S3 API | 20 GB persistent disk at `/var/data` |
+| `cs3-object-storage` | Public, SigV4-authenticated S3 API | 20 GB persistent disk at `CS3-OBJECT-STORAGE-SERVER/data` |
 | `cs3-storage-browser` | Passphrase-protected browser for listing and viewing objects | No local data |
 
 The Garage RPC and admin listeners bind to loopback inside the storage service.
@@ -47,6 +47,17 @@ Render can access. Do not commit `.env`, `.ui-passphrase`, `.runtime/`, or
    services. Keep them in Render's secret environment fields.
 5. Set `CS3_UI_PASSPHRASE` to a new, long random passphrase in the browser
    service's secret environment. Do not reuse the local `.ui-passphrase`.
+
+If creating the storage web service manually instead of using the Blueprint,
+attach a persistent disk in **Advanced → Disk** (or the service's **Disks**
+page after creation). Set its mount path to
+`/opt/render/project/src/CS3-OBJECT-STORAGE-SERVER/data` and choose a size such
+as 20 GB. The service must use a paid plan. This places Garage's metadata and
+object files inside the CS3 application's own `data/` directory, with the
+Render disk mounted at that directory so files survive deploys and restarts.
+Set `CS3_STORAGE_ROOT` to the same path. Without the disk, Render's app
+filesystem is ephemeral and startup may fail with `Permission denied`.
+Save the disk settings and let Render redeploy before retrying.
 
 The bucket name is `majiscope-report-media` in both service definitions. If you
 change it, make the same change in both services and the backend configuration.

@@ -9,7 +9,7 @@ services:
     startCommand: ./render-start.sh
     disk:
       name: cs3-object-storage-data
-      mountPath: /var/data
+      mountPath: /opt/render/project/src/CS3-OBJECT-STORAGE-SERVER/data
       sizeGB: 20
     envVars:
       - key: GARAGE_DEFAULT_ACCESS_KEY
@@ -19,7 +19,7 @@ services:
       - key: GARAGE_DEFAULT_BUCKET
         value: majiscope-report-media
       - key: CS3_STORAGE_ROOT
-        value: /var/data
+        value: /opt/render/project/src/CS3-OBJECT-STORAGE-SERVER/data
 
   - type: web
     name: cs3-storage-browser

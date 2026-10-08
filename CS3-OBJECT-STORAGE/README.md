@@ -61,4 +61,5 @@ and is not a production storage cluster.
 See [RENDER_DEPLOYMENT_GUIDE.md](RENDER_DEPLOYMENT_GUIDE.md). The Render
 Blueprint deploys Garage's authenticated S3 API and the passphrase-protected
 read-only browser as separate services. Garage metadata and object data are
-written to its attached persistent disk. The admin and RPC ports remain private.
+written to the `data/` directory within this application, backed by its attached
+persistent disk on Render. The admin and RPC ports remain private.
