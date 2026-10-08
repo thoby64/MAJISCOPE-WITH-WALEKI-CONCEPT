@@ -4,7 +4,7 @@ set -euo pipefail
 SERVER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GARAGE_BINARY="$SERVER_DIR/.runtime/garage"
 DATA_ROOT="${CS3_STORAGE_ROOT:-$SERVER_DIR/data}"
-S3_PORT="${CS3_S3_PORT:-3901}"
+S3_PORT="${CS3_S3_PORT:-3902}"
 UI_PORT="${PORT:-10000}"
 
 : "${GARAGE_DEFAULT_ACCESS_KEY:?Set GARAGE_DEFAULT_ACCESS_KEY in Render}"

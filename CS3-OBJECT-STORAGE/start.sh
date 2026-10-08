@@ -60,13 +60,13 @@ rpc_secret="$(<.runtime/rpc.secret)"
 admin_token="$(<.runtime/admin.secret)"
 metrics_token="$(<.runtime/metrics.secret)"
 UI_PORT="${CS3_UI_PORT:-3900}"
-S3_PORT="${CS3_S3_PORT:-3901}"
+S3_PORT="${CS3_S3_PORT:-3902}"
 if [[ "$UI_PORT" == 3904 && "$S3_PORT" == 3900 ]]; then
   UI_PORT=3900
 fi
 if [[ "$UI_PORT" == "$S3_PORT" ]]; then
-  S3_PORT=3901
-  if [[ "$UI_PORT" == "$S3_PORT" ]]; then S3_PORT=3902; fi
+  S3_PORT=3902
+  if [[ "$UI_PORT" == "$S3_PORT" ]]; then S3_PORT=3904; fi
 fi
 
 cat > .runtime/garage.toml <<EOF

@@ -22,7 +22,7 @@ PASSPHRASE = os.environ["CS3_UI_PASSPHRASE"]
 BUCKET = os.environ["GARAGE_DEFAULT_BUCKET"]
 S3_ENDPOINT_URL = os.environ.get(
     "CS3_S3_ENDPOINT_URL",
-    f"http://127.0.0.1:{os.environ.get('CS3_S3_PORT', '3901')}",
+    f"http://127.0.0.1:{os.environ.get('CS3_S3_PORT', '3902')}",
 )
 S3_ENDPOINT = urlparse(S3_ENDPOINT_URL)
 S3 = boto3.client(
@@ -117,6 +117,15 @@ class Handler(BaseHTTPRequestHandler):
             self._json(502, {"error": "Could not communicate with the object storage service"})
 
     def do_HEAD(self) -> None:
+        parsed = urlparse(self.path)
+        if parsed.path == "/" and not parsed.query and not self.headers.get("Authorization"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(PAGE.encode())))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            return
         self._proxy_s3()
 
     def do_PUT(self) -> None:
