@@ -3,6 +3,7 @@ set -euo pipefail
 
 SERVER_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 GARAGE_BINARY="$SERVER_DIR/.runtime/garage"
+APP_PYTHON="$SERVER_DIR/.runtime/venv/bin/python"
 DATA_ROOT="${CS3_STORAGE_ROOT:-$SERVER_DIR/data}"
 S3_PORT="${CS3_S3_PORT:-3902}"
 UI_PORT="${PORT:-10000}"
@@ -11,6 +12,14 @@ UI_PORT="${PORT:-10000}"
 : "${GARAGE_DEFAULT_SECRET_KEY:?Set GARAGE_DEFAULT_SECRET_KEY in Render}"
 : "${GARAGE_DEFAULT_BUCKET:?Set GARAGE_DEFAULT_BUCKET in Render}"
 : "${CS3_UI_PASSPHRASE:?Set CS3_UI_PASSPHRASE in Render}"
+if [[ ! -x "$APP_PYTHON" ]]; then
+  echo "Application Python environment is missing; run render-build.sh during the build." >&2
+  exit 1
+fi
+if ! "$APP_PYTHON" -c 'import boto3' >/dev/null 2>&1; then
+  echo "boto3 is missing from the application Python environment; run render-build.sh during the build." >&2
+  exit 1
+fi
 if [[ ! -x "$GARAGE_BINARY" ]]; then
   echo "Garage binary is missing; run render-build.sh during the build." >&2
   exit 1
@@ -79,7 +88,7 @@ for _ in $(seq 1 60); do
     echo "Garage exited before becoming ready." >&2
     exit 1
   fi
-  if python -c 'import socket,sys;s=socket.socket();s.settimeout(.2);sys.exit(s.connect_ex(("127.0.0.1",int(sys.argv[1]))))' "$S3_PORT" >/dev/null 2>&1; then
+  if "$APP_PYTHON" -c 'import socket,sys;s=socket.socket();s.settimeout(.2);sys.exit(s.connect_ex(("127.0.0.1",int(sys.argv[1]))))' "$S3_PORT" >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -91,6 +100,6 @@ if [[ "$ready" != 1 ]]; then
 fi
 
 echo "Browser and S3 endpoint listening on port ${UI_PORT}."
-python "$SERVER_DIR/webui.py" &
+"$APP_PYTHON" "$SERVER_DIR/webui.py" &
 WEBUI_PID=$!
 wait "$WEBUI_PID"

@@ -7,6 +7,13 @@ RUNTIME_DIR="$SERVER_DIR/.runtime"
 GARAGE_BINARY="$RUNTIME_DIR/garage"
 mkdir -p "$RUNTIME_DIR"
 
+APP_PYTHON="$RUNTIME_DIR/venv/bin/python"
+if [[ ! -x "$APP_PYTHON" ]]; then
+  python3 -m venv "$RUNTIME_DIR/venv"
+fi
+"$APP_PYTHON" -m pip install --disable-pip-version-check -r "$SERVER_DIR/requirements.txt"
+"$APP_PYTHON" -c 'import boto3'
+
 if [[ ! -x "$GARAGE_BINARY" ]]; then
   case "$(uname -m)" in
     x86_64|amd64) garage_arch="x86_64-unknown-linux-musl" ;;

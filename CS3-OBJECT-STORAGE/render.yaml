@@ -5,7 +5,7 @@ services:
     region: frankfurt
     plan: 1c-2g
     rootDir: CS3-OBJECT-STORAGE-SERVER
-    buildCommand: python -m pip install --disable-pip-version-check -r requirements.txt && ./render-build.sh
+    buildCommand: ./render-build.sh
     startCommand: ./render-start.sh
     disk:
       name: cs3-object-storage-data
