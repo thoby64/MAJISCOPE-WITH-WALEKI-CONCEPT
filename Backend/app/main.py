@@ -70,14 +70,44 @@ async def lifespan(app: FastAPI):
     if startup_schema_sync_enabled:
         Base.metadata.create_all(bind=engine)
 
-    if settings.media_backfill_on_startup:
-        from app.services.media_storage_migration import migrate_report_media
-        from app.services.database_migrations import ensure_media_object_storage_schema
+    def run_media_backfill():
+        from sqlalchemy import text
 
-        ensure_media_object_storage_schema(engine)
-        with SessionLocal() as media_db:
-            result = migrate_report_media(media_db, purge_binary=True)
-        print("   Report media object storage migration:", result)
+        lock_connection = None
+        lock_acquired = False
+        try:
+            if engine.dialect.name == "postgresql":
+                lock_connection = engine.connect()
+                lock_connection.execute(text("SELECT pg_advisory_lock(731942011)"))
+                lock_connection.commit()
+                lock_acquired = True
+
+            from app.services.database_migrations import ensure_media_object_storage_schema
+            from app.services.media_storage_migration import migrate_report_media
+
+            print("   Report media object storage migration started")
+            ensure_media_object_storage_schema(engine)
+            with SessionLocal() as media_db:
+                result = migrate_report_media(media_db, purge_binary=True)
+            print("   Report media object storage migration complete:", result)
+        except Exception as exc:
+            print(f"   Report media object storage migration failed: {exc}")
+            if settings.environment != "production":
+                raise
+        finally:
+            if lock_connection is not None:
+                if lock_acquired:
+                    lock_connection.execute(text("SELECT pg_advisory_unlock(731942011)"))
+                    lock_connection.commit()
+                lock_connection.close()
+
+    media_backfill_task = None
+    if settings.media_backfill_on_startup:
+        if settings.environment == "production":
+            print("   Report media backfill enabled; running after startup in the background")
+            media_backfill_task = asyncio.create_task(asyncio.to_thread(run_media_backfill))
+        else:
+            run_media_backfill()
 
     async def media_deletion_worker():
         while True:

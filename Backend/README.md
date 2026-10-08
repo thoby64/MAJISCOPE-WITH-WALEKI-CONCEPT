@@ -130,16 +130,21 @@ python scripts/backfill_media_object_storage.py
 python scripts/backfill_media_object_storage.py --apply --purge-binary
 ```
 
-For a local single-instance setup, `MEDIA_BACKFILL_ON_STARTUP=true` runs the
-same verified, resumable migration after the media schema is prepared. It is
-disabled by default. Hosted deployments should keep it off and run the
-controlled script once after backing up PostgreSQL and object storage. Render
-pre-deploys should apply schema revisions with `bash
-scripts/render_predeploy.sh`; then run the media backfill as a one-off operation
-after the new S3 endpoint is configured and any existing external objects have
-been copied. The backfill verifies each object before clearing old database
-bytes. Object deletions are recorded transactionally and retried by the backend
-worker.
+`MEDIA_BACKFILL_ON_STARTUP` defaults to false. To run the migration on Render,
+configure the backend's S3 endpoint, bucket, region, and credentials, take a
+database backup, then set `MEDIA_BACKFILL_ON_STARTUP=true` and redeploy. The
+backend prepares the media schema and runs the migration in a background thread
+after the web server starts, so the upload does not delay Render's port scan.
+Watch the Render logs for the migration started, complete, or failed message
+and its row counts. Set the variable back to false after completion; enabling it
+on a later deploy is harmless because completed rows are skipped.
+
+The migration uses a PostgreSQL advisory lock to prevent multiple replicas from
+copying media simultaneously. It is resumable and verifies each CS3 object
+before updating its database reference and clearing the old database bytes.
+Object deletions are recorded transactionally and retried by the backend
+worker. For a local single-instance setup, the same flag runs the migration
+synchronously after preparing the media schema.
 
 The existing Alembic revision `0002_media_object_storage` adds nullable media
 payloads, S3 object references, SHA-256 checksums, and the deletion retry queue.

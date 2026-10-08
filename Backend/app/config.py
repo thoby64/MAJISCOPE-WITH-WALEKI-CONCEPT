@@ -183,8 +183,6 @@ class Settings(BaseSettings):
         if self.environment == "production":
             self.run_startup_migrations = False
             self.run_startup_schema_sync = False
-            if self.media_backfill_on_startup:
-                raise ValueError("Run report media backfill as a controlled migration job in production")
             if self.media_storage_backend != "s3":
                 raise ValueError("Production requires MEDIA_STORAGE_BACKEND=s3")
         if self.media_storage_backend not in {"local", "s3"}:
