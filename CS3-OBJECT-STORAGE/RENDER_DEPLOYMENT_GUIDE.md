@@ -71,7 +71,7 @@ ports](https://render.com/docs/web-services).
 
 Copy the service's `onrender.com` URL from Render:
 
-- Dashboard and S3 endpoint: `https://<cs3-object-storage-service>.onrender.com`
+- Dashboard and S3 endpoint: `https://cs3-object-storage.onrender.com`
 
 Opening the service URL in a browser displays the dashboard. Enter the
 `CS3_UI_PASSPHRASE` and confirm the bucket contents load. Signed S3 requests
@@ -84,7 +84,7 @@ For AWS CLI v2, set `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
 `AWS_DEFAULT_REGION=garage`, then run:
 
 ```sh
-aws --endpoint-url https://<cs3-object-storage-service>.onrender.com \
+aws --endpoint-url https://cs3-object-storage.onrender.com \
   s3 ls s3://majiscope-report-media
 ```
 
@@ -105,7 +105,7 @@ export CS3_SOURCE_BUCKET=<current-local-bucket>
 export CS3_SOURCE_S3_ACCESS_KEY_ID=<local-access-key>
 export CS3_SOURCE_S3_SECRET_ACCESS_KEY=<local-secret-key>
 
-export CS3_TARGET_S3_ENDPOINT_URL=https://<cs3-object-storage-service>.onrender.com
+export CS3_TARGET_S3_ENDPOINT_URL=https://cs3-object-storage.onrender.com
 export CS3_TARGET_S3_REGION=garage
 export CS3_TARGET_BUCKET=majiscope-report-media
 export CS3_TARGET_S3_ACCESS_KEY_ID=<render-access-key>
@@ -139,7 +139,7 @@ Render's secret fields:
 MEDIA_STORAGE_BACKEND=s3
 MEDIA_S3_BUCKET=majiscope-report-media
 MEDIA_S3_REGION=garage
-MEDIA_S3_ENDPOINT_URL=https://<cs3-object-storage-service>.onrender.com
+MEDIA_S3_ENDPOINT_URL=https://cs3-object-storage.onrender.com
 MEDIA_S3_ACCESS_KEY_ID=<same-as-GARAGE_DEFAULT_ACCESS_KEY>
 MEDIA_S3_SECRET_ACCESS_KEY=<same-as-GARAGE_DEFAULT_SECRET_KEY>
 MEDIA_S3_ADDRESSING_STYLE=path
