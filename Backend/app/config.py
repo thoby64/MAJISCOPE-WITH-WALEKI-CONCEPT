@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     # ===== Runtime database startup behavior =====
     run_startup_migrations: bool = Field(default=True, alias="RUN_STARTUP_MIGRATIONS")
     run_startup_schema_sync: bool = Field(default=True, alias="RUN_STARTUP_SCHEMA_SYNC")
+    run_startup_all_database_schema_sync: bool = Field(
+        default=False,
+        alias="RUN_STARTUP_ALL_DATABASE_SCHEMA_SYNC",
+    )
     run_sensor_platform_startup_reconcile: bool = Field(default=True, alias="RUN_SENSOR_PLATFORM_STARTUP_RECONCILE")
 
     # ===== Optional startup import =====
@@ -160,6 +164,7 @@ class Settings(BaseSettings):
         "smtp_use_tls",
         "run_startup_migrations",
         "run_startup_schema_sync",
+        "run_startup_all_database_schema_sync",
         "run_sensor_platform_startup_reconcile",
         "media_backfill_on_startup",
         "legacy_duwasa_import_on_startup",

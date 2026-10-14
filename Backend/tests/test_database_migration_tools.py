@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Column, DateTime, Float, MetaData, String, Table
 
 from app.models import Base
 from app.services.database_migrations import _migrate_water_source_schema
+from app.services.startup_schema_sync import sync_startup_database_schemas
 from app.models import WaterSource, WaterSourceSensorMirrorOutbox
 from app.models.sensor_platform import (
     SensorBase,
@@ -31,6 +32,22 @@ def _reflect(engine):
     metadata = MetaData()
     metadata.reflect(bind=engine)
     return metadata
+
+
+def test_startup_schema_sync_creates_missing_tables_in_both_databases():
+    main_engine = create_engine("sqlite:///:memory:")
+    sensor_engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(main_engine)
+    SensorBase.metadata.create_all(sensor_engine)
+
+    missing_sensor_table = SensorBase.metadata.tables["water_source_sensor_device"]
+    missing_sensor_table.drop(sensor_engine)
+
+    sync_startup_database_schemas(main_engine, sensor_engine)
+
+    assert "water_source_sensor_device" in inspect(sensor_engine).get_table_names()
+    assert set(Base.metadata.tables).issubset(inspect(main_engine).get_table_names())
+    assert set(SensorBase.metadata.tables).issubset(inspect(sensor_engine).get_table_names())
 
 
 def test_main_preflight_covers_current_tables_and_binary_bytes():

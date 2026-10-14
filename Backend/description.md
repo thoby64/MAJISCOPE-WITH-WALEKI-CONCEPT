@@ -35,7 +35,7 @@ No cross-database joins or atomic transactions are available in the current code
 - Both URL handlers normalize common `postgres://` and `postgresql://` provider URLs to the psycopg v3 SQLAlchemy driver. SQLite connections set `check_same_thread=False`.
 - Both engines use `pool_pre_ping=True` and recycle connections after 300 seconds. Pool size and overflow are otherwise left at SQLAlchemy defaults; each application worker creates its own pools for both databases. Budget database connections across all workers, background tasks, migration jobs, and any connection pooler.
 - Production settings ignore `.env` and must come from the deployment environment. **Set both `DATABASE_URL` and `SENSOR_DATABASE_URL` explicitly.** Both `.env.example` and `.env.render.example` now provide a value for each store.
-- Production mode forces the general `RUN_STARTUP_MIGRATIONS` and `RUN_STARTUP_SCHEMA_SYNC` settings off. The application still runs the narrowly scoped, idempotent storage-facility rename before database startup; other schema changes use reviewed Alembic migrations. Outbox draining/reconciliation remains runtime behavior and assumes the rest of the schema has already been migrated.
+- Production deployments normally keep `RUN_STARTUP_MIGRATIONS` and `RUN_STARTUP_SCHEMA_SYNC` off and apply reviewed Alembic migrations through the pre-deploy command. For recovery or controlled maintenance, `RUN_STARTUP_ALL_DATABASE_SCHEMA_SYNC=true` synchronously creates missing ORM tables in both databases before requests are accepted; it is additive and does not alter existing columns. Outbox draining/reconciliation remains runtime behavior.
 
 ## Main application database schema
 

@@ -5,22 +5,26 @@ BACKEND_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BACKEND_DIR"
 
 has_revision_table() {
-  local table_name="$1"
-  python - "$table_name" <<'PY'
+  local database="$1"
+  local table_name="$2"
+  python - "$database" "$table_name" <<'PY'
 import sys
 from sqlalchemy import inspect
-from app.database.session import engine
-raise SystemExit(0 if sys.argv[1] in inspect(engine).get_table_names() else 1)
+if sys.argv[1] == "main":
+    from app.database.session import engine
+else:
+    from app.database.sensor_session import sensor_engine as engine
+raise SystemExit(0 if sys.argv[2] in inspect(engine).get_table_names() else 1)
 PY
 }
 
 # Existing production schemas may have been upgraded before Alembic tracking was
 # enabled. The stamp command verifies the entire schema before recording the
 # current revision. It refuses to stamp any schema that does not match models.
-if ! has_revision_table alembic_version_main; then
+if ! has_revision_table main alembic_version_main; then
   python scripts/stamp_baseline.py main
 fi
-if ! has_revision_table alembic_version_sensor; then
+if ! has_revision_table sensor alembic_version_sensor; then
   python scripts/stamp_baseline.py sensor
 fi
 
