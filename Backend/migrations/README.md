@@ -65,12 +65,39 @@ separately reviewed migration first.
 
 Run both when a release changes both stores. Keep API replicas on a version compatible with the schema until rollout completes. `make migrate` upgrades both histories in sequence and is intended only for one controlled job.
 
+### Storage-facility domain rename
+
+Revision `0003_storage_facilities` in the main history and `0002_storage_facilities`
+in the sensor history rename the legacy `tank` tables and `tank_id` relationship
+columns to `storage_facilities` and `storage_facility_id`. The main migration also
+renames `tank_key_field` and the sensor mirror outbox relationship column. These
+migrations preserve row IDs, relationship values, and queued outbox operation
+values. The application runs the same idempotent, narrowly scoped rename at
+startup so local/development databases are upgraded before model queries; a
+conflict where both old and new names exist stops startup rather than selecting
+one table or column.
+
+Run both Alembic upgrades for a controlled production migration. Existing
+GeoPackage source attributes such as `tank`, `tank_name`, and `tank_id` remain
+recognized by import detection; they are source-file fields and are not
+application database identifiers.
+
+### Water-source sensors
+
+Water-source entities are materialized from `water_sources` GeoPackages in the
+main database and projected into the sensor platform. Source devices, pending
+readings, and water-level/water-quality histories use separate sensor-platform
+tables from the storage-facility registry. Revision `0004_water_sources` adds
+main-database source entities and the mirror outbox; `0003_water_source_sensors`
+adds the sensor-platform source registry and readings. Run both histories using
+the same controlled deployment process above.
+
 ## Data transfer and recovery
 
 - The SQLite-to-PostgreSQL utility and sensor transfer tool default to read-only preflight. Review their inventories and resolve every warning before passing `--apply`.
 - Current main schema must already exist on the PostgreSQL target. The main importer requires matching current tables/columns. `--replace` is destructive and requires `--apply`.
 - Sensor transfer requires the current sensor target schema and an empty target. It copies mapped rows in one transaction and leaves the source untouched.
-- Quiesce writes to the source for the apply/cutover window. Sensor transfer reads one repeatable-read snapshot, but writes committed after that snapshot are not included. Keep ingest and tank mutations paused until the new database is authoritative, or implement a separately tested change-capture/delta phase.
+- Quiesce writes to the source for the apply/cutover window. Sensor transfer reads one repeatable-read snapshot, but writes committed after that snapshot are not included. Keep ingest and storage-facility mutations paused until the new database is authoritative, or implement a separately tested change-capture/delta phase.
 - Apply locks target tables and fails after a short lock wait if another transaction blocks the migration. Keep application writers off the target until verification finishes.
 - Neither tool can infer arbitrary legacy columns. Add and test a specific mapping when preflight reports an unsupported schema; do not remove the guard or silently discard a column.
 - Back up both databases and practice restore before production. Keep source rows untouched until counts, binary byte totals, enum/JSON validation, API behavior, and business acceptance are confirmed. Both transfers verify their row totals before committing their target transaction; main transfer also verifies aggregate binary payload bytes.

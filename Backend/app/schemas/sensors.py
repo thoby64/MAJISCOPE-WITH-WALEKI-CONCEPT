@@ -1,5 +1,5 @@
 """
-Pydantic schemas for sensor and tank models.
+Pydantic schemas for sensor and storage_facility models.
 Request and response models for the water-level monitoring API.
 """
 
@@ -10,11 +10,11 @@ from pydantic import BaseModel, Field
 
 
 # ============================================================================
-# Tank Schemas
+# StorageFacility Schemas
 # ============================================================================
 
-class TankCreate(BaseModel):
-    """Schema for creating a tank manually (optional; usually from layer sync)"""
+class StorageFacilityCreate(BaseModel):
+    """Schema for creating a storage_facility manually (optional; usually from layer sync)"""
     source_key: str = Field(..., min_length=1, max_length=500)
     name: Optional[str] = Field(None, max_length=255)
     dma_id: Optional[str] = Field(None)
@@ -23,8 +23,8 @@ class TankCreate(BaseModel):
     status: str = "active"
 
 
-class TankPatch(BaseModel):
-    """Schema for updating a tank's assignment and geography"""
+class StorageFacilityPatch(BaseModel):
+    """Schema for updating a storage_facility's assignment and geography"""
     dma_id: Optional[str] = Field(None)
     name: Optional[str] = Field(None, max_length=255)
     latitude: Optional[float] = Field(None, ge=-90, le=90)
@@ -32,8 +32,8 @@ class TankPatch(BaseModel):
     status: Optional[str] = Field(None)
 
 
-class TankRead(BaseModel):
-    """Schema for tank response"""
+class StorageFacilityRead(BaseModel):
+    """Schema for storage_facility response"""
     id: str
     utility_id: str
     dma_id: Optional[str] = None
@@ -52,14 +52,27 @@ class TankRead(BaseModel):
         from_attributes = True
 
 
-class TankListResponse(BaseModel):
-    """Schema for list of tanks"""
+class StorageFacilityListResponse(BaseModel):
+    """Schema for list of storage_facilities"""
     total: int
-    items: List[TankRead]
+    items: List[StorageFacilityRead]
 
 
-class TankSyncSummary(BaseModel):
-    """Tank reconciliation summary produced during storage layer uploads."""
+class StorageFacilitySyncSummary(BaseModel):
+    """StorageFacility reconciliation summary produced during storage layer uploads."""
+
+    created: int = 0
+    updated: int = 0
+    reactivated: int = 0
+    deactivated: int = 0
+    deactivated_with_sensors: int = 0
+    skipped_duplicates: int = 0
+    total: int = 0
+    has_warnings: bool = False
+
+
+class WaterSourceSyncSummary(BaseModel):
+    """Water-source reconciliation summary produced by infrastructure uploads."""
 
     created: int = 0
     updated: int = 0
@@ -103,7 +116,7 @@ class WaterQualityConfig(BaseModel):
 class SensorRegisterRequest(BaseModel):
     """Schema for registering a new sensor device (any category)."""
     device_id: str = Field(..., min_length=1, max_length=100)
-    tank_id: str
+    storage_facility_id: str
     category: str = Field("water_level", pattern="^(water_level|water_quality)$")
     activated: bool = False
     # Water-level configuration (ignored unless category == water_level)
@@ -117,7 +130,7 @@ class SensorRegisterRequest(BaseModel):
 
 class SensorUpdateRequest(BaseModel):
     """Schema for updating an existing sensor's configuration"""
-    tank_id: Optional[str] = None
+    storage_facility_id: Optional[str] = None
     h1_m: Optional[float] = Field(None, ge=0)
     depth_m: Optional[float] = Field(None, ge=0)
     warning_height_m: Optional[float] = Field(None, gt=0)
@@ -132,7 +145,7 @@ class SensorRegisterResponse(BaseModel):
     id: str
     device_id: str
     category: str
-    tank_id: str
+    storage_facility_id: str
     utility_id: str
     dma_id: Optional[str] = None
     dma_auto_assigned: bool = False
@@ -210,7 +223,7 @@ class WaterLevelIngestResponse(BaseModel):
     category: str = "water_level"
     reading_id: str
     sensor_id: str
-    tank_id: str
+    storage_facility_id: str
     utility_id: str
     dma_id: Optional[str] = None
     water_level_m: float
@@ -227,7 +240,7 @@ class WaterQualityIngestResponse(BaseModel):
     category: str = "water_quality"
     reading_id: str
     sensor_id: str
-    tank_id: str
+    storage_facility_id: str
     utility_id: str
     dma_id: Optional[str] = None
     status: str
@@ -246,7 +259,7 @@ class SensorLastReading(BaseModel):
     category: str
     reading_id: str
     sensor_id: str
-    tank_id: str
+    storage_facility_id: str
     utility_id: str
     dma_id: Optional[str] = None
     status: str
@@ -265,8 +278,8 @@ class SensorRead(BaseModel):
     id: str
     device_id: str
     category: str
-    tank_id: str
-    tank_name: Optional[str] = None
+    storage_facility_id: str
+    storage_facility_name: Optional[str] = None
     utility_id: str
     dma_id: Optional[str] = None
     config: Optional[Dict[str, Any]] = None
@@ -286,7 +299,7 @@ class SensorListResponse(BaseModel):
     items: List[SensorRead]
 
 
-class TankReadingsResponse(BaseModel):
-    """Schema for a tank's reading history (newest first)."""
+class StorageFacilityReadingsResponse(BaseModel):
+    """Schema for a storage_facility's reading history (newest first)."""
     total: int
     items: List[Any]

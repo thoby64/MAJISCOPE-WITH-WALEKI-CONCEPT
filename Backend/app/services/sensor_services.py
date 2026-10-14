@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.models.sensor_platform import (
     SensorDevice,
     SensorPendingReading,
-    TankRef,
+    StorageFacilityRef,
 )
 
 DEFAULT_WARNING_HEIGHT_M = 10.0
@@ -134,6 +134,7 @@ def store_pending_reading(
     payload: Dict[str, Any],
     *,
     recognised: bool,
+    pending_model: Any = SensorPendingReading,
 ) -> Dict[str, Any]:
     """
     Buffer a reading from an unregistered device (generic, any category).
@@ -151,8 +152,8 @@ def store_pending_reading(
     dedup_key = _build_dedup_key(device_id.strip(), occurred_at)
 
     existing = (
-        db.query(SensorPendingReading)
-        .filter(SensorPendingReading.dedup_key == dedup_key)
+        db.query(pending_model)
+        .filter(pending_model.dedup_key == dedup_key)
         .first()
     )
     if existing is not None:
@@ -165,7 +166,7 @@ def store_pending_reading(
             "is_duplicate": True,
         }
 
-    reading = SensorPendingReading(
+    reading = pending_model(
         device_id=device_id.strip(),
         payload=_json_dump_payload(payload),
         occurred_at=occurred_at,
@@ -191,14 +192,18 @@ def _json_dump_payload(payload: Dict[str, Any]) -> str:
     return json.dumps(payload, default=str)
 
 
-def load_pending_payloads(db: Session, device_id: str) -> List[Dict[str, Any]]:
+def load_pending_payloads(
+    db: Session,
+    device_id: str,
+    pending_model: Any = SensorPendingReading,
+) -> List[Dict[str, Any]]:
     """Load buffered raw payloads for a device, oldest first (for promotion)."""
     import json
 
     rows = (
-        db.query(SensorPendingReading)
-        .filter(SensorPendingReading.device_id == device_id)
-        .order_by(SensorPendingReading.occurred_at.asc())
+        db.query(pending_model)
+        .filter(pending_model.device_id == device_id)
+        .order_by(pending_model.occurred_at.asc())
         .all()
     )
     payloads: List[Dict[str, Any]] = []
@@ -212,11 +217,15 @@ def load_pending_payloads(db: Session, device_id: str) -> List[Dict[str, Any]]:
     return payloads
 
 
-def take_pending_rows(db: Session, device_id: str) -> List[SensorPendingReading]:
+def take_pending_rows(
+    db: Session,
+    device_id: str,
+    pending_model: Any = SensorPendingReading,
+) -> list[Any]:
     """Fetch and delete pending rows for a device; caller commits once done."""
     rows = (
-        db.query(SensorPendingReading)
-        .filter(SensorPendingReading.device_id == device_id)
+        db.query(pending_model)
+        .filter(pending_model.device_id == device_id)
         .all()
     )
     for row in rows:
@@ -232,5 +241,5 @@ def get_sensor_by_device_id(db: Session, device_id: str) -> Optional[SensorDevic
     return db.query(SensorDevice).filter(SensorDevice.device_id == device_id).first()
 
 
-def get_tank_ref(db: Session, tank_id: str) -> Optional[TankRef]:
-    return db.get(TankRef, tank_id)
+def get_storage_facility_ref(db: Session, storage_facility_id: str) -> Optional[StorageFacilityRef]:
+    return db.get(StorageFacilityRef, storage_facility_id)

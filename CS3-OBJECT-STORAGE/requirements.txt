@@ -1,1 +1,2 @@
+# Used only by copy_bucket.py during one-time migration from legacy Garage.
 boto3>=1.34,<2

@@ -1,38 +1,56 @@
 #!/usr/bin/env python3
-"""Loopback-only, read-only browser for objects in the configured S3 bucket."""
+"""Single-port file storage API and passphrase-protected object browser."""
 
 from __future__ import annotations
 
 import hmac
-import http.client
+import hashlib
 import json
 import os
-import threading
-from concurrent.futures import ThreadPoolExecutor
-from datetime import timezone
+import shutil
+import signal
+import tempfile
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, quote, unquote_to_bytes, urlparse
 
-import boto3
-from botocore.config import Config
+SERVER_DIR = Path(__file__).resolve().parent
+
+
+def load_local_environment() -> None:
+    env_file = SERVER_DIR / ".env"
+    if not env_file.is_file():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        if name and name not in os.environ:
+            os.environ[name] = value.strip().strip("\"'")
+
+
+load_local_environment()
 
 HOST = os.environ.get("CS3_UI_BIND_ADDRESS", "127.0.0.1")
-PORT = int(os.environ.get("CS3_UI_PORT") or os.environ.get("PORT", "3900"))
-PASSPHRASE = os.environ["CS3_UI_PASSPHRASE"]
-BUCKET = os.environ["GARAGE_DEFAULT_BUCKET"]
-S3_ENDPOINT_URL = os.environ.get(
-    "CS3_S3_ENDPOINT_URL",
-    f"http://127.0.0.1:{os.environ.get('CS3_S3_PORT', '3902')}",
-)
-S3_ENDPOINT = urlparse(S3_ENDPOINT_URL)
-S3 = boto3.client(
-    "s3",
-    endpoint_url=S3_ENDPOINT_URL,
-    region_name=os.environ.get("CS3_S3_REGION", "garage"),
-    aws_access_key_id=os.environ["GARAGE_DEFAULT_ACCESS_KEY"],
-    aws_secret_access_key=os.environ["GARAGE_DEFAULT_SECRET_KEY"],
-    config=Config(s3={"addressing_style": "path"}),
-)
+PORT = int(os.environ.get("PORT") or os.environ.get("CS3_UI_PORT", "8082"))
+DATA_ROOT_SETTING = Path(os.environ.get("CS3_STORAGE_ROOT", SERVER_DIR / "data"))
+if not DATA_ROOT_SETTING.is_absolute():
+    DATA_ROOT_SETTING = SERVER_DIR / DATA_ROOT_SETTING
+DATA_ROOT = DATA_ROOT_SETTING.resolve()
+OBJECT_ROOT = (DATA_ROOT / "files").resolve()
+METADATA_ROOT = (DATA_ROOT / "file-metadata").resolve()
+API_KEY = os.environ.get("CS3_STORAGE_API_KEY", "")
+PASSPHRASE = os.environ.get("CS3_UI_PASSPHRASE", "")
+if not PASSPHRASE:
+    passphrase_file = SERVER_DIR / ".ui-passphrase"
+    if passphrase_file.is_file():
+        passphrase_lines = passphrase_file.read_text(encoding="utf-8").splitlines()
+        if passphrase_lines:
+            PASSPHRASE = passphrase_lines[0].strip()
+MAX_OBJECT_BYTES = int(os.environ.get("CS3_MAX_OBJECT_SIZE_BYTES", str(1024**3)))
 
 PAGE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -65,224 +83,320 @@ if(sessionStorage.getItem(tokenKey)){tokenInput.value=sessionStorage.getItem(tok
 </script></body></html>"""
 
 
+def _key_id(key: str) -> str:
+    if not key or len(key.encode("utf-8")) > 1024 or "\x00" in key:
+        raise ValueError("Invalid object key")
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def _object_path(key: str) -> Path:
+    identifier = _key_id(key)
+    return OBJECT_ROOT / identifier[:2] / identifier[2:]
+
+
+def _metadata_path(key: str) -> Path:
+    return METADATA_ROOT / f"{_key_id(key)}.json"
+
+
+def _read_metadata(key: str) -> dict:
+    metadata_path = _metadata_path(key)
+    if not metadata_path.is_file():
+        raise FileNotFoundError(key)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if not isinstance(metadata, dict) or metadata.get("key") != key:
+        raise OSError("Stored object metadata does not match its key")
+    return metadata
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "CS3StorageUI/1.0"
+    server_version = "CS3Storage/2.0"
     protocol_version = "HTTP/1.1"
 
-    def log_message(self, fmt: str, *args) -> None:
-        # Avoid logging bearer tokens or query strings that contain object keys.
-        print(f"[CS3 UI] {self.command} {self.path.split('?')[0]} - {args[1] if len(args) > 1 else ''}")
+    def setup(self) -> None:
+        super().setup()
+        self.connection.settimeout(120)
 
-    def _send(self, status: int, body: bytes, content_type: str, extra_headers: dict[str, str] | None = None) -> None:
+    def log_message(self, fmt: str, *args) -> None:
+        path = urlparse(self.path).path
+        if path.startswith("/internal/objects/"):
+            path = "/internal/objects/<key>"
+        print(f"[CS3] {self.command} {path} - {args[1] if len(args) > 1 else ''}")
+
+    def _headers(self, status: int, content_type: str, length: int, extra_headers: dict[str, str] | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Length", str(length))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy", "default-src 'self' blob:; img-src 'self' blob:; media-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'")
         self.send_header("X-Frame-Options", "DENY")
+        if self.close_connection:
+            self.send_header("Connection", "close")
         if extra_headers:
             for name, value in extra_headers.items():
                 self.send_header(name, value)
         self.end_headers()
+
+    def _send(self, status: int, body: bytes, content_type: str, extra_headers: dict[str, str] | None = None) -> None:
+        self._headers(status, content_type, len(body), extra_headers)
         self.wfile.write(body)
 
     def _json(self, status: int, data: dict) -> None:
         self._send(status, json.dumps(data).encode(), "application/json; charset=utf-8")
 
-    def _authorized(self) -> bool:
+    def _dashboard_authorized(self) -> bool:
         presented = self.headers.get("Authorization", "")
         token = presented.removeprefix("Bearer ")
-        return bool(token) and hmac.compare_digest(token, PASSPHRASE)
+        return bool(PASSPHRASE and token) and hmac.compare_digest(token, PASSPHRASE)
+
+    def _storage_authorized(self) -> bool:
+        presented = self.headers.get("Authorization", "")
+        token = presented.removeprefix("Bearer ")
+        return bool(API_KEY and token) and hmac.compare_digest(token, API_KEY)
+
+    def _internal_key(self) -> str:
+        prefix = "/internal/objects/"
+        raw_key = urlparse(self.path).path[len(prefix):]
+        try:
+            return unquote_to_bytes(raw_key).decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Object key must be UTF-8") from exc
+
+    def _require_storage_auth(self) -> bool:
+        if not self._storage_authorized():
+            self._json(401, {"error": "Storage API token required"})
+            return False
+        return True
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/" and not parsed.query and not self.headers.get("Authorization"):
+        if parsed.path == "/" and not parsed.query:
             self._send(200, PAGE.encode(), "text/html; charset=utf-8")
-            return
-        if parsed.path not in {"/api/objects", "/api/object"}:
-            self._proxy_s3()
-            return
-        if not self._authorized():
-            self._json(401, {"error": "Dashboard token required"})
-            return
-        response_started = False
-        try:
-            if parsed.path == "/api/objects":
-                self._list_objects()
+        elif parsed.path in {"/healthz", "/health"}:
+            self._json(200, {"status": "ok"})
+        elif parsed.path == "/api/objects":
+            if self._dashboard_authorized():
+                try:
+                    self._list_objects()
+                except (OSError, ValueError) as exc:
+                    print(f"[CS3] Could not list objects ({type(exc).__name__})")
+                    self._json(500, {"error": "Could not list objects"})
             else:
-                self._get_object(parse_qs(parsed.query).get("key", [""])[0])
-        except Exception as exc:
-            print(f"[CS3 UI] S3 request failed: {type(exc).__name__}")
-            self._json(502, {"error": "Could not communicate with the object storage service"})
-
-    def do_HEAD(self) -> None:
-        parsed = urlparse(self.path)
-        if parsed.path == "/" and not parsed.query and not self.headers.get("Authorization"):
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(PAGE.encode())))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.end_headers()
-            return
-        self._proxy_s3()
+                self._json(401, {"error": "Dashboard token required"})
+        elif parsed.path == "/api/object":
+            if not self._dashboard_authorized():
+                self._json(401, {"error": "Dashboard token required"})
+                return
+            key = parse_qs(parsed.query).get("key", [""])[0]
+            self._stream_object(key)
+        elif parsed.path.startswith("/internal/objects/"):
+            if self._require_storage_auth():
+                try:
+                    self._stream_object(self._internal_key())
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+        else:
+            self._json(404, {"error": "Not found"})
 
     def do_PUT(self) -> None:
-        self._proxy_s3()
+        self.close_connection = True
+        parsed = urlparse(self.path)
+        if not parsed.path.startswith("/internal/objects/"):
+            self._json(404, {"error": "Not found"})
+            return
+        if not self._require_storage_auth():
+            return
+        try:
+            key = self._internal_key()
+            object_path = _object_path(key)
+            metadata_path = _metadata_path(key)
+        except ValueError as exc:
+            self._json(400, {"error": str(exc)})
+            return
 
-    def do_POST(self) -> None:
-        self._proxy_s3()
+        if self.headers.get("Transfer-Encoding"):
+            self._json(400, {"error": "Chunked uploads are not supported; send Content-Length"})
+            return
+        try:
+            content_length = int(self.headers.get("Content-Length", ""))
+        except ValueError:
+            self._json(411, {"error": "Content-Length is required"})
+            return
+        if content_length < 0:
+            self._json(400, {"error": "Invalid Content-Length"})
+            return
+        if content_length > MAX_OBJECT_BYTES:
+            self._json(413, {"error": f"Object exceeds the {MAX_OBJECT_BYTES}-byte limit"})
+            return
+
+        temp_path = None
+        digest = hashlib.sha256()
+        try:
+            object_path.parent.mkdir(parents=True, exist_ok=True)
+            metadata_path.parent.mkdir(parents=True, exist_ok=True)
+            file_descriptor, temp_name = tempfile.mkstemp(prefix=".upload-", dir=object_path.parent)
+            temp_path = Path(temp_name)
+            remaining = content_length
+            with os.fdopen(file_descriptor, "wb") as output:
+                while remaining:
+                    chunk = self.rfile.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise ConnectionError("Upload ended before Content-Length bytes were received")
+                    output.write(chunk)
+                    digest.update(chunk)
+                    remaining -= len(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temp_path, object_path)
+            temp_path = None
+
+            content_type = self.headers.get("Content-Type", "application/octet-stream")
+            if "\r" in content_type or "\n" in content_type or len(content_type) > 255:
+                content_type = "application/octet-stream"
+            metadata = {
+                "key": key,
+                "content_type": content_type,
+                "sha256": digest.hexdigest(),
+            }
+            self._write_metadata(metadata_path, metadata)
+        except (OSError, ConnectionError) as exc:
+            self._json(500, {"error": f"Could not store object ({type(exc).__name__})"})
+            return
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+
+        self._json(201, {
+            "key": key,
+            "size": content_length,
+            "sha256": digest.hexdigest(),
+        })
 
     def do_DELETE(self) -> None:
-        self._proxy_s3()
-
-    def do_OPTIONS(self) -> None:
-        self._proxy_s3()
-
-    def _proxy_s3(self) -> None:
-        if S3_ENDPOINT.scheme not in {"http", "https"} or not S3_ENDPOINT.hostname:
-            self._json(502, {"error": "Object storage proxy is not configured"})
+        parsed = urlparse(self.path)
+        if not parsed.path.startswith("/internal/objects/"):
+            self._json(404, {"error": "Not found"})
             return
-
-        connection_type = http.client.HTTPSConnection if S3_ENDPOINT.scheme == "https" else http.client.HTTPConnection
-        connection = connection_type(S3_ENDPOINT.hostname, S3_ENDPOINT.port, timeout=120)
-        hop_by_hop = {
-            "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-            "te", "trailer", "transfer-encoding", "upgrade", "expect",
-        }
-        hop_by_hop.update(
-            name.strip().lower()
-            for name in self.headers.get("Connection", "").split(",")
-            if name.strip()
-        )
-
+        if not self._require_storage_auth():
+            return
         try:
-            if self.headers.get("Expect", "").lower() == "100-continue":
-                self.send_response_only(100)
-                self.end_headers()
-            connection.putrequest(self.command, self.path, skip_host=True, skip_accept_encoding=True)
-            if "host" not in {name.lower() for name in self.headers}:
-                connection.putheader("Host", S3_ENDPOINT.netloc)
-            for name, value in self.headers.items():
-                if name.lower() not in hop_by_hop:
-                    connection.putheader(name, value)
-            transfer_encoding = self.headers.get("Transfer-Encoding", "").lower()
-            if transfer_encoding:
-                connection.putheader("Transfer-Encoding", transfer_encoding)
-            connection.putheader("Connection", "close")
-            connection.endheaders()
+            key = self._internal_key()
+            object_path = _object_path(key)
+            metadata_path = _metadata_path(key)
+        except ValueError as exc:
+            self._json(400, {"error": str(exc)})
+            return
+        try:
+            object_path.unlink(missing_ok=True)
+            metadata_path.unlink(missing_ok=True)
+        except OSError as exc:
+            print(f"[CS3] Could not delete object ({type(exc).__name__})")
+            self._json(500, {"error": "Could not delete object"})
+            return
+        self._headers(204, "application/json", 0)
 
-            if transfer_encoding:
-                if not transfer_encoding.endswith("chunked"):
-                    raise ValueError("Unsupported request transfer encoding")
-                while True:
-                    line = self.rfile.readline(65537)
-                    if not line or len(line) > 65536:
-                        raise ValueError("Invalid chunked request")
-                    connection.send(line)
-                    chunk_size = int(line.split(b";", 1)[0].strip(), 16)
-                    if chunk_size == 0:
-                        while True:
-                            trailer = self.rfile.readline(65537)
-                            if not trailer or len(trailer) > 65536:
-                                raise ValueError("Invalid chunked trailer")
-                            connection.send(trailer)
-                            if trailer in (b"\r\n", b"\n"):
-                                break
-                        break
-                    chunk = self.rfile.read(chunk_size + 2)
-                    if len(chunk) != chunk_size + 2:
-                        raise ValueError("Incomplete chunked request")
-                    connection.send(chunk)
-            else:
-                remaining = int(self.headers.get("Content-Length", "0"))
-                while remaining:
-                    chunk = self.rfile.read(min(65536, remaining))
-                    if not chunk:
-                        raise ValueError("Incomplete request body")
-                    connection.send(chunk)
-                    remaining -= len(chunk)
-
-            response = connection.getresponse()
-            self.send_response(response.status, response.reason)
-            response_hop_by_hop = hop_by_hop | {"transfer-encoding"} | {
-                name.strip().lower()
-                for name in response.getheader("Connection", "").split(",")
-                if name.strip()
-            }
-            for name, value in response.getheaders():
-                if name.lower() not in response_hop_by_hop:
-                    self.send_header(name, value)
-
-            content_length = response.getheader("Content-Length")
-            has_no_body = self.command == "HEAD" or response.status in {204, 304} or 100 <= response.status < 200
-            if not has_no_body and content_length is None:
-                self.send_header("Transfer-Encoding", "chunked")
-            self.send_header("Connection", "close")
-            self.end_headers()
-            response_started = True
-            self.close_connection = True
-
-            if has_no_body:
-                return
-            while True:
-                chunk = response.read(65536)
-                if not chunk:
-                    break
-                if content_length is None:
-                    self.wfile.write(f"{len(chunk):X}\r\n".encode() + chunk + b"\r\n")
-                else:
-                    self.wfile.write(chunk)
-            if content_length is None:
-                self.wfile.write(b"0\r\n\r\n")
-        except Exception as exc:
-            print(f"[CS3 UI] S3 proxy failed: {type(exc).__name__}")
-            if not response_started and not self.wfile.closed:
-                try:
-                    self._json(502, {"error": "Could not communicate with the object storage service"})
-                except (ConnectionError, OSError):
-                    pass
+    @staticmethod
+    def _write_metadata(path: Path, metadata: dict) -> None:
+        file_descriptor, temp_name = tempfile.mkstemp(prefix=".metadata-", dir=path.parent)
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(file_descriptor, "w", encoding="utf-8") as output:
+                json.dump(metadata, output)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temp_path, path)
         finally:
-            connection.close()
+            temp_path.unlink(missing_ok=True)
 
     def _list_objects(self) -> None:
-        paginator = S3.get_paginator("list_objects_v2")
         objects = []
-        for page in paginator.paginate(Bucket=BUCKET):
-            for item in page.get("Contents", []):
-                objects.append({
-                    "key": item["Key"],
-                    "size": item["Size"],
-                    "modified": item["LastModified"].astimezone(timezone.utc).isoformat(),
-                    "content_type": "application/octet-stream",
-                })
-        def enrich(item: dict) -> dict:
-            head = S3.head_object(Bucket=BUCKET, Key=item["key"])
-            item["content_type"] = head.get("ContentType", "application/octet-stream")
-            return item
-        with ThreadPoolExecutor(max_workers=12) as pool:
-            objects = list(pool.map(enrich, objects))
+        for metadata_path in METADATA_ROOT.glob("*.json"):
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if not isinstance(metadata, dict):
+                raise OSError("Stored object metadata is malformed")
+            key = metadata.get("key")
+            if not isinstance(key, str):
+                raise OSError("Stored object metadata is malformed")
+            object_path = _object_path(key)
+            if not object_path.is_file():
+                continue
+            stat = object_path.stat()
+            objects.append({
+                "key": key,
+                "size": stat.st_size,
+                "modified": datetime_from_timestamp(stat.st_mtime),
+                "content_type": metadata.get("content_type", "application/octet-stream"),
+            })
         objects.sort(key=lambda item: item["modified"], reverse=True)
-        self._json(200, {"bucket": BUCKET, "objects": objects})
+        self._json(200, {"bucket": "report-media", "objects": objects})
 
-    def _get_object(self, key: str) -> None:
-        if not key or ".." in key.split("/"):
-            self._json(400, {"error": "Invalid object key"})
-            return
-        result = S3.get_object(Bucket=BUCKET, Key=key)
-        body = result["Body"]
+    def _stream_object(self, key: str) -> None:
+        response_started = False
         try:
-            payload = body.read()
-        finally:
-            body.close()
-        content_type = result.get("ContentType", "application/octet-stream")
-        disposition = f'inline; filename="{quote(key.rsplit("/", 1)[-1])}"'
-        self._send(200, payload, content_type, {"Content-Disposition": disposition})
+            _key_id(key)
+            object_path = _object_path(key)
+            metadata = _read_metadata(key)
+            content_type = metadata.get("content_type", "application/octet-stream")
+            if not isinstance(content_type, str) or "\r" in content_type or "\n" in content_type:
+                content_type = "application/octet-stream"
+            filename = quote(key.rsplit("/", 1)[-1])
+            with object_path.open("rb") as payload:
+                size = object_path.stat().st_size
+                self._headers(200, content_type, size, {
+                    "Content-Disposition": f'inline; filename="{filename}"',
+                })
+                response_started = True
+                shutil.copyfileobj(payload, self.wfile, length=1024 * 1024)
+        except json.JSONDecodeError as exc:
+            print(f"[CS3] Stored object metadata is invalid ({type(exc).__name__})")
+            if not response_started:
+                self._json(500, {"error": "Stored object metadata is invalid"})
+        except ValueError as exc:
+            if not response_started:
+                self._json(400, {"error": str(exc)})
+        except FileNotFoundError:
+            if not response_started:
+                self._json(404, {"error": "Object not found"})
+        except OSError as exc:
+            print(f"[CS3] Could not read object ({type(exc).__name__})")
+            if not response_started and not self.wfile.closed:
+                self._json(500, {"error": "Could not read object"})
+
+
+def datetime_from_timestamp(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+
+def main() -> None:
+    if not API_KEY or len(API_KEY) < 32 or API_KEY.startswith("replace-"):
+        raise SystemExit("Set CS3_STORAGE_API_KEY to a unique secret of at least 32 characters.")
+    if not PASSPHRASE or len(PASSPHRASE) < 12 or PASSPHRASE.startswith("replace-"):
+        raise SystemExit("Set CS3_UI_PASSPHRASE to a private passphrase of at least 12 characters.")
+    if hmac.compare_digest(API_KEY, PASSPHRASE):
+        raise SystemExit("CS3_STORAGE_API_KEY and CS3_UI_PASSPHRASE must be different secrets.")
+    if MAX_OBJECT_BYTES < 1:
+        raise SystemExit("CS3_MAX_OBJECT_SIZE_BYTES must be positive.")
+    for directory in (DATA_ROOT, OBJECT_ROOT, METADATA_ROOT):
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        directory.chmod(0o700)
+
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
+    server.daemon_threads = True
+
+    def stop_server(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, stop_server)
+    print(f"CS3 storage API and dashboard listening on {HOST}:{PORT}")
+    print(f"Persistent object directory: {OBJECT_ROOT}")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+        print("CS3 storage server stopped.")
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
-    server.daemon_threads = True
-    print(f"CS3 read-only dashboard listening on {HOST}:{PORT}")
-    server.serve_forever()
+    main()

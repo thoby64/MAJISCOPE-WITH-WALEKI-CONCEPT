@@ -3,5 +3,7 @@
 .runtime/
 .venv/
 .copy-venv/
+__pycache__/
+*.py[cod]
 data/
 *.log

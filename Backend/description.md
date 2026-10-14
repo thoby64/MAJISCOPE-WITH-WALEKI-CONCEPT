@@ -11,22 +11,22 @@ The code establishes table ownership and column-level behavior, but it does **no
 - The backend uses SQLAlchemy with PostgreSQL as the intended production relational database. SQLite is supported for local development and tests.
 - There are two separately configured database engines: the **main application database** (`DATABASE_URL`) and the **sensor platform database** (`SENSOR_DATABASE_URL`). They may be separate databases on one PostgreSQL cluster initially, but they are not one transactional database. They may later be placed on separate clusters to isolate sensor write load.
 - Main-database data is mostly operational and transactional: accounts, utility geography and assets, leak reports, audit records, notifications, image uploads, and hydraulic-model state/results.
-- Sensor-database data includes sensor inventory, tank references, high-volume water-level and water-quality readings, and a temporary buffer for unregistered devices. Sensor readings are append-heavy and are likely to dominate future growth if devices report frequently.
+- Sensor-database data includes sensor inventory, storage-facility references, high-volume water-level and water-quality readings, and a temporary buffer for unregistered devices. Sensor readings are append-heavy and are likely to dominate future growth if devices report frequently.
 - Uploaded images and GeoPackage infrastructure files are currently stored as binary values in PostgreSQL (`LargeBinary`, PostgreSQL `BYTEA`). Hydraulic simulation geometry/results may also be large JSON values. These are material storage and backup considerations.
 - The repository now contains independent Alembic histories for the main and sensor databases. Each begins with a no-DDL baseline that must only be stamped after the read-only schema verifier succeeds. `create_all` creates missing tables but does not upgrade existing tables. Production startup disables schema DDL; schema changes require reviewed migrations.
-- Do not use the current SQLite file size as a sizing estimate. It is 2.4 MiB, has only a handful of seed rows, and contains none of the newer sensor/tank/hydraulic structures in the current models.
+- Do not use the current SQLite file size as a sizing estimate. It is 2.4 MiB, has only a handful of seed rows, and contains none of the newer sensor/storage-facility/hydraulic structures in the current models.
 
 ## Database topology and configuration
 
 ### Main application database
 
-Configured by `DATABASE_URL`; the default in `app/config.py` is PostgreSQL (`postgresql+psycopg://.../majiscope`). The main SQLAlchemy metadata is `app.models.base.Base`. This database owns accounts, utilities, DMAs, teams, engineers, reports, uploads, GIS assets, and other operational records. It is also the source of truth for tank identity and lifecycle.
+Configured by `DATABASE_URL`; the default in `app/config.py` is PostgreSQL (`postgresql+psycopg://.../majiscope`). The main SQLAlchemy metadata is `app.models.base.Base`. This database owns accounts, utilities, DMAs, teams, engineers, reports, uploads, GIS assets, and other operational records. It is also the source of truth for storage-facility identity and lifecycle.
 
 ### Sensor platform database
 
 Configured by `SENSOR_DATABASE_URL`; its default is PostgreSQL (`postgresql+psycopg://.../sensor_platform`). It has its own SQLAlchemy engine, session factory, and independent `SensorBase` metadata. Its tables are deliberately excluded from the main `Base.metadata` so that initializing one store cannot accidentally create the other's tables.
 
-The sensor database owns a **mirror** of main-database tanks (`tank`) for scoped sensor reads, one unified sensor registry (`sensor_device`), two typed reading tables, and the unregistered-device buffer. The main database owns actual tank creation and updates. Tank mirror writes are attempted after a main-database commit; failures are queued in `sensor_mirror_outbox` in the main database and later retried/reconciled. The mirror is eventually consistent, not a cross-database transaction.
+The sensor database owns a **mirror** of main-database storage facilities (`storage_facilities`) for scoped sensor reads, one unified sensor registry (`sensor_device`), two typed reading tables, and the unregistered-device buffer. The main database owns storage-facility creation and updates. Mirror writes are attempted after a main-database commit; failures are queued in `sensor_mirror_outbox` in the main database and later retried/reconciled. The mirror is eventually consistent, not a cross-database transaction.
 
 No cross-database joins or atomic transactions are available in the current code. The API opens separate sessions and coordinates the databases in application code. A successful write to one store does not prove a corresponding write to the other store succeeded.
 
@@ -35,7 +35,7 @@ No cross-database joins or atomic transactions are available in the current code
 - Both URL handlers normalize common `postgres://` and `postgresql://` provider URLs to the psycopg v3 SQLAlchemy driver. SQLite connections set `check_same_thread=False`.
 - Both engines use `pool_pre_ping=True` and recycle connections after 300 seconds. Pool size and overflow are otherwise left at SQLAlchemy defaults; each application worker creates its own pools for both databases. Budget database connections across all workers, background tasks, migration jobs, and any connection pooler.
 - Production settings ignore `.env` and must come from the deployment environment. **Set both `DATABASE_URL` and `SENSOR_DATABASE_URL` explicitly.** Both `.env.example` and `.env.render.example` now provide a value for each store.
-- Production mode forces `RUN_STARTUP_MIGRATIONS` and `RUN_STARTUP_SCHEMA_SYNC` off in settings. The application does not run hand-written schema migrations or `create_all` for either database in production. Tank outbox draining/reconciliation remains runtime behavior and assumes the schema has already been migrated.
+- Production mode forces the general `RUN_STARTUP_MIGRATIONS` and `RUN_STARTUP_SCHEMA_SYNC` settings off. The application still runs the narrowly scoped, idempotent storage-facility rename before database startup; other schema changes use reviewed Alembic migrations. Outbox draining/reconciliation remains runtime behavior and assumes the rest of the schema has already been migrated.
 
 ## Main application database schema
 
@@ -94,7 +94,7 @@ One uploaded GIS/infrastructure asset per utility and asset type.
 - `id`: UUID string primary key; `utility_id`: required indexed FK to `utility`, `ON DELETE CASCADE`.
 - `asset_type`: required indexed type/name; `uploaded_by_manager_id`: optional indexed FK to `utility_manager`, `ON DELETE SET NULL`.
 - `file_data`: required binary GeoPackage or other asset content; `file_name`, `mime_type`, `file_size`, `feature_count`: required file metadata.
-- `tank_key_field`: optional source field used to identify tanks; `created_at`, `updated_at`.
+- `storage_facility_key_field`: optional GeoPackage source field used to identify storage facilities; `created_at`, `updated_at`.
 - Unique key `(utility_id, asset_type)` means replacement/update is the natural lifecycle for a given asset slot rather than unlimited version rows. The database model stores the binary file inline, not in object storage.
 
 #### `dma`
@@ -135,16 +135,16 @@ Field technician/team-member account.
 - Invitation, password-reset, setup-completion, and created/updated timestamps.
 - May be referenced by assigned reports, team leadership, notifications, and activity records.
 
-#### `tank` (main database)
+#### `storage_facilities` (main database)
 
-Canonical storage-facility/tank record, materialized from a utility infrastructure asset and owned by the main database.
+Canonical storage-facility record, materialized from a utility infrastructure asset and owned by the main database.
 
 - `id`: UUID string primary key; required indexed `utility_id` FK to `utility`, `ON DELETE CASCADE`.
 - Optional indexed `dma_id` FK to `dma`, `ON DELETE SET NULL`.
 - Required indexed `source_key` identifies the originating GIS feature; optional `name`, `latitude`, `longitude`.
 - `status`: active/deactivated; `created_at`, `updated_at`, optional `deactivated_at`.
 - Unique `(utility_id, source_key)` prevents duplicate source features within one utility.
-- A projection is copied to the sensor database's `tank` table. This main table does not hold sensor readings.
+- A projection is copied to the sensor database's `storage_facilities` table. This main table does not hold sensor readings.
 
 ### Reports, files, events, and notifications
 
@@ -231,9 +231,9 @@ Persisted result/snapshot from completed hydraulic simulation runs.
 
 The sensor metadata is separate from the main `Base`. The following current models are owned by `SensorBase`. The sensor data path commits each accepted reading as an individual database transaction. At-least-once device delivery is made idempotent by a unique sensor/timestamp key, not by a broker or bulk-ingest layer.
 
-### `tank` (sensor database)
+### `storage_facilities` (sensor database)
 
-Mirrored reference/projection of the main database's canonical `tank` row. It is a separate table with the same SQL table name, in a different database.
+Mirrored reference/projection of the main database's canonical storage-facility row. It is a separate table in a different database.
 
 - `id`: primary key copied from main database; `utility_id`: required indexed string; `dma_id`: optional indexed string.
 - `source_key`: required; optional `name`, `latitude`, `longitude`; `status`: active/deactivated; `created_at`, `updated_at`, optional `deactivated_at`.
@@ -246,31 +246,31 @@ Mirrored reference/projection of the main database's canonical `tank` row. It is
 Unified registry for all categories of devices.
 
 - `id`: UUID string primary key; `device_id`: required unique/indexed external ID.
-- `category`: required indexed enum (`water_level`, `water_quality`); `tank_id`: required indexed tank reference; `activated`: required boolean.
+- `category`: required indexed enum (`water_level`, `water_quality`); `storage_facility_id`: required indexed storage-facility reference; `activated`: required boolean.
 - `config`: optional category-specific JSON configuration. Water-level configuration includes `h1_m`, `depth_m`, `warning_height_m`, and `critical_height_m`; water-quality configuration holds parameter threshold bounds.
 - `created_at`, `updated_at`.
-- Partial unique index `(tank_id, category)` where activated is true: one active sensor of each category per tank, while allowing inactive historical devices. The model defines a PostgreSQL predicate and a SQLite predicate.
-- `tank_id` is not a database FK. API code checks tank ownership/scope using the mirrored reference and main database.
+- Partial unique index `(storage_facility_id, category)` where activated is true: one active sensor of each category per storage facility, while allowing inactive historical devices. The model defines a PostgreSQL predicate and a SQLite predicate.
+- `storage_facility_id` is not a database FK. API code checks facility ownership/scope using the mirrored reference and main database.
 
 ### `water_level_reading`
 
 Append-oriented typed time-series row for each accepted water-level message.
 
-- `id`: UUID string primary key; `sensor_id`, `tank_id`, `utility_id`: required indexed identifiers; optional indexed `dma_id`.
+- `id`: UUID string primary key; `sensor_id`, `storage_facility_id`, `utility_id`: required indexed identifiers; optional indexed `dma_id`.
 - `h1_m`, `water_height_m`: required floats; `depth_m`: required float, defaults to 0; `status`: required indexed sensor-status enum (inactive/critical/warning/active).
 - Optional `raw_data` text; required indexed event time `occurred_at`; ingestion/storage time `created_at`.
 - Unique `(sensor_id, occurred_at)` makes duplicate delivery for the same sensor and timestamp idempotent at the schema level.
-- IDs are copied/denormalized; no foreign keys to registry/tank/utility tables are declared.
+- IDs are copied/denormalized; no foreign keys to registry/storage-facility/utility tables are declared.
 
 ### `water_quality_reading`
 
 Append-oriented typed time-series row for each accepted water-quality message. Separate table avoids a generic parameter/value EAV table and avoids storing unused values as non-null zeros.
 
-- `id`: UUID string primary key; `sensor_id`, `tank_id`, `utility_id`: required indexed identifiers; optional indexed `dma_id`.
+- `id`: UUID string primary key; `sensor_id`, `storage_facility_id`, `utility_id`: required indexed identifiers; optional indexed `dma_id`.
 - Required indexed `status`; optional `raw_data` text.
 - Nullable measured floats: `temperature_c`, `ph`, `ec_uscm`, `do_mgl`, `do_pct_sat`, `turbidity_ntu`, `orp_mv`, `free_chlorine_mgl`, `nitrate_mgl`, `ammonia_mgl`, `phosphate_mgl`, `chlorophyll_ugl`, `phycocyanin_ugl`, and `pressure`.
 - Required indexed `occurred_at`; `created_at` records storage time.
-- Unique `(sensor_id, occurred_at)` provides idempotency. There are no database foreign keys to registry or mirrored tank rows.
+- Unique `(sensor_id, occurred_at)` provides idempotency. There are no database foreign keys to registry or mirrored storage-facility rows.
 - Parameter units/ranges are described and validated in service/schema code, not all represented by SQL check constraints.
 
 ### `sensor_pending_reading`
@@ -283,7 +283,7 @@ Temporary category-agnostic buffer for recognized payloads from devices not yet 
 
 ## Main-database mirror outbox
 
-`sensor_mirror_outbox` is a mapped table in the **main database** with a runtime `CREATE TABLE IF NOT EXISTS` compatibility helper. It contains `id` (UUID string primary key), `created_at`, `op`, optional `tank_id`, and optional JSON-serialized `payload` text. Its purpose is to persist a tank mirror operation when the sensor database is unavailable. A drain job processes a bounded batch (default 200); startup also reconciles all tanks.
+`sensor_mirror_outbox` is a mapped table in the **main database** with a runtime `CREATE TABLE IF NOT EXISTS` helper. It contains `id` (UUID string primary key), `created_at`, `op`, optional `storage_facility_id`, and optional JSON-serialized `payload` text. Its purpose is to persist a storage-facility mirror operation when the sensor database is unavailable. A drain job processes a bounded batch (default 200); startup also reconciles all storage facilities.
 
 The current definition has no ORM-managed indexes, retry count, failure/dead-letter state, or explicit retention policy. Monitor backlog age/depth, alert on persistent failures, and decide whether a periodic worker is needed; startup-only retries may not be sufficient for a continuously running service after a sensor-database outage.
 
@@ -300,18 +300,18 @@ The current definition has no ORM-managed indexes, retry count, failure/dead-let
 ### What the code does
 
 - When enabled outside production, startup can run hand-written safe/heavy migrations and calls main `Base.metadata.create_all` for non-PostgreSQL schema sync. SQLite branch-removal migration makes a timestamped file copy before table rewrites.
-- Production setting validation disables startup migration and schema-sync flags. The application does not run hand-written schema migrations or `create_all` for either database in production. Tank outbox draining/reconciliation remains runtime behavior and assumes the schema migrations have already been applied.
+- Production setting validation disables general startup migrations and schema-sync flags. The application runs the narrow storage-facility rename before normal startup; other schema changes use reviewed Alembic revisions. Outbox draining/reconciliation remains runtime behavior and assumes the rest of the schema migrations have been applied.
 - `create_all` creates missing tables only. It does not add new columns, change constraints, rebuild indexes, convert data, or safely replace a deployed schema.
 - Alembic is configured independently through `alembic.ini` and `alembic.sensor.ini`; each has a baseline revision and its own version table. Baselines contain no DDL. Fresh databases are initialized from model metadata, then verified and stamped. Existing databases must pass the corresponding schema check before baseline stamping. Follow `migrations/README.md` for the workflow.
 - Hand-written startup logic includes legacy cleanup (for example, old sensor tables in the main database and the legacy utility pipe-network table) and schema transformations. Review the exact operation and current backups before enabling a migration on production data.
 
 ### Migration caveats to resolve before production growth
 
-- `migrate_sqlite_to_postgres.py` has a current main-table manifest (including service areas, infrastructure assets, tanks, hydraulic records, and the outbox), read-only preflight, batched transfer, enum/JSON validation, a single SQLite read transaction, target table locks, and transactional row/binary-byte verification. It requires the target schema to be migrated separately and rejects unmapped legacy tables or column mismatches; it does not transfer sensor data.
+- `migrate_sqlite_to_postgres.py` has a current main-table manifest (including service areas, infrastructure assets, storage facilities, hydraulic records, and the outbox), read-only preflight, batched transfer, enum/JSON validation, a single SQLite read transaction, target table locks, and transactional row/binary-byte verification. It requires the target schema to be migrated separately and rejects unmapped legacy tables or column mismatches; it does not transfer sensor data.
 - `scripts/migrate_sensor_data.py` maps legacy/current sensor layouts, including water-level, water-quality, and pending data. It defaults to read-only preflight and requires an empty target for transactional apply. It validates mapped required fields, reads one source snapshot, locks the target, and verifies expected insert and target row counts before commit. It leaves source tables untouched. Ambiguous historical layouts fail rather than being guessed.
 - Model changes do not update production databases implicitly. Generate, review, test, and apply Alembic revisions independently for main and sensor stores. `create_all` remains a fresh/local bootstrap, not an upgrade mechanism.
 - Before a data move, take restorable backups of both stores and pause source writes/ingest for the apply/cutover window. A consistent source snapshot excludes later writes; use a separately tested change-capture/delta phase if writes cannot be paused. Run read-only preflight, resolve every schema/value error, migrate in FK-safe order, preserve timestamps and IDs, compare row counts and binary byte totals, validate enum/JSON values, and run application/API checks on the target. Keep the source untouched until acceptance and rollback criteria are met.
-- Production schema changes use reviewed Alembic revisions from one controlled deployment job. Existing schemas must pass the read-only model comparison before one-time baseline stamping; stamping does not apply or repair schema. Do not run DDL from each API replica. Practice upgrades and restores on a staging copy.
+- Production schema changes use reviewed Alembic revisions from one controlled deployment job, with the explicit narrow startup rename as the exception. Existing schemas must pass the read-only model comparison before one-time baseline stamping; stamping does not apply or repair schema. Practice upgrades and restores on a staging copy.
 
 ## Current local database snapshot (observed)
 
@@ -320,7 +320,7 @@ The checked-in `Backend/majiscope.db` was inspected using aggregate-only queries
 - Physical file: approximately **2.4 MiB**; SQLite page count 586 at 4096 bytes/page; no free pages reported.
 - Tables present: `user`, `utility`, `utility_manager`, `dma`, `dma_manager`, `team`, `engineer`, `report`, `image_upload`, `activity_log`, `notification`, `push_device_token`, and legacy `utility_pipe_network`.
 - The snapshot has one row in each of `user`, `utility`, `utility_manager`, `dma`, `dma_manager`, `team`, and `engineer`; zero rows in `report`, `image_upload`, `activity_log`, `notification`, and `push_device_token`.
-- No `.sqlite` or second `.db` sensor data file was found under the backend. The snapshot has no current `tank`, `sensor_device`, typed sensor reading, utility service area, infrastructure-layer, hydraulic-session, hydraulic-snapshot, or outbox data.
+- No `.sqlite` or second `.db` sensor data file was found under the backend. The snapshot has no current `storage_facilities`, `sensor_device`, typed sensor reading, utility service area, infrastructure-layer, hydraulic-session, hydraulic-snapshot, or outbox data.
 - The zero image byte total is only for this snapshot. It says nothing about expected production uploads.
 
 This snapshot is evidence about one local development database only. Do not extrapolate its 2.4 MiB to hosted storage, and do not assume its legacy table list is the current schema.
@@ -373,8 +373,8 @@ For database-resident files, add index/row overhead and account for WAL, replica
 
 ### Sensor partitioning and indexing considerations
 
-- Current readings have individual indexes on `sensor_id`, `tank_id`, `utility_id`, optional `dma_id`, `status`, and `occurred_at`, plus unique `(sensor_id, occurred_at)`. These choices support common filtering but create write amplification and index storage. Validate with real query plans and `EXPLAIN (ANALYZE, BUFFERS)`; remove or replace redundant indexes only after measured evidence.
-- Tank history queries filter active sensor IDs, sort newest-first by `occurred_at` and `created_at`, count all matching history, and return up to 200 rows. The separate `COUNT(*)` over an unbounded history can become costly. At scale, consider time-window pagination, cursor-based queries, and reducing/avoiding total counts.
+- Current readings have individual indexes on `sensor_id`, `storage_facility_id`, `utility_id`, optional `dma_id`, `status`, and `occurred_at`, plus unique `(sensor_id, occurred_at)`. These choices support common filtering but create write amplification and index storage. Validate with real query plans and `EXPLAIN (ANALYZE, BUFFERS)`; remove or replace redundant indexes only after measured evidence.
+- Storage-facility history queries filter active sensor IDs, sort newest-first by `occurred_at` and `created_at`, count all matching history, and return up to 200 rows. The separate `COUNT(*)` over an unbounded history can become costly. At scale, consider time-window pagination, cursor-based queries, and reducing/avoiding total counts.
 - Time partitioning can bound retention and improve pruning, but PostgreSQL partitioned unique/primary-key constraints must include the partition key. `occurred_at` is included in the sensor/timestamp unique key, but the current `id` primary key is only `id`; moving to time partitions therefore needs a carefully designed primary-key/uniqueness migration (or another supported time-series implementation). Do not turn on partitions without verifying ORM inserts, idempotency, global ID behavior, indexes, retention deletes, and migration/restore procedures.
 - Define raw payload policy. `raw_data` and pending JSON can add significant variable-width storage. Decide whether to retain verbatim payloads forever, retain only for a short diagnostic period, compress/archive them, or store a checksum/reference. Keep compliance, replay, and debugging needs in view.
 - Set an explicit retention and aggregation policy for each reading category and for pending messages. If long-term graphs only need hourly/daily summaries, preserve those rollups before pruning raw samples. Deletion and rollup jobs must be idempotent and observable.
@@ -387,13 +387,13 @@ For database-resident files, add index/row overhead and account for WAL, replica
 - Monitor per database: allocated/used/free storage and growth rate; row/table/index/TOAST sizes; WAL generation and replication lag; connections/pool wait; CPU, memory, IOPS/latency; slow queries and lock waits; autovacuum; failed backups; restore-test age; mirror-outbox depth/age; pending-buffer age; and sensor ingest/rejection/duplicate rates.
 - Establish alerts before disk exhaustion. PostgreSQL cannot reliably write once its volume is full; keep headroom for bursts, maintenance, migrations, WAL, and recovery. Configure a provider-supported autoscaling/maximum policy only after validating cost and hard limits.
 - Keep credentials separate and least-privileged; require TLS to hosted databases; rotate secrets; restrict network access; protect PII in account, reporter, IP/user-agent, and audit fields; and define retention/access policies for it.
-- Run backups for both databases. A main-database backup alone cannot restore the sensor database, and a sensor backup alone cannot restore tank ownership or utility hierarchy. Because mirror consistency is eventual, document restore order and perform tank reconciliation after restoring both stores.
+- Run backups for both databases. A main-database backup alone cannot restore the sensor database, and a sensor backup alone cannot restore storage-facility ownership or utility hierarchy. Because mirror consistency is eventual, document restore order and perform reconciliation after restoring both stores.
 
 ## Decisions to make before selecting a hosting tier
 
 Collect and record at least these inputs:
 
-- Expected utilities, DMAs, users, teams, tanks, sensors by category, and annual growth.
+- Expected utilities, DMAs, users, teams, storage facilities, sensors by category, and annual growth.
 - Reporting interval per sensor category, offline/retry behavior, peak reconnect/burst volume, payload/raw-data sizes, and acceptable ingest latency.
 - Retention duration for raw readings, pending payloads, audit events, launch sessions, hydraulic snapshots, uploaded images, and GIS versions.
 - Reports/day, average and maximum photo count/bytes, GeoPackage count/size/change rate, hydraulic run frequency, and typical/maximum snapshot JSON size.

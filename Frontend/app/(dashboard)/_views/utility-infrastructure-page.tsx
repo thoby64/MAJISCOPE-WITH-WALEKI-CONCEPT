@@ -37,7 +37,7 @@ const ASSETS = [
   {
     type: "storage_facilities",
     label: "Storage facilities",
-    description: "Point tank and reservoir storage facility assets.",
+    description: "Point storage-facility and reservoir storage facility assets.",
     color: "from-amber-500 to-orange-600",
   },
   {

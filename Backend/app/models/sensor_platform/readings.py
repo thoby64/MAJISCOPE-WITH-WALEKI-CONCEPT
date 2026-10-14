@@ -39,7 +39,7 @@ class WaterLevelReading(SensorBase):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     sensor_id = Column(String(36), nullable=False, index=True)
-    tank_id = Column(String(36), nullable=False, index=True)
+    storage_facility_id = Column(String(36), nullable=False, index=True)
     utility_id = Column(String(36), nullable=False, index=True)
     dma_id = Column(String(36), nullable=True, index=True)
     h1_m = Column(Float, nullable=False)
@@ -68,7 +68,7 @@ class WaterQualityReading(SensorBase):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     sensor_id = Column(String(36), nullable=False, index=True)
-    tank_id = Column(String(36), nullable=False, index=True)
+    storage_facility_id = Column(String(36), nullable=False, index=True)
     utility_id = Column(String(36), nullable=False, index=True)
     dma_id = Column(String(36), nullable=True, index=True)
     status = Column(SQLEnum(SensorStatusEnum), nullable=False, index=True)
@@ -100,13 +100,70 @@ class WaterQualityReading(SensorBase):
     )
 
 
+class WaterSourceWaterLevelReading(SensorBase):
+    """Water-level history associated with a water source."""
+
+    __tablename__ = "water_source_water_level_reading"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sensor_id = Column(String(36), nullable=False, index=True)
+    water_source_id = Column(String(36), nullable=False, index=True)
+    utility_id = Column(String(36), nullable=False, index=True)
+    dma_id = Column(String(36), nullable=True, index=True)
+    h1_m = Column(Float, nullable=False)
+    depth_m = Column(Float, nullable=False, default=0.0)
+    water_height_m = Column(Float, nullable=False)
+    status = Column(SQLEnum(SensorStatusEnum), nullable=False, index=True)
+    raw_data = Column(Text, nullable=True)
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("sensor_id", "occurred_at", name="uq_ws_wl_sensor_occurred"),
+    )
+
+
+class WaterSourceWaterQualityReading(SensorBase):
+    """Water-quality history associated with a water source."""
+
+    __tablename__ = "water_source_water_quality_reading"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    sensor_id = Column(String(36), nullable=False, index=True)
+    water_source_id = Column(String(36), nullable=False, index=True)
+    utility_id = Column(String(36), nullable=False, index=True)
+    dma_id = Column(String(36), nullable=True, index=True)
+    status = Column(SQLEnum(SensorStatusEnum), nullable=False, index=True)
+    raw_data = Column(Text, nullable=True)
+    temperature_c = Column(Float, nullable=True)
+    ph = Column(Float, nullable=True)
+    ec_uscm = Column(Float, nullable=True)
+    do_mgl = Column(Float, nullable=True)
+    do_pct_sat = Column(Float, nullable=True)
+    turbidity_ntu = Column(Float, nullable=True)
+    orp_mv = Column(Float, nullable=True)
+    free_chlorine_mgl = Column(Float, nullable=True)
+    nitrate_mgl = Column(Float, nullable=True)
+    ammonia_mgl = Column(Float, nullable=True)
+    phosphate_mgl = Column(Float, nullable=True)
+    chlorophyll_ugl = Column(Float, nullable=True)
+    phycocyanin_ugl = Column(Float, nullable=True)
+    pressure = Column(Float, nullable=True)
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("sensor_id", "occurred_at", name="uq_ws_wq_sensor_occurred"),
+    )
+
+
 class SensorPendingReading(SensorBase):
     """
     Generic buffered payload from an unregistered device.
 
     The raw message is kept verbatim as JSON; it is parsed (and the device's
     category thereby honored) at promotion time, i.e. when the device is
-    registered against a tank with a chosen category.
+    registered against a storage_facility with a chosen category.
     """
 
     __tablename__ = "sensor_pending_reading"
@@ -114,6 +171,19 @@ class SensorPendingReading(SensorBase):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     device_id = Column(String(100), nullable=False, index=True)
     payload = Column(Text, nullable=False)  # verbatim JSON of the raw message
+    occurred_at = Column(DateTime, nullable=False, index=True)
+    dedup_key = Column(String(300), nullable=False, unique=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class WaterSourceSensorPendingReading(SensorBase):
+    """Unregistered-device buffer scoped to the water-source ingest endpoint."""
+
+    __tablename__ = "water_source_sensor_pending_reading"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    device_id = Column(String(100), nullable=False, index=True)
+    payload = Column(Text, nullable=False)
     occurred_at = Column(DateTime, nullable=False, index=True)
     dedup_key = Column(String(300), nullable=False, unique=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

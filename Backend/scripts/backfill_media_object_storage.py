@@ -1,4 +1,4 @@
-"""Verify and migrate legacy report media to configured S3-compatible storage."""
+"""Verify and migrate legacy report media to the configured remote storage."""
 
 import argparse
 import sys

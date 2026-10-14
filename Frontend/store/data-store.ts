@@ -13,8 +13,9 @@ const REFERENCE_CACHE_TTL = 30_000
 const NOTIFICATION_CACHE_TTL = 10_000
 const BOOTSTRAP_CACHE_TTL = 10_000
 const SENSOR_CACHE_TTL = 15_000
-const TANK_CACHE_TTL = 30_000
-const TANK_READING_CACHE_TTL = 5_000
+const STORAGE_FACILITY_CACHE_TTL = 30_000
+const STORAGE_FACILITY_READING_CACHE_TTL = 5_000
+const WATER_SOURCE_CACHE_TTL = 30_000
 const REPORTS_CACHE_TTL = 10_000
 
 // Type imports for proper typing
@@ -99,8 +100,13 @@ export interface SensorSnap {
   id: string
   deviceId: string
   category: SensorCategory
-  tankId: string
-  tankName: string | null
+  assetType: "storage_facility" | "water_source"
+  parentAssetId: string
+  parentAssetName: string | null
+  storageFacilityId?: string
+  storageFacilityName?: string | null
+  waterSourceId?: string
+  waterSourceName?: string | null
   utilityId: string
   dmaId: string | null
   dmaAutoAssigned?: boolean
@@ -118,7 +124,8 @@ export interface SensorLastReading {
   category: SensorCategory
   readingId: string
   sensorId: string
-  tankId: string
+  storageFacilityId?: string
+  waterSourceId?: string
   utilityId: string
   dmaId: string | null
   status: string
@@ -132,12 +139,12 @@ export interface SensorLastReading {
   isDuplicate: boolean
 }
 
-export interface TankReading {
+export interface StorageFacilityReading {
   ok: boolean
   category: SensorCategory
   readingId: string
   sensorId: string
-  tankId: string
+  storageFacilityId: string
   utilityId: string
   dmaId: string | null
   // water level
@@ -151,7 +158,41 @@ export interface TankReading {
   isDuplicate: boolean
 }
 
-export interface TankSnap {
+export interface WaterSourceReading {
+  ok: boolean
+  category: SensorCategory
+  readingId: string
+  sensorId: string
+  waterSourceId: string
+  utilityId: string
+  dmaId: string | null
+  waterLevelM?: number
+  h1M?: number
+  depthM?: number
+  parameters?: Record<string, number>
+  status: string
+  occurredAt: string
+  isDuplicate: boolean
+}
+
+export interface WaterSourceSnap {
+  id: string
+  utilityId: string
+  dmaId: string | null
+  sourceKey: string
+  name: string | null
+  sourceType: string | null
+  latitude: number | null
+  longitude: number | null
+  status: string
+  sensorCount: number
+  activeSensorCount: number
+  createdAt: string
+  updatedAt: string
+  deactivatedAt: string | null
+}
+
+export interface StorageFacilitySnap {
   id: string
   utilityId: string
   dmaId: string | null
@@ -169,7 +210,9 @@ export interface TankSnap {
 
 export interface RegisterSensorInput {
   device_id: string
-  tank_id: string
+  storage_facility_id?: string
+  water_source_id?: string
+  asset_type?: "storage_facility" | "water_source"
   category?: SensorCategory
   h1_m?: number
   depth_m?: number
@@ -415,8 +458,10 @@ interface DataState {
   logs: ActivityLog[]
   notifications: Notification[]
   sensors: SensorSnap[]
-  tanks: TankSnap[]
-  tankReadingsByTank: Record<string, TankReading[]>
+  storageFacilities: StorageFacilitySnap[]
+  waterSources: WaterSourceSnap[]
+  storageFacilityReadingsByStorageFacility: Record<string, StorageFacilityReading[]>
+  waterSourceReadingsByWaterSource: Record<string, WaterSourceReading[]>
   
   // Loading states
   isLoading: boolean
@@ -436,14 +481,23 @@ interface DataState {
   fetchNotifications: (userId: string) => Promise<void>
   fetchSensors: () => Promise<void>
   fetchSensor: (deviceId: string) => Promise<SensorSnap>
-  fetchTanks: () => Promise<void>
-  fetchTankReadings: (tankId: string, limit?: number, category?: SensorCategory) => Promise<void>
-  fetchSensorReadings: (tankId: string, sensorId: string, options?: { limit?: number; startAt?: string; endAt?: string; category?: SensorCategory }) => Promise<TankReading[]>
+  fetchStorageFacilities: () => Promise<void>
+  fetchWaterSources: () => Promise<void>
+  fetchStorageFacilityReadings: (storageFacilityId: string, limit?: number, category?: SensorCategory) => Promise<void>
+  fetchWaterSourceReadings: (
+    waterSourceId: string,
+    limit?: number,
+    category?: SensorCategory,
+    options?: { sensorId?: string; startAt?: string; endAt?: string }
+  ) => Promise<void>
+  fetchSensorReadings: (storageFacilityId: string, sensorId: string, options?: { limit?: number; startAt?: string; endAt?: string; category?: SensorCategory }) => Promise<StorageFacilityReading[]>
   registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
   updateSensor: (deviceId: string, data: Partial<RegisterSensorInput>) => Promise<SensorSnap>
   deleteSensor: (deviceId: string) => Promise<void>
-  detectSensorDma: (tankId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
-  updateTankStatus: (tankId: string, status: "active" | "deactivated") => Promise<TankSnap>
+  detectSensorDma: (storageFacilityId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
+  detectWaterSourceDma: (waterSourceId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
+  updateStorageFacilityStatus: (storageFacilityId: string, status: "active" | "deactivated") => Promise<StorageFacilitySnap>
+  updateWaterSourceStatus: (waterSourceId: string, status: "active" | "deactivated") => Promise<WaterSourceSnap>
   getUnreadNotificationCount: () => number
   markNotificationRead: (id: string) => Promise<Notification | null>
   markAllNotificationsRead: () => Promise<number>
@@ -501,8 +555,10 @@ export const useDataStore = create<DataState>((set, get) => ({
   logs: [],
   notifications: [],
   sensors: [],
-  tanks: [],
-  tankReadingsByTank: {},
+  storageFacilities: [],
+  waterSources: [],
+  storageFacilityReadingsByStorageFacility: {},
+  waterSourceReadingsByWaterSource: {},
   isLoading: false,
   initialized: false,
   error: null,
@@ -790,13 +846,39 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   fetchSensors: async () => {
     try {
-      const response = await apiClient.get("/sensors", { cacheTtl: SENSOR_CACHE_TTL })
-      if (response.success && response.data) {
-        const transformed = (response.data.items || []).map(transformKeys)
-        set({ sensors: transformed })
-      } else if (!isAbortLikeError(response.error, response.code)) {
-        console.error("Error fetching sensors:", response.error)
+      const [facilityResponse, sourceResponse] = await Promise.all([
+        apiClient.get("/sensors", { cacheTtl: SENSOR_CACHE_TTL }),
+        apiClient.get("/water-source-sensors", { cacheTtl: SENSOR_CACHE_TTL }),
+      ])
+      const facilitySensors = facilityResponse.success && facilityResponse.data
+        ? (facilityResponse.data.items || []).map((raw: unknown) => {
+            const sensor = transformKeys(raw) as SensorSnap
+            return {
+              ...sensor,
+              assetType: "storage_facility" as const,
+              parentAssetId: sensor.storageFacilityId ?? "",
+              parentAssetName: sensor.storageFacilityName ?? null,
+            }
+          })
+        : []
+      const sourceSensors = sourceResponse.success && sourceResponse.data
+        ? (sourceResponse.data.items || []).map((raw: unknown) => {
+            const sensor = transformKeys(raw) as SensorSnap
+            return {
+              ...sensor,
+              assetType: "water_source" as const,
+              parentAssetId: sensor.waterSourceId ?? "",
+              parentAssetName: sensor.waterSourceName ?? null,
+            }
+          })
+        : []
+      if (!facilityResponse.success && !isAbortLikeError(facilityResponse.error, facilityResponse.code)) {
+        console.error("Error fetching storage-facility sensors:", facilityResponse.error)
       }
+      if (!sourceResponse.success && !isAbortLikeError(sourceResponse.error, sourceResponse.code)) {
+        console.error("Error fetching water-source sensors:", sourceResponse.error)
+      }
+      set({ sensors: [...facilitySensors, ...sourceSensors] })
     } catch (error) {
       if (!isAbortLikeError(error)) console.error("Error fetching sensors:", error)
     }
@@ -804,10 +886,15 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   fetchSensor: async (deviceId: string) => {
     try {
-      const response = await apiClient.get(`/sensors/${encodeURIComponent(deviceId)}`, { skipCache: true })
+      const existing = get().sensors.find((item) => item.deviceId === deviceId)
+      const endpoint = existing?.assetType === "water_source" ? "/water-source-sensors" : "/sensors"
+      const response = await apiClient.get(`${endpoint}/${encodeURIComponent(deviceId)}`, { skipCache: true })
       if (!response.success || !response.data) throw new Error(response.error || "Failed to fetch sensor")
       const payload = (response.data as { sensor?: unknown }).sensor ?? response.data
       const sensor = transformKeys(payload) as SensorSnap
+      sensor.assetType = endpoint === "/water-source-sensors" ? "water_source" : "storage_facility"
+      sensor.parentAssetId = sensor.waterSourceId ?? sensor.storageFacilityId ?? ""
+      sensor.parentAssetName = sensor.waterSourceName ?? sensor.storageFacilityName ?? null
       if (!sensor.deviceId) throw new Error("The sensor response did not include a Device ID")
       set((state) => ({ sensors: upsertEntity(state.sensors, sensor) }))
       return sensor
@@ -821,43 +908,88 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  fetchTanks: async () => {
+  fetchStorageFacilities: async () => {
     try {
-      const response = await apiClient.get("/tanks", { cacheTtl: TANK_CACHE_TTL })
+      const response = await apiClient.get("/storage-facilities", { cacheTtl: STORAGE_FACILITY_CACHE_TTL })
       if (response.success && response.data) {
-        const transformed = (response.data.items || []).map(transformKeys) as TankSnap[]
-        set({ tanks: transformed })
+        const transformed = (response.data.items || []).map(transformKeys) as StorageFacilitySnap[]
+        set({ storageFacilities: transformed })
       } else if (!isAbortLikeError(response.error, response.code)) {
-        console.error("Error fetching tanks:", response.error)
+        console.error("Error fetching storage facilities:", response.error)
       }
     } catch (error) {
-      if (!isAbortLikeError(error)) console.error("Error fetching tanks:", error)
+      if (!isAbortLikeError(error)) console.error("Error fetching storage facilities:", error)
     }
   },
 
-  fetchTankReadings: async (tankId: string, limit = 30, category: SensorCategory = "water_level") => {
+  fetchWaterSources: async () => {
+    try {
+      const response = await apiClient.get("/water-sources", { cacheTtl: WATER_SOURCE_CACHE_TTL })
+      if (response.success && response.data) {
+        const transformed = (response.data.items || []).map(transformKeys) as WaterSourceSnap[]
+        set({ waterSources: transformed })
+      } else if (!isAbortLikeError(response.error, response.code)) {
+        console.error("Error fetching water sources:", response.error)
+      }
+    } catch (error) {
+      if (!isAbortLikeError(error)) console.error("Error fetching water sources:", error)
+    }
+  },
+
+  fetchStorageFacilityReadings: async (storageFacilityId: string, limit = 30, category: SensorCategory = "water_level") => {
     try {
       const response = await apiClient.get(
-        `/tanks/${tankId}/readings?limit=${limit}&category=${category}`,
-        { cacheTtl: TANK_READING_CACHE_TTL }
+        `/storage-facilities/${storageFacilityId}/readings?limit=${limit}&category=${category}`,
+        { cacheTtl: STORAGE_FACILITY_READING_CACHE_TTL }
       )
       if (response.success && response.data) {
         const transformed = (response.data.items || []).map(transformKeys)
         set((state) => ({
-          tankReadingsByTank: {
-            ...state.tankReadingsByTank,
-            [`${tankId}:${category}`]: transformed as TankReading[],
+          storageFacilityReadingsByStorageFacility: {
+            ...state.storageFacilityReadingsByStorageFacility,
+            [`${storageFacilityId}:${category}`]: transformed as StorageFacilityReading[],
           },
         }))
       } else if (!isAbortLikeError(response.error, response.code)) {
-        console.error("Error fetching tank readings:", response.error)
+        console.error("Error fetching storage-facility readings:", response.error)
       }
     } catch (error) {
-      if (!isAbortLikeError(error)) console.error("Error fetching tank readings:", error)
+      if (!isAbortLikeError(error)) console.error("Error fetching storage-facility readings:", error)
     }
   },
 
-  fetchSensorReadings: async (tankId, sensorId, options = {}) => {
+  fetchWaterSourceReadings: async (
+    waterSourceId: string,
+    limit = 20,
+    category: SensorCategory = "water_level",
+    options: { sensorId?: string; startAt?: string; endAt?: string } = {}
+  ) => {
+    try {
+      const params = new URLSearchParams({ limit: String(limit), category })
+      if (options.sensorId) params.set("sensor_id", options.sensorId)
+      if (options.startAt) params.set("start_at", options.startAt)
+      if (options.endAt) params.set("end_at", options.endAt)
+      const response = await apiClient.get(
+        `/water-sources/${waterSourceId}/readings?${params.toString()}`,
+        { cacheTtl: options.startAt || options.endAt ? 0 : STORAGE_FACILITY_READING_CACHE_TTL, skipCache: Boolean(options.startAt || options.endAt) }
+      )
+      if (!response.success || !response.data) {
+        throw new Error(response.error || "Failed to load water-source readings")
+      }
+      const readings = (response.data.items || []).map(transformKeys) as WaterSourceReading[]
+      set((state) => ({
+        waterSourceReadingsByWaterSource: {
+          ...state.waterSourceReadingsByWaterSource,
+          [`${waterSourceId}:${category}`]: readings,
+        },
+      }))
+    } catch (error) {
+      console.error("Error fetching water-source readings:", error)
+      throw error
+    }
+  },
+
+  fetchSensorReadings: async (storageFacilityId, sensorId, options = {}) => {
     const params = new URLSearchParams({
       category: options.category ?? "water_level",
       limit: String(options.limit ?? 5000),
@@ -865,21 +997,28 @@ export const useDataStore = create<DataState>((set, get) => ({
     })
     if (options.startAt) params.set("start_at", options.startAt)
     if (options.endAt) params.set("end_at", options.endAt)
-    const response = await apiClient.get(`/tanks/${tankId}/readings?${params.toString()}`, { skipCache: true })
+    const response = await apiClient.get(`/storage-facilities/${storageFacilityId}/readings?${params.toString()}`, { skipCache: true })
     if (!response.success || !response.data) {
       throw new Error(response.error || "Failed to load sensor analytics readings")
     }
-    return ((response.data as { items?: unknown[] }).items ?? []).map(transformKeys) as TankReading[]
+    return ((response.data as { items?: unknown[] }).items ?? []).map(transformKeys) as StorageFacilityReading[]
   },
 
   registerSensor: async (data: RegisterSensorInput) => {
     try {
-      const response = await apiClient.post("/sensors", data, { skipCache: true })
+      const isWaterSource = data.asset_type === "water_source" || Boolean(data.water_source_id)
+      const { asset_type: _assetType, ...body } = data
+      const response = await apiClient.post(isWaterSource ? "/water-source-sensors" : "/sensors", body, { skipCache: true })
       if (!response.success) throw new Error(response.error || "Failed to register sensor")
       const created = transformKeys(response.data || {}) as SensorSnap
+      created.assetType = isWaterSource ? "water_source" : "storage_facility"
+      created.parentAssetId = created.waterSourceId ?? created.storageFacilityId ?? ""
+      created.parentAssetName = created.waterSourceName ?? created.storageFacilityName ?? null
       apiClient.invalidateCache("/sensors")
+      apiClient.invalidateCache("/water-source-sensors")
       set((state) => ({ sensors: upsertEntity(state.sensors, created) }))
-      void get().fetchTanks()
+      void get().fetchStorageFacilities()
+      if (isWaterSource) void get().fetchWaterSources()
       return created
     } catch (error) {
       console.error("Error registering sensor:", error)
@@ -889,12 +1028,31 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   updateSensor: async (deviceId: string, data: Partial<RegisterSensorInput>) => {
     try {
-      const response = await apiClient.patch(`/sensors/${deviceId}`, data, { skipCache: true })
+      const existing = get().sensors.find((sensor) => sensor.deviceId === deviceId)
+      if (!existing) throw new Error("Sensor details are not loaded. Refresh the sensor list and try again.")
+      const isWaterSource =
+        existing.assetType === "water_source" ||
+        data.asset_type === "water_source" ||
+        Boolean(data.water_source_id)
+      const { asset_type: _assetType, ...body } = data
+      const endpoint = isWaterSource ? "/water-source-sensors" : "/sensors"
+      const response = await apiClient.patch(`${endpoint}/${encodeURIComponent(deviceId)}`, body, { skipCache: true })
       if (!response.success) throw new Error(response.error || "Failed to update sensor")
-      const updated = transformKeys(response.data || {}) as SensorSnap
+      const updatedData = transformKeys(response.data || {}) as Partial<SensorSnap>
+      const updated = {
+        ...existing,
+        ...updatedData,
+      } as SensorSnap
+      updated.assetType = isWaterSource ? "water_source" : "storage_facility"
+      updated.parentAssetId = updated.waterSourceId ?? updated.storageFacilityId ?? existing.parentAssetId
+      updated.parentAssetName =
+        updated.waterSourceName ?? updated.storageFacilityName ?? existing.parentAssetName
       apiClient.invalidateCache("/sensors")
+      apiClient.invalidateCache("/water-source-sensors")
       set((state) => ({ sensors: upsertEntity(state.sensors, updated) }))
-      void get().fetchTanks()
+      void get().fetchSensors()
+      void get().fetchStorageFacilities()
+      if (isWaterSource) void get().fetchWaterSources()
       return updated
     } catch (error) {
       console.error("Error updating sensor:", error)
@@ -904,44 +1062,69 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   deleteSensor: async (deviceId: string) => {
     try {
-      const response = await apiClient.delete(`/sensors/${deviceId}`, { skipCache: true })
+      const isWaterSource = get().sensors.find((sensor) => sensor.deviceId === deviceId)?.assetType === "water_source"
+      const endpoint = isWaterSource ? "/water-source-sensors" : "/sensors"
+      const response = await apiClient.delete(`${endpoint}/${encodeURIComponent(deviceId)}`, { skipCache: true })
       if (!response.success) throw new Error(response.error || "Failed to delete sensor")
       apiClient.invalidateCache("/sensors")
+      apiClient.invalidateCache("/water-source-sensors")
       set((state) => ({ sensors: state.sensors.filter((s) => s.deviceId !== deviceId) }))
-      void get().fetchTanks()
+      void get().fetchStorageFacilities()
+      if (isWaterSource) void get().fetchWaterSources()
     } catch (error) {
       console.error("Error deleting sensor:", error)
       throw error
     }
   },
 
-  detectSensorDma: async (tankId: string) => {
+  detectSensorDma: async (storageFacilityId: string) => {
     try {
-      const response = await apiClient.get(`/tanks/${tankId}/detect-dma`, { skipCache: true })
+      const response = await apiClient.get(`/storage-facilities/${storageFacilityId}/detect-dma`, { skipCache: true })
       if (response.success && response.data) {
         const data = transformKeys(response.data) as { dmaId: string | null; dmaName: string | null }
         return { dmaId: data.dmaId ?? null, dmaName: data.dmaName ?? null }
       }
       return { dmaId: null, dmaName: null }
     } catch (error) {
-      console.error("Error detecting tank DMA:", error)
+      console.error("Error detecting storage-facility DMA:", error)
       return { dmaId: null, dmaName: null }
     }
   },
 
-  updateTankStatus: async (tankId: string, status: "active" | "deactivated") => {
+  detectWaterSourceDma: async (waterSourceId: string) => {
+    const response = await apiClient.get(`/water-sources/${waterSourceId}/detect-dma`, { skipCache: true })
+    if (!response.success || !response.data) {
+      throw new Error(response.error || "Failed to detect water-source DMA")
+    }
+    const data = transformKeys(response.data) as { dmaId: string | null; dmaName: string | null }
+    return { dmaId: data.dmaId ?? null, dmaName: data.dmaName ?? null }
+  },
+
+  updateStorageFacilityStatus: async (storageFacilityId: string, status: "active" | "deactivated") => {
     try {
-      const response = await apiClient.patch(`/tanks/${tankId}`, { status }, { skipCache: true })
-      if (!response.success) throw new Error(response.error || "Failed to update tank status")
-      const updated = transformKeys(response.data || {}) as TankSnap
-      set((state) => ({ tanks: upsertEntity(state.tanks, updated) }))
-      apiClient.invalidateCache("/tanks")
+      const response = await apiClient.patch(`/storage-facilities/${storageFacilityId}`, { status }, { skipCache: true })
+      if (!response.success) throw new Error(response.error || "Failed to update storage-facility status")
+      const updated = transformKeys(response.data || {}) as StorageFacilitySnap
+      set((state) => ({ storageFacilities: upsertEntity(state.storageFacilities, updated) }))
+      apiClient.invalidateCache("/storage-facilities")
       void get().fetchSensors()
       return updated
     } catch (error) {
-      console.error("Error updating tank status:", error)
+      console.error("Error updating storage-facility status:", error)
       throw error
     }
+  },
+
+  updateWaterSourceStatus: async (waterSourceId: string, status: "active" | "deactivated") => {
+    const response = await apiClient.patch(`/water-sources/${waterSourceId}`, { status }, { skipCache: true })
+    if (!response.success || !response.data) {
+      throw new Error(response.error || "Failed to update water-source status")
+    }
+    const updated = transformKeys(response.data) as WaterSourceSnap
+    set((state) => ({ waterSources: upsertEntity(state.waterSources, updated) }))
+    apiClient.invalidateCache("/water-sources")
+    void get().fetchSensors()
+    return updated
   },
 
   // Get unread notification count

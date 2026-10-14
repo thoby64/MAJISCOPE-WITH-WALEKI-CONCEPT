@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useFieldArray, type SubmitHandler, type UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
@@ -19,17 +19,17 @@ import { MapPicker } from './map-picker'
 import { CustomAttributes } from './custom-attributes'
 import { apiClient } from '@/lib/api-client'
 
-const formSchema = z.object({
+export const storageFacilityFormSchema = z.object({
   name: z.string().min(1, { message: "Name is required" }),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
+  latitude: z.number().min(-90).max(90).nullable(),
+  longitude: z.number().min(-180).max(180).nullable(),
   material: z.string().optional(),
   capacity: z.coerce.number().optional(),
   depth_m: z.coerce.number().optional(),
   elevation_m: z.coerce.number().optional(),
   inner_diameter_m: z.coerce.number().optional(),
   outer_diameter_m: z.coerce.number().optional(),
-  tank_shape: z.string().optional(),
+  storage_facility_shape: z.string().optional(),
   status: z.string().optional(),
   condition: z.string().optional(),
   location: z.string().optional(),
@@ -38,11 +38,11 @@ const formSchema = z.object({
   installer: z.string().optional(),
   service_area: z.string().optional(),
   custom_attributes: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
-  register_sensor: z.boolean().default(false),
+  register_sensor: z.boolean().optional(),
   sensor_device_id: z.string().optional(),
   sensor_h1_m: z.coerce.number().optional(),
   sensor_depth_m: z.coerce.number().optional(),
-  sensor_activated: z.boolean().default(false),
+  sensor_activated: z.boolean().optional(),
 }).refine(data => {
   if (data.register_sensor && !data.sensor_device_id) {
     return false;
@@ -53,6 +53,9 @@ const formSchema = z.object({
   path: ["sensor_device_id"],
 })
 
+export type StorageFacilityFormInput = z.input<typeof storageFacilityFormSchema>
+export type StorageFacilityFormOutput = z.output<typeof storageFacilityFormSchema>
+
 interface StorageFacilityFormProps {
   utilityId: string
   utilityCenter?: { latitude: number | null; longitude: number | null } | null
@@ -61,12 +64,12 @@ interface StorageFacilityFormProps {
 }
 
 interface StorageFacilityFormUIProps {
-  form: ReturnType<typeof useForm>
+  form: UseFormReturn<StorageFacilityFormInput, unknown, StorageFacilityFormOutput>
   isSubmitting: boolean
   utilityCenter?: { latitude: number | null; longitude: number | null } | null
   dmaCenter?: { latitude: number | null; longitude: number | null } | null
   userRole?: string
-  onSubmit: (values: any) => Promise<void>
+  onSubmit: SubmitHandler<StorageFacilityFormOutput>
   onReset: () => void
 }
 
@@ -87,9 +90,9 @@ export function StorageFacilityFormUI({ form, isSubmitting, utilityCenter, dmaCe
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tank Name</FormLabel>
+                    <FormLabel>Storage facility name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Tank A1" {...field} />
+                      <Input placeholder="e.g. Reservoir A1" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -246,10 +249,10 @@ export function StorageFacilityFormUI({ form, isSubmitting, utilityCenter, dmaCe
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
                 control={form.control}
-                name="tank_shape"
+                name="storage_facility_shape"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tank Shape</FormLabel>
+                    <FormLabel>Storage facility shape</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
@@ -311,7 +314,7 @@ export function StorageFacilityFormUI({ form, isSubmitting, utilityCenter, dmaCe
                       <FormLabel className="text-base">Register sensor now?</FormLabel>
                     </FormItem>
                     <FormDescription className="text-sm text-slate-500">
-                      Link a water-level sensor to this tank immediately.
+                      Link a water-level sensor to this storage facility immediately.
                     </FormDescription>
                   </div>
                   <FormControl>

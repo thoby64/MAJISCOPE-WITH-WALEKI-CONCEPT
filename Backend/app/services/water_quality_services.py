@@ -205,8 +205,11 @@ def derive_water_quality_status(
 def ingest_water_quality_reading(
     db: Session,
     sensor: SensorDevice,
-    tank_ref: Any,
+    storage_facility_ref: Any,
     payload: Dict[str, Any],
+    *,
+    reading_model: Any = WaterQualityReading,
+    parent_field: str = "storage_facility_id",
 ) -> Dict[str, Any]:
     """
     Persist a water-quality reading for a registered sensor. Idempotent on
@@ -227,21 +230,21 @@ def ingest_water_quality_reading(
     occurred_at = parse_timestamp(payload.get("occurred_at"), payload.get("Timestamp")) or datetime.utcnow()
 
     existing = (
-        db.query(WaterQualityReading)
+        db.query(reading_model)
         .filter(
-            WaterQualityReading.sensor_id == sensor.id,
-            WaterQualityReading.occurred_at == occurred_at,
+            reading_model.sensor_id == sensor.id,
+            reading_model.occurred_at == occurred_at,
         )
         .first()
     )
     if existing is not None:
-        return _wq_response(existing, values=None, is_duplicate=True)
+        return _wq_response(existing, values=None, is_duplicate=True, parent_field=parent_field)
 
-    reading = WaterQualityReading(
+    reading = reading_model(
         sensor_id=sensor.id,
-        tank_id=tank_ref.id,
-        utility_id=tank_ref.utility_id,
-        dma_id=tank_ref.dma_id,
+        **{parent_field: storage_facility_ref.id},
+        utility_id=storage_facility_ref.utility_id,
+        dma_id=storage_facility_ref.dma_id,
         status=derive_water_quality_status(sensor, values),
         raw_data=payload.get("raw_data"),
         occurred_at=occurred_at,
@@ -251,10 +254,16 @@ def ingest_water_quality_reading(
     db.commit()
     db.refresh(reading)
 
-    return _wq_response(reading, values=values, is_duplicate=False)
+    return _wq_response(reading, values=values, is_duplicate=False, parent_field=parent_field)
 
 
-def _wq_response(reading: WaterQualityReading, *, values: Optional[Dict[str, float]], is_duplicate: bool) -> Dict[str, Any]:
+def _wq_response(
+    reading: Any,
+    *,
+    values: Optional[Dict[str, float]],
+    is_duplicate: bool,
+    parent_field: str = "storage_facility_id",
+) -> Dict[str, Any]:
     param_fields = list(WQ_PARAMETERS.keys())
     present = {}
     for field in param_fields:
@@ -264,7 +273,7 @@ def _wq_response(reading: WaterQualityReading, *, values: Optional[Dict[str, flo
     return {
         "reading_id": reading.id,
         "sensor_id": reading.sensor_id,
-        "tank_id": reading.tank_id,
+        parent_field: getattr(reading, parent_field),
         "utility_id": reading.utility_id,
         "dma_id": reading.dma_id,
         "status": reading.status.value,
@@ -281,14 +290,24 @@ def _wq_response(reading: WaterQualityReading, *, values: Optional[Dict[str, flo
 def promote_pending_water_quality(
     db: Session,
     sensor: SensorDevice,
-    tank_ref: Any,
+    storage_facility_ref: Any,
     payloads: List[Dict[str, Any]],
+    *,
+    reading_model: Any = WaterQualityReading,
+    parent_field: str = "storage_facility_id",
 ) -> int:
     """Parse buffered raw payloads as water-quality readings. Returns count."""
     promoted = 0
     for payload in payloads:
         try:
-            result = ingest_water_quality_reading(db, sensor, tank_ref, payload)
+            result = ingest_water_quality_reading(
+                db,
+                sensor,
+                storage_facility_ref,
+                payload,
+                reading_model=reading_model,
+                parent_field=parent_field,
+            )
             if not result.get("is_duplicate"):
                 promoted += 1
         except HTTPException:

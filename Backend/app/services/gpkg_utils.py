@@ -64,7 +64,7 @@ def load_storage_facilities_features(file_name: str, file_data: bytes) -> List[D
     """
     Load the storage_facilities features of a stored GeoPackage as a feature list.
     
-    Public wrapper used by the startup tank sync service.
+    Public wrapper used by the startup storage_facility sync service.
     """
     feature_collection = _load_infrastructure_geojson_with_summary(
         file_name,

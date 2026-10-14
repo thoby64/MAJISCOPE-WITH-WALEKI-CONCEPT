@@ -37,10 +37,12 @@ from app.models.uploads import (
     MediaStorageDeletion,
 )
 from app.models.sensors import (
-    Tank,
-    TankStatusEnum,
+    StorageFacility,
+    StorageFacilityStatusEnum,
+    WaterSource,
+    WaterSourceStatusEnum,
 )
-from app.models.sensor_mirror_outbox import SensorMirrorOutbox
+from app.models.sensor_mirror_outbox import SensorMirrorOutbox, WaterSourceSensorMirrorOutbox
 
 __all__ = [
     "Base",
@@ -65,9 +67,11 @@ __all__ = [
     # Upload models
     "ImageUpload",
     "MediaStorageDeletion",
-    # Sensor-era models (tank remains; sensors/readings live in the sensor platform DB)
-    "Tank",
+    # Sensor-era models (storage_facility remains; sensors/readings live in the sensor platform DB)
+    "StorageFacility",
+    "WaterSource",
     "SensorMirrorOutbox",
+    "WaterSourceSensorMirrorOutbox",
     # Enums
     "EntityStatusEnum",
     "UtilityServiceAreaCategoryEnum",
@@ -77,5 +81,6 @@ __all__ = [
     "LeakageTypeEnum",
     "NotificationTypeEnum",
     "ImageTypeEnum",
-    "TankStatusEnum",
+    "StorageFacilityStatusEnum",
+    "WaterSourceStatusEnum",
 ]

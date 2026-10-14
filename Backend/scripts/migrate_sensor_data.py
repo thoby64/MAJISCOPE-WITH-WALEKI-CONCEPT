@@ -29,21 +29,21 @@ from app.models.sensor_platform import (
     SensorDevice,
     SensorPendingReading,
     SensorStatusEnum,
-    TankRef,
-    TankStatusEnum,
+    StorageFacilityRef,
+    StorageFacilityStatusEnum,
     WaterLevelReading,
     WaterQualityReading,
 )
 
 
 TARGET_TABLES = {
-    "tank": TankRef,
+    "storage_facility": StorageFacilityRef,
     "sensor_device": SensorDevice,
     "water_level_reading": WaterLevelReading,
     "water_quality_reading": WaterQualityReading,
     "sensor_pending_reading": SensorPendingReading,
 }
-REQUIRED_SOURCE_TABLES = {"tank"}
+REQUIRED_SOURCE_TABLES = {"storage_facility"}
 SENSOR_STATUS_COLUMNS = {"status"}
 
 
@@ -137,9 +137,9 @@ def _sensor_config(row: dict[str, Any]) -> tuple[SensorCategoryEnum, dict[str, A
 
 
 def _mapped_rows(source_connection, source: MetaData) -> Iterator[tuple[str, dict[str, Any]]]:
-    for row in _rows_for(source_connection, "tank", source):
-        yield "tank", {
-            key: _enum(TankStatusEnum, row.get("status") or "active") if key == "status" else _utc_naive(row.get(key))
+    for row in _rows_for(source_connection, "storage_facility", source):
+        yield "storage_facility", {
+            key: _enum(StorageFacilityStatusEnum, row.get("status") or "active") if key == "status" else _utc_naive(row.get(key))
             for key in ("id", "utility_id", "dma_id", "source_key", "name", "latitude", "longitude", "status", "created_at", "updated_at", "deactivated_at")
             if key in row
         }
@@ -150,7 +150,7 @@ def _mapped_rows(source_connection, source: MetaData) -> Iterator[tuple[str, dic
             "id": row["id"],
             "device_id": row["device_id"],
             "category": category,
-            "tank_id": row["tank_id"],
+            "storage_facility_id": row["storage_facility_id"],
             "activated": bool(row.get("activated", False)),
             "config": config,
             "created_at": _utc_naive(row.get("created_at")),
@@ -163,7 +163,7 @@ def _mapped_rows(source_connection, source: MetaData) -> Iterator[tuple[str, dic
     for table_name in level_sources:
         for row in _rows_for(source_connection, table_name, source):
             mapped = {}
-            for key in ("id", "sensor_id", "tank_id", "utility_id", "dma_id", "h1_m", "depth_m", "water_height_m", "raw_data", "occurred_at", "created_at"):
+            for key in ("id", "sensor_id", "storage_facility_id", "utility_id", "dma_id", "h1_m", "depth_m", "water_height_m", "raw_data", "occurred_at", "created_at"):
                 if key in row:
                     mapped[key] = _utc_naive(row[key])
             status_value = row.get("status")
@@ -220,11 +220,11 @@ def _rows_for(connection, table_name: str, source: MetaData) -> Iterator[dict[st
 def _validate_mappings(source_connection, source: MetaData) -> dict[str, int]:
     counts = {name: 0 for name in TARGET_TABLES}
     required = {
-        "tank": {"id", "utility_id", "source_key"},
-        "sensor_device": {"id", "device_id", "tank_id"},
-        "sensor_reading": {"id", "sensor_id", "tank_id", "utility_id", "occurred_at"},
-        "water_level_reading": {"id", "sensor_id", "tank_id", "utility_id", "occurred_at"},
-        "water_quality_reading": {"id", "sensor_id", "tank_id", "utility_id", "status", "occurred_at"},
+        "storage_facility": {"id", "utility_id", "source_key"},
+        "sensor_device": {"id", "device_id", "storage_facility_id"},
+        "sensor_reading": {"id", "sensor_id", "storage_facility_id", "utility_id", "occurred_at"},
+        "water_level_reading": {"id", "sensor_id", "storage_facility_id", "utility_id", "occurred_at"},
+        "water_quality_reading": {"id", "sensor_id", "storage_facility_id", "utility_id", "status", "occurred_at"},
         "sensor_pending_reading": {"id", "device_id", "occurred_at"},
     }
     for table_name, required_columns in required.items():
@@ -287,16 +287,16 @@ def _copy(
                 rows.clear()
 
         sensor_table = SensorDevice.__table__
-        tank_table = TankRef.__table__
+        storage_facility_table = StorageFacilityRef.__table__
         counts = select(
-            sensor_table.c.tank_id,
+            sensor_table.c.storage_facility_id,
             func.count().label("sensor_count"),
             func.sum(case((sensor_table.c.activated.is_(True), 1), else_=0)).label("active_sensor_count"),
-        ).group_by(sensor_table.c.tank_id)
-        for tank_id, total, active in target_connection.execute(counts):
+        ).group_by(sensor_table.c.storage_facility_id)
+        for storage_facility_id, total, active in target_connection.execute(counts):
             target_connection.execute(
-                update(tank_table)
-                .where(tank_table.c.id == tank_id)
+                update(storage_facility_table)
+                .where(storage_facility_table.c.id == storage_facility_id)
                 .values(sensor_count=total, active_sensor_count=active)
             )
         count_mismatches = [
@@ -366,7 +366,7 @@ def migrate(source_url: str, target_url: str, *, apply: bool, batch_size: int) -
                         "water_quality_reading": ("water_quality_reading",),
                         "sensor_pending_reading": ("sensor_pending_reading",),
                         "sensor_device": ("sensor_device",),
-                        "tank": ("tank",),
+                        "storage_facility": ("storage_facility",),
                     }.items()
                 }
                 initial_target = _target_counts(target_engine)

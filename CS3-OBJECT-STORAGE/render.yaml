@@ -1,27 +1,23 @@
 services:
   - type: web
-    name: cs3-object-storage
+    name: cs3-object-storage-python
     runtime: python
     region: frankfurt
     plan: 1c-2g
-    rootDir: CS3-OBJECT-STORAGE-SERVER
-    buildCommand: ./render-build.sh
-    startCommand: ./render-start.sh
+    rootDir: CS3-OBJECT-STORAGE
+    buildCommand: python3 -m py_compile webui.py
+    startCommand: python3 webui.py
     disk:
-      name: cs3-object-storage-data
-      mountPath: /opt/render/project/src/CS3-OBJECT-STORAGE-SERVER/data
+      name: cs3-object-storage-python-data
+      mountPath: /opt/render/project/src/CS3-OBJECT-STORAGE/data
       sizeGB: 20
     envVars:
-      - key: GARAGE_DEFAULT_ACCESS_KEY
+      - key: CS3_STORAGE_API_KEY
         sync: false
-      - key: GARAGE_DEFAULT_SECRET_KEY
-        sync: false
-      - key: GARAGE_DEFAULT_BUCKET
-        value: majiscope-report-media
-      - key: CS3_STORAGE_ROOT
-        value: /opt/render/project/src/CS3-OBJECT-STORAGE-SERVER/data
       - key: CS3_UI_PASSPHRASE
         sync: false
+      - key: CS3_STORAGE_ROOT
+        value: /opt/render/project/src/CS3-OBJECT-STORAGE/data
       - key: CS3_UI_BIND_ADDRESS
         value: 0.0.0.0
-    healthCheckPath: /
+    healthCheckPath: /healthz

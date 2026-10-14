@@ -14,30 +14,30 @@ import {
   CommandList,
 } from "@/components/ui/command"
 
-export interface TankComboboxOption {
+export interface StorageFacilityComboboxOption {
   id: string
   name: string
   latitude?: number | null
   longitude?: number | null
 }
 
-interface TankComboboxProps {
+interface StorageFacilityComboboxProps {
   value: string
-  onChange: (tankId: string) => void
-  options: TankComboboxOption[]
+  onChange: (storageFacilityId: string) => void
+  options: StorageFacilityComboboxOption[]
   placeholder?: string
   searchPlaceholder?: string
   emptyText?: string
 }
 
-export function TankCombobox({
+export function StorageFacilityCombobox({
   value,
   onChange,
   options,
-  placeholder = "Select a tank…",
-  searchPlaceholder = "Search tanks…",
-  emptyText = "No tanks match your search.",
-}: TankComboboxProps) {
+  placeholder = "Select a storage facility…",
+  searchPlaceholder = "Search storage facilities…",
+  emptyText = "No storage facilities match your search.",
+}: StorageFacilityComboboxProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
 

@@ -184,8 +184,11 @@ def _snapshot_h1(sensor: SensorDevice, payload_h1: Any) -> float:
 def ingest_water_level_reading(
     db: Session,
     sensor: SensorDevice,
-    tank_ref: Any,
+    storage_facility_ref: Any,
     payload: Dict[str, Any],
+    *,
+    reading_model: Any = WaterLevelReading,
+    parent_field: str = "storage_facility_id",
 ) -> Dict[str, Any]:
     """
     Persist a water-level reading for a registered sensor. Idempotent on
@@ -212,21 +215,21 @@ def ingest_water_level_reading(
     occurred_at = parse_timestamp(payload.get("occurred_at"), payload.get("Timestamp")) or datetime.utcnow()
 
     existing = (
-        db.query(WaterLevelReading)
+        db.query(reading_model)
         .filter(
-            WaterLevelReading.sensor_id == sensor.id,
-            WaterLevelReading.occurred_at == occurred_at,
+            reading_model.sensor_id == sensor.id,
+            reading_model.occurred_at == occurred_at,
         )
         .first()
     )
     if existing is not None:
-        return _reading_response(existing, is_duplicate=True)
+        return _reading_response(existing, is_duplicate=True, parent_field=parent_field)
 
-    reading = WaterLevelReading(
+    reading = reading_model(
         sensor_id=sensor.id,
-        tank_id=tank_ref.id,
-        utility_id=tank_ref.utility_id,
-        dma_id=tank_ref.dma_id,
+        **{parent_field: storage_facility_ref.id},
+        utility_id=storage_facility_ref.utility_id,
+        dma_id=storage_facility_ref.dma_id,
         h1_m=h1_m,
         depth_m=depth_m,
         water_height_m=water_height_m,
@@ -238,14 +241,14 @@ def ingest_water_level_reading(
     db.commit()
     db.refresh(reading)
 
-    return _reading_response(reading, is_duplicate=False)
+    return _reading_response(reading, is_duplicate=False, parent_field=parent_field)
 
 
-def _reading_response(reading: WaterLevelReading, *, is_duplicate: bool) -> Dict[str, Any]:
+def _reading_response(reading: Any, *, is_duplicate: bool, parent_field: str = "storage_facility_id") -> Dict[str, Any]:
     return {
         "reading_id": reading.id,
         "sensor_id": reading.sensor_id,
-        "tank_id": reading.tank_id,
+        parent_field: getattr(reading, parent_field),
         "utility_id": reading.utility_id,
         "dma_id": reading.dma_id,
         "water_level_m": reading.water_height_m,
@@ -264,13 +267,23 @@ def _reading_response(reading: WaterLevelReading, *, is_duplicate: bool) -> Dict
 def promote_pending_water_level(
     db: Session,
     sensor: SensorDevice,
-    tank_ref: Any,
+    storage_facility_ref: Any,
     payloads: list[Dict[str, Any]],
+    *,
+    reading_model: Any = WaterLevelReading,
+    parent_field: str = "storage_facility_id",
 ) -> int:
     """Parse buffered raw payloads as water-level readings. Returns count."""
     promoted = 0
     for payload in payloads:
-        result = ingest_water_level_reading(db, sensor, tank_ref, payload)
+        result = ingest_water_level_reading(
+            db,
+            sensor,
+            storage_facility_ref,
+            payload,
+            reading_model=reading_model,
+            parent_field=parent_field,
+        )
         if not result.get("is_duplicate"):
             promoted += 1
     return promoted

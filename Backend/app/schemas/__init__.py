@@ -64,11 +64,11 @@ from app.schemas.business import (
 )
 
 from app.schemas.sensors import (
-    TankCreate,
-    TankPatch,
-    TankRead,
-    TankListResponse,
-    TankSyncSummary,
+    StorageFacilityCreate,
+    StorageFacilityPatch,
+    StorageFacilityRead,
+    StorageFacilityListResponse,
+    StorageFacilitySyncSummary,
     SensorRegisterRequest,
     SensorRegisterResponse,
     SensorUpdateRequest,
@@ -143,12 +143,12 @@ __all__ = [
     "NotificationBulkCreate",
     "PushTokenRegisterRequest",
     "PushTokenResponse",
-    # Tank schemas
-    "TankCreate",
-    "TankPatch",
-    "TankRead",
-    "TankListResponse",
-    "TankSyncSummary",
+    # StorageFacility schemas
+    "StorageFacilityCreate",
+    "StorageFacilityPatch",
+    "StorageFacilityRead",
+    "StorageFacilityListResponse",
+    "StorageFacilitySyncSummary",
     # Sensor schemas
     "SensorRegisterRequest",
     "SensorRegisterResponse",

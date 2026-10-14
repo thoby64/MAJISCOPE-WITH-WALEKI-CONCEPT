@@ -2,16 +2,18 @@ from datetime import datetime, timezone
 import json
 
 import pytest
-from sqlalchemy import Boolean, Column, DateTime, Float, MetaData, String, Table, Text, create_engine, insert
+from sqlalchemy import Boolean, Column, DateTime, Float, MetaData, String, Table, Text, create_engine, insert, inspect
 
 from app.models import Base
+from app.services.database_migrations import _migrate_water_source_schema
+from app.models import WaterSource, WaterSourceSensorMirrorOutbox
 from app.models.sensor_platform import (
     SensorBase,
     SensorCategoryEnum,
     SensorDevice,
     SensorPendingReading,
     SensorStatusEnum,
-    TankRef,
+    StorageFacilityRef,
     WaterQualityReading,
 )
 from migrate_sqlite_to_postgres import (
@@ -79,8 +81,8 @@ def test_sensor_mapper_preserves_quality_and_pending_payloads():
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     with source_engine.begin() as connection:
-        connection.execute(insert(TankRef.__table__).values(
-            id="tank-1",
+        connection.execute(insert(StorageFacilityRef.__table__).values(
+            id="storage_facility-1",
             utility_id="utility-1",
             dma_id="dma-1",
             source_key="source-1",
@@ -92,7 +94,7 @@ def test_sensor_mapper_preserves_quality_and_pending_payloads():
             id="sensor-1",
             device_id="device-1",
             category=SensorCategoryEnum.WATER_QUALITY,
-            tank_id="tank-1",
+            storage_facility_id="storage_facility-1",
             activated=True,
             config={"parameters": {"ph": {"min_ok": 6.5, "max_ok": 8.5}}},
             created_at=now,
@@ -101,7 +103,7 @@ def test_sensor_mapper_preserves_quality_and_pending_payloads():
         connection.execute(insert(WaterQualityReading.__table__).values(
             id="quality-1",
             sensor_id="sensor-1",
-            tank_id="tank-1",
+            storage_facility_id="storage_facility-1",
             utility_id="utility-1",
             dma_id="dma-1",
             status=SensorStatusEnum.ACTIVE,
@@ -187,11 +189,54 @@ def test_baseline_stamp_refuses_an_existing_version_table():
     engine.dispose()
 
 
+def test_water_source_startup_migration_adds_schema_idempotently_without_changing_layer_data():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE TABLE utility (id VARCHAR(36) PRIMARY KEY)")
+        connection.exec_driver_sql("CREATE TABLE dma (id VARCHAR(36) PRIMARY KEY)")
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE utility_infrastructure_layer (
+                id VARCHAR(36) PRIMARY KEY,
+                utility_id VARCHAR(36) NOT NULL,
+                asset_type VARCHAR(50) NOT NULL,
+                file_name VARCHAR(255) NOT NULL,
+                storage_facility_key_field VARCHAR(100)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            """
+            INSERT INTO utility_infrastructure_layer
+                (id, utility_id, asset_type, file_name, storage_facility_key_field)
+            VALUES ('layer-1', 'utility-1', 'water_sources', 'sources.gpkg', 'facility_name')
+            """
+        )
+
+    _migrate_water_source_schema(engine)
+    _migrate_water_source_schema(engine)
+
+    inspector = inspect(engine)
+    layer_columns = {column["name"] for column in inspector.get_columns("utility_infrastructure_layer")}
+    assert "water_source_key_field" in layer_columns
+    assert set(WaterSource.__table__.columns.keys()) <= {
+        column["name"] for column in inspector.get_columns(WaterSource.__tablename__)
+    }
+    assert WaterSourceSensorMirrorOutbox.__tablename__ in inspector.get_table_names()
+    with engine.connect() as connection:
+        layer = connection.exec_driver_sql(
+            "SELECT file_name, storage_facility_key_field, water_source_key_field "
+            "FROM utility_infrastructure_layer WHERE id = 'layer-1'"
+        ).one()
+    assert layer == ("sources.gpkg", "facility_name", None)
+    engine.dispose()
+
+
 def test_sensor_mapper_converts_legacy_water_level_and_pending_tables():
     engine = create_engine("sqlite:///:memory:")
     legacy = MetaData()
     Table(
-        "tank", legacy,
+        "storage_facility", legacy,
         Column("id", String(36), primary_key=True),
         Column("utility_id", String(36), nullable=False),
         Column("dma_id", String(36)),
@@ -208,7 +253,7 @@ def test_sensor_mapper_converts_legacy_water_level_and_pending_tables():
         "sensor_device", legacy,
         Column("id", String(36), primary_key=True),
         Column("device_id", String(100), nullable=False),
-        Column("tank_id", String(36), nullable=False),
+        Column("storage_facility_id", String(36), nullable=False),
         Column("h1_m", Float),
         Column("depth_m", Float),
         Column("warning_height_m", Float),
@@ -221,7 +266,7 @@ def test_sensor_mapper_converts_legacy_water_level_and_pending_tables():
         "sensor_reading", legacy,
         Column("id", String(36), primary_key=True),
         Column("sensor_id", String(36), nullable=False),
-        Column("tank_id", String(36), nullable=False),
+        Column("storage_facility_id", String(36), nullable=False),
         Column("utility_id", String(36), nullable=False),
         Column("dma_id", String(36)),
         Column("h1_m", Float),
@@ -245,16 +290,16 @@ def test_sensor_mapper_converts_legacy_water_level_and_pending_tables():
     legacy.create_all(engine)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     with engine.begin() as connection:
-        connection.execute(legacy.tables["tank"].insert().values(
-            id="tank-legacy", utility_id="utility-1", source_key="tank-source",
+        connection.execute(legacy.tables["storage_facility"].insert().values(
+            id="storage_facility-legacy", utility_id="utility-1", source_key="storage_facility-source",
             status="ACTIVE", created_at=now, updated_at=now,
         ))
         connection.execute(legacy.tables["sensor_device"].insert().values(
-            id="sensor-legacy", device_id="device-legacy", tank_id="tank-legacy",
+            id="sensor-legacy", device_id="device-legacy", storage_facility_id="storage_facility-legacy",
             h1_m=12.0, depth_m=2.0, activated=True, created_at=now, updated_at=now,
         ))
         connection.execute(legacy.tables["sensor_reading"].insert().values(
-            id="reading-legacy", sensor_id="sensor-legacy", tank_id="tank-legacy",
+            id="reading-legacy", sensor_id="sensor-legacy", storage_facility_id="storage_facility-legacy",
             utility_id="utility-1", h1_m=12.0, depth_m=2.0, water_height_m=10.0,
             status="ACTIVE", occurred_at=now, created_at=now,
         ))

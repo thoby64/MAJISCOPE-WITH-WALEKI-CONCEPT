@@ -190,7 +190,8 @@ class UtilityInfrastructureLayer(Base):
     mime_type = Column(String(100), nullable=False, default="application/octet-stream")
     file_size = Column(Integer, nullable=False)
     feature_count = Column(Integer, nullable=False, default=0)
-    tank_key_field = Column(String(100), nullable=True)
+    storage_facility_key_field = Column(String(100), nullable=True)
+    water_source_key_field = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

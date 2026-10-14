@@ -2,7 +2,7 @@
 Sensor Platform Database Configuration
 
 Separate SQLAlchemy engine and session for the sensor platform database
-(telemetry readings + sensor registry + mirrored tank references).
+(telemetry readings + sensor registry + mirrored storage_facility references).
 
 The sensor store is treated as a remote host: no cross-engine joins, no
 cross-engine transactions. Business data stays in the main database; only

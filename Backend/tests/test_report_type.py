@@ -17,7 +17,7 @@ def test_report_type_normalizer_accepts_display_alias() -> None:
 
 def test_mobile_payload_accepts_canonical_non_leakage_type() -> None:
     payload = AnonymousReportCreate(
-        description="Storage tank has no water",
+        description="Storage storage_facility has no water",
         latitude=-6.1,
         longitude=35.7,
         report_type="non_leakage",
@@ -29,7 +29,7 @@ def test_mobile_payload_accepts_canonical_non_leakage_type() -> None:
 
 def test_mobile_payload_keeps_high_priority_input() -> None:
     payload = AnonymousReportCreate(
-        description="No water at the storage tank",
+        description="No water at the storage storage_facility",
         latitude=-6.1,
         longitude=35.7,
         priority="High",

@@ -1,7 +1,7 @@
 """
 Water-quality sensor tests: parameter extraction, sanity ranges, status
 derivation, ingest + registration category dispatch, and the one-active-
-sensor-per-category-per-tank restriction.
+sensor-per-category-per-storage_facility restriction.
 """
 
 import json
@@ -29,17 +29,17 @@ from app.services.sensor_services import parse_timestamp
 
 from tests.test_sensors import (
     _make_dma,
-    _make_tank,
+    _make_storage_facility,
     _make_utility,
     _utility_manager_headers,
 )
 
 
-def _make_wq_sensor(sensor_db: Session, tank, device_id: str = "wq-1", **kwargs):
+def _make_wq_sensor(sensor_db: Session, storage_facility, device_id: str = "wq-1", **kwargs):
     sensor = SensorDevice(
         device_id=device_id,
         category=SensorCategoryEnum.WATER_QUALITY,
-        tank_id=tank.id,
+        storage_facility_id=storage_facility.id,
         activated=kwargs.get("activated", True),
         config=kwargs.get("config", {}),
     )
@@ -166,8 +166,8 @@ class TestWqStatus:
 class TestWqIngest:
     def test_ingest_water_quality_registered_device(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        _make_wq_sensor(sensor_db, tank, device_id="AU_NAM_WQ_0001")
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        _make_wq_sensor(sensor_db, storage_facility, device_id="AU_NAM_WQ_0001")
 
         response = client.post(
             "/api/sensors/ingest",
@@ -194,7 +194,7 @@ class TestWqIngest:
         self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict
     ):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         buffered = client.post(
             "/api/sensors/ingest",
@@ -210,7 +210,7 @@ class TestWqIngest:
             headers=auth_headers,
             json={
                 "device_id": "AU_NAM_WQ_0002",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "category": "water_quality",
                 "activated": True,
             },
@@ -237,8 +237,8 @@ class TestWqIngest:
 
     def test_ingest_wq_idempotent(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        _make_wq_sensor(sensor_db, tank, device_id="wq-dedup")
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        _make_wq_sensor(sensor_db, storage_facility, device_id="wq-dedup")
         payload = {"device_id": "wq-dedup", "ph": 7.0, "occurred_at": "2026-03-01T11:00:00Z"}
 
         first = client.post("/api/sensors/ingest", headers=auth_headers, json=payload).json()
@@ -253,11 +253,11 @@ class TestCategoryRestriction:
         self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict
     ):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
         _make_sensor_response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0001", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0001", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 10.0, "activated": True},
         )
         assert _make_sensor_response.status_code == 201
@@ -265,22 +265,22 @@ class TestCategoryRestriction:
         dup = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0002", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0002", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 9.0, "activated": True},
         )
         assert dup.status_code == 409
         assert "already has an active water_level sensor" in dup.json()["detail"]
 
-    def test_different_categories_allowed_on_same_tank(
+    def test_different_categories_allowed_on_same_storage_facility(
         self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict
     ):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         wl = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0003", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0003", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 10.0, "activated": True},
         )
         assert wl.status_code == 201
@@ -288,7 +288,7 @@ class TestCategoryRestriction:
         wq = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0004", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0004", "storage_facility_id": storage_facility.id,
                   "category": "water_quality", "activated": True},
         )
         assert wq.status_code == 201
@@ -297,11 +297,11 @@ class TestCategoryRestriction:
         self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict
     ):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
         first = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0005", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0005", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 10.0, "activated": True},
         )
         assert first.status_code == 201
@@ -309,7 +309,7 @@ class TestCategoryRestriction:
         second = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0006", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0006", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 8.0, "activated": False},
         )
         assert second.status_code == 201
@@ -325,14 +325,14 @@ class TestCategoryRestriction:
 class TestWqConfigThresholds:
     def test_register_with_custom_thresholds(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
             json={
                 "device_id": "AU_NAM_WQ_0010",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "category": "water_quality",
                 "activated": True,
                 "parameter_thresholds": {
@@ -349,13 +349,13 @@ class TestWqConfigThresholds:
         self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict
     ):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
         client.post(
             "/api/sensors",
             headers=auth_headers,
             json={
                 "device_id": "AU_NAM_WQ_0011",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "category": "water_quality",
                 "activated": True,
                 "parameter_thresholds": {"ph": {"warning_below": 7.5}},
@@ -374,17 +374,17 @@ class TestWqConfigThresholds:
 class TestWqReadingsHistory:
     def test_history_category_filter(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
         client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0007", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0007", "storage_facility_id": storage_facility.id,
                   "category": "water_level", "h1_m": 10.0, "activated": True},
         )
         client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0008", "tank_id": tank.id,
+            json={"device_id": "AU_NAM_0008", "storage_facility_id": storage_facility.id,
                   "category": "water_quality", "activated": True},
         )
         client.post("/api/sensors/ingest", headers=auth_headers,
@@ -392,12 +392,12 @@ class TestWqReadingsHistory:
         client.post("/api/sensors/ingest", headers=auth_headers,
                     json={"device_id": "AU_NAM_0008", "ph": 7.0, "occurred_at": "2026-03-04T08:05:00Z"})
 
-        wl_history = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        wl_history = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)
         assert wl_history.status_code == 200
         assert all(item["category"] == "water_level" for item in wl_history.json()["items"])
 
         wq_history = client.get(
-            f"/api/tanks/{tank.id}/readings?category=water_quality",
+            f"/api/storage-facilities/{storage_facility.id}/readings?category=water_quality",
             headers=auth_headers,
         )
         assert wq_history.status_code == 200

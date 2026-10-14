@@ -18,16 +18,16 @@ class StorageFacilityCreateRequest(BaseModel):
     """Request to manually create a storage facility."""
     
     # Required fields
-    name: str = Field(..., min_length=1, max_length=255, description="Tank name")
+    name: str = Field(..., min_length=1, max_length=255, description="StorageFacility name")
     latitude: float = Field(..., ge=-90, le=90, description="Latitude (WGS84)")
     longitude: float = Field(..., ge=-180, le=180, description="Longitude (WGS84)")
     
     # Common optional fields from GPKG schema
-    material: Optional[str] = Field(None, max_length=100, description="Tank material (e.g., BRICK, CONCRETE, STEEL, PLASTIC)")
-    capacity: Optional[float] = Field(None, ge=0, description="Tank capacity in cubic meters")
-    depth_m: Optional[float] = Field(None, ge=0, description="Tank depth in meters")
+    material: Optional[str] = Field(None, max_length=100, description="StorageFacility material (e.g., BRICK, CONCRETE, STEEL, PLASTIC)")
+    capacity: Optional[float] = Field(None, ge=0, description="StorageFacility capacity in cubic meters")
+    depth_m: Optional[float] = Field(None, ge=0, description="StorageFacility depth in meters")
     elevation_m: Optional[float] = Field(None, description="Ground elevation in meters")
-    tank_shape: Optional[str] = Field(None, max_length=50, description="Tank shape (e.g., CYLINDRICAL, RECTANGULAR, SPHERICAL)")
+    storage_facility_shape: Optional[str] = Field(None, max_length=50, description="StorageFacility shape (e.g., CYLINDRICAL, RECTANGULAR, SPHERICAL)")
     status: Optional[str] = Field(None, max_length=50, description="Operational status (e.g., ACTIVE, INACTIVE, MAINTENANCE)")
     condition: Optional[str] = Field(None, max_length=50, description="Physical condition (e.g., GOOD, FAIR, POOR)")
     location: Optional[str] = Field(None, max_length=255, description="Location description")
@@ -40,7 +40,7 @@ class StorageFacilityCreateRequest(BaseModel):
     outlet_diameter_mm: Optional[float] = Field(None, ge=0, description="Outlet diameter in mm")
     outlet_diameter_in: Optional[float] = Field(None, ge=0, description="Outlet diameter in inches")
     operating_level_m: Optional[float] = Field(None, description="Operating water level in meters")
-    tank_base_elevation_m: Optional[float] = Field(None, description="Tank base elevation in meters")
+    storage_facility_base_elevation_m: Optional[float] = Field(None, description="StorageFacility base elevation in meters")
     operating_level_m_2: Optional[float] = Field(None, description="Secondary operating level in meters")
     installation_date: Optional[float] = Field(None, description="Installation year")
     remark: Optional[str] = Field(None, max_length=500, description="Remarks")
@@ -54,7 +54,7 @@ class StorageFacilityCreateRequest(BaseModel):
     )
     
     # Optional sensor registration
-    register_sensor: bool = Field(False, description="Whether to register a sensor for this tank")
+    register_sensor: bool = Field(False, description="Whether to register a sensor for this storage_facility")
     sensor_device_id: Optional[str] = Field(None, max_length=100, description="Sensor device ID (required if register_sensor=true)")
     sensor_h1_m: Optional[float] = Field(None, ge=0, description="Sensor H1 parameter in meters")
     sensor_depth_m: Optional[float] = Field(None, ge=0, description="Sensor depth parameter in meters")
@@ -92,7 +92,7 @@ class StorageFacilityCreateRequestWithUtility(StorageFacilityCreateRequest):
 class StorageFacilityCreateResponse(BaseModel):
     """Response after creating storage facility."""
     
-    tank_id: str
+    storage_facility_id: str
     name: str
     latitude: float
     longitude: float
@@ -167,7 +167,7 @@ FORM_TO_GPKG_COLUMN = {
     "capacity": "TankCapaci",
     "depth_m": "TankDepthM",
     "elevation_m": "ElevationM",
-    "tank_shape": "TankShape",
+    "storage_facility_shape": "TankShape",
     "status": "Status",
     "condition": "Condition",
     "location": "Location",
@@ -180,7 +180,7 @@ FORM_TO_GPKG_COLUMN = {
     "outlet_diameter_mm": "OutletDiam",
     "outlet_diameter_in": "OutletDi_1",
     "operating_level_m": "OperatingM",
-    "tank_base_elevation_m": "TankBaseEl",
+    "storage_facility_base_elevation_m": "TankBaseEl",
     "operating_level_m_2": "Operatin_1",
     "installation_date": "Installati",
     "remark": "remark",

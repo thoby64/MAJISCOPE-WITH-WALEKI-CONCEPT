@@ -8,7 +8,7 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatTanzaniaDateTime, formatTanzaniaTime } from "@/lib/date-time"
-import { useDataStore, type SensorSnap, type TankReading } from "@/store/data-store"
+import { useDataStore, type SensorSnap, type StorageFacilityReading } from "@/store/data-store"
 
 type Period = "24h" | "7d" | "30d" | "90d" | "all"
 type Bounds = { warning_below?: number; warning_above?: number; critical_below?: number; critical_above?: number }
@@ -71,34 +71,34 @@ function excursion(value: number, bounds?: Bounds): "Critical" | "Warning" | "Wi
 
 export default function WaterQualityAnalyticsPage() {
   const router = useRouter()
-  const routeParams = useParams<{ tankId: string }>()
-  const tankId = Array.isArray(routeParams?.tankId) ? routeParams.tankId[0] : routeParams?.tankId
+  const routeParams = useParams<{ storageFacilityId: string }>()
+  const storageFacilityId = Array.isArray(routeParams?.storageFacilityId) ? routeParams.storageFacilityId[0] : routeParams?.storageFacilityId
   const sensorId = useSearchParams().get("sensor")
-  const { sensors, tanks, fetchSensors, fetchTanks, fetchSensorReadings } = useDataStore()
+  const { sensors, storageFacilities, fetchSensors, fetchStorageFacilities, fetchSensorReadings } = useDataStore()
   const [period, setPeriod] = useState<Period>("7d")
   const [parameter, setParameter] = useState("ph")
-  const [readings, setReadings] = useState<TankReading[]>([])
+  const [readings, setReadings] = useState<StorageFacilityReading[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
-  useEffect(() => { void fetchSensors(); void fetchTanks() }, [fetchSensors, fetchTanks])
-  const sensor = sensors.find((item) => item.id === sensorId && item.tankId === tankId && item.category === "water_quality")
-  const tankName = tanks.find((item) => item.id === tankId)?.name || sensor?.tankName || "Water storage facility"
+  useEffect(() => { void fetchSensors(); void fetchStorageFacilities() }, [fetchSensors, fetchStorageFacilities])
+  const sensor = sensors.find((item) => item.id === sensorId && item.storageFacilityId === storageFacilityId && item.category === "water_quality")
+  const storageFacilityName = storageFacilities.find((item) => item.id === storageFacilityId)?.name || sensor?.storageFacilityName || "Water storage facility"
 
   const load = useCallback(async () => {
-    if (!tankId || !sensorId) return
+    if (!storageFacilityId || !sensorId) return
     setLoading(true)
     setError("")
     try {
       const selectedPeriod = PERIODS.find((item) => item.key === period)
       const startAt = selectedPeriod?.ms ? new Date(Date.now() - selectedPeriod.ms).toISOString().replace(/Z$/, "") : undefined
-      const rows = await fetchSensorReadings(tankId, sensorId, { category: "water_quality", limit: 5000, startAt })
+      const rows = await fetchSensorReadings(storageFacilityId, sensorId, { category: "water_quality", limit: 5000, startAt })
       setReadings(rows.filter((item) => item.sensorId === sensorId).sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt)))
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load water quality history")
       setReadings([])
     } finally { setLoading(false) }
-  }, [fetchSensorReadings, period, sensorId, tankId])
+  }, [fetchSensorReadings, period, sensorId, storageFacilityId])
   useEffect(() => { void load() }, [load])
 
   const parameterKeys = useMemo(() => {
@@ -151,9 +151,9 @@ export default function WaterQualityAnalyticsPage() {
   return <div className="flex min-w-0 flex-col gap-6">
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <Button variant="ghost" onClick={() => router.push(`/dashboard/sensor-data/${tankId}?sensor=${sensorId}`)} className="mb-2 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500"><ArrowLeft className="mr-1.5 h-4 w-4" />Back to sensor details</Button>
+        <Button variant="ghost" onClick={() => router.push(`/dashboard/sensor-data/${storageFacilityId}?sensor=${sensorId}`)} className="mb-2 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500"><ArrowLeft className="mr-1.5 h-4 w-4" />Back to sensor details</Button>
         <div className="flex items-center gap-2 text-cyan-700"><FlaskConical className="h-5 w-5" /><span className="text-sm font-semibold">Water quality analytics</span></div>
-        <h1 className="mt-1 text-2xl font-bold text-slate-800">{tankName}</h1>
+        <h1 className="mt-1 text-2xl font-bold text-slate-800">{storageFacilityName}</h1>
         <p className="mt-1 text-sm text-slate-500">Sensor {sensor?.deviceId ?? sensorId} · {readings.length.toLocaleString()} readings in period</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">{PERIODS.map(({ key, label }) => <Button key={key} size="sm" variant={period === key ? "default" : "outline"} onClick={() => setPeriod(key)} className="rounded-lg">{label}</Button>)}<Button size="sm" variant="outline" onClick={() => void load()} disabled={loading} className="rounded-lg"><RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</Button></div>
@@ -176,7 +176,7 @@ export default function WaterQualityAnalyticsPage() {
 
       <Card className="border-slate-200/70 shadow-sm"><CardContent className="p-5 sm:p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold text-slate-800">{parameterLabel} over time</h2><p className="text-xs text-slate-500">Each parameter is charted separately using its own unit and scale.</p></div><span className="flex items-center gap-1.5 text-xs text-slate-500"><Calendar className="h-3.5 w-3.5" />{points.length} data points</span></div>
-        {points.length < 2 ? <div className="flex h-72 items-center justify-center text-sm text-slate-500">At least two {parameterLabel.toLowerCase()} readings are needed to draw a trend.</div> : <ResponsiveContainer width="100%" height={320}><AreaChart data={points} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}><defs><linearGradient id="qualityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} /><stop offset="100%" stopColor="#0891b2" stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="time" tickFormatter={formatTanzaniaTime} minTickGap={36} tick={{ fontSize: 11, fill: "#64748b" }} /><YAxis domain={["auto", "auto"]} width={64} unit={unit ? ` ${unit}` : ""} tick={{ fontSize: 11, fill: "#64748b" }} /><Tooltip labelFormatter={(label) => formatTanzaniaDateTime(String(label))} formatter={(value) => [`${Number(value).toFixed(2)}${unit ? ` ${unit}` : ""}`, parameterLabel]} />{thresholds.map(([key, label, color]) => bounds?.[key] != null && <ReferenceLine key={key} y={bounds[key]} stroke={color} strokeDasharray="5 4" label={{ value: label, fill: color, fontSize: 10 }} />)}<Area type="monotone" dataKey="value" name={parameterLabel} stroke="#0891b2" strokeWidth={2.5} fill="url(#qualityFill)" /></AreaChart></ResponsiveContainer>}
+        {points.length < 2 ? <div className="flex h-72 items-center justify-center text-sm text-slate-500">At least two {parameterLabel.toLowerCase()} readings are needed to draw a trend.</div> : <ResponsiveContainer width="100%" height={320}><AreaChart data={points} margin={{ top: 8, right: 18, left: 4, bottom: 0 }}><defs><linearGradient id="qualityFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} /><stop offset="100%" stopColor="#0891b2" stopOpacity={0.02} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="time" tickFormatter={(value) => formatTanzaniaTime(value)} minTickGap={36} tick={{ fontSize: 11, fill: "#64748b" }} /><YAxis domain={["auto", "auto"]} width={64} unit={unit ? ` ${unit}` : ""} tick={{ fontSize: 11, fill: "#64748b" }} /><Tooltip labelFormatter={(label) => formatTanzaniaDateTime(String(label))} formatter={(value) => [`${Number(value).toFixed(2)}${unit ? ` ${unit}` : ""}`, parameterLabel]} />{thresholds.map(([key, label, color]) => bounds?.[key] != null && <ReferenceLine key={key} y={bounds[key]} stroke={color} strokeDasharray="5 4" label={{ value: label, fill: color, fontSize: 10 }} />)}<Area type="monotone" dataKey="value" name={parameterLabel} stroke="#0891b2" strokeWidth={2.5} fill="url(#qualityFill)" /></AreaChart></ResponsiveContainer>}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500"><span className={`font-medium ${latestFlag === "Critical" ? "text-rose-700" : latestFlag === "Warning" ? "text-amber-700" : "text-emerald-700"}`}>Latest: {latestFlag}</span>{bounds ? <span>Threshold guides use configured sensor limits or the app’s operational defaults.</span> : <span>No default threshold is defined for this parameter; readings are shown without a quality classification.</span>}</div>
       </CardContent></Card>
 
@@ -203,7 +203,7 @@ export default function WaterQualityAnalyticsPage() {
                 {keyPoints.length < 2 ? <div className="flex h-36 items-center justify-center text-xs text-slate-400">Not enough readings to show a trend</div> : <ResponsiveContainer width="100%" height={150}>
                   <AreaChart data={keyPoints} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} onClick={() => setParameter(key)}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="time" tickFormatter={formatTanzaniaTime} minTickGap={42} tick={{ fontSize: 9, fill: "#64748b" }} />
+                    <XAxis dataKey="time" tickFormatter={(value) => formatTanzaniaTime(value)} minTickGap={42} tick={{ fontSize: 9, fill: "#64748b" }} />
                     <YAxis domain={["auto", "auto"]} width={52} tick={{ fontSize: 9, fill: "#64748b" }} />
                     <Tooltip labelFormatter={(label) => formatTanzaniaDateTime(String(label))} formatter={(value) => [`${Number(value).toFixed(2)}${meta?.unit ? ` ${meta.unit}` : ""}`, meta?.label ?? key]} />
                     <Area type="monotone" dataKey="value" stroke={chartColor} strokeWidth={2} fill={chartColor} fillOpacity={0.12} />

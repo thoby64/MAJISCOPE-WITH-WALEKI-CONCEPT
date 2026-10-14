@@ -7,8 +7,8 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatTanzaniaDateTime, formatTanzaniaTime } from "@/lib/date-time"
-import { fillPercent, readStoredTankLength } from "@/lib/water-level"
-import { useDataStore, type TankReading } from "@/store/data-store"
+import { fillPercent, readStoredStorageFacilityLength } from "@/lib/water-level"
+import { useDataStore, type StorageFacilityReading } from "@/store/data-store"
 
 type Period = "24h" | "7d" | "30d" | "90d" | "all"
 const PERIODS: { key: Period; label: string; ms?: number }[] = [
@@ -19,42 +19,42 @@ const PERIODS: { key: Period; label: string; ms?: number }[] = [
   { key: "all", label: "All available" },
 ]
 
-function validLevel(reading: TankReading) {
+function validLevel(reading: StorageFacilityReading) {
   return Number.isFinite(reading.waterLevelM) ? Number(reading.waterLevelM) : null
 }
 
 export default function WaterLevelAnalyticsPage() {
   const router = useRouter()
-  const params = useParams<{ tankId: string }>()
-  const tankId = Array.isArray(params?.tankId) ? params.tankId[0] : params?.tankId
+  const params = useParams<{ storageFacilityId: string }>()
+  const storageFacilityId = Array.isArray(params?.storageFacilityId) ? params.storageFacilityId[0] : params?.storageFacilityId
   const sensorId = useSearchParams().get("sensor")
-  const { sensors, tanks, fetchSensors, fetchTanks, fetchSensorReadings } = useDataStore()
+  const { sensors, storageFacilities, fetchSensors, fetchStorageFacilities, fetchSensorReadings } = useDataStore()
   const [period, setPeriod] = useState<Period>("7d")
-  const [readings, setReadings] = useState<TankReading[]>([])
+  const [readings, setReadings] = useState<StorageFacilityReading[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [lengthOverride, setLengthOverride] = useState<number | null>(null)
 
   useEffect(() => {
     void fetchSensors()
-    void fetchTanks()
-    if (tankId) setLengthOverride(readStoredTankLength(tankId))
-  }, [fetchSensors, fetchTanks, tankId])
+    void fetchStorageFacilities()
+    if (storageFacilityId) setLengthOverride(readStoredStorageFacilityLength(storageFacilityId))
+  }, [fetchSensors, fetchStorageFacilities, storageFacilityId])
 
-  const sensor = sensors.find((item) => item.id === sensorId && item.tankId === tankId)
-  const tank = tanks.find((item) => item.id === tankId)
-  const tankName = tank?.name || sensor?.tankName || "Water storage facility"
+  const sensor = sensors.find((item) => item.id === sensorId && item.storageFacilityId === storageFacilityId)
+  const storageFacility = storageFacilities.find((item) => item.id === storageFacilityId)
+  const storageFacilityName = storageFacility?.name || sensor?.storageFacilityName || "Water storage facility"
   const configuredLengthValue = sensor?.config?.h1M ?? sensor?.config?.h1_m
-  const configuredTankLength = lengthOverride ?? (typeof configuredLengthValue === "number" && configuredLengthValue > 0 ? configuredLengthValue : null)
+  const configuredStorageFacilityLength = lengthOverride ?? (typeof configuredLengthValue === "number" && configuredLengthValue > 0 ? configuredLengthValue : null)
   const load = useCallback(async () => {
-    if (!tankId || !sensorId) return
+    if (!storageFacilityId || !sensorId) return
     setLoading(true)
     setError("")
     try {
       const selectedPeriod = PERIODS.find((item) => item.key === period)
       // Sensor timestamps are stored as naive UTC; send the same form for range bounds.
       const startAt = selectedPeriod?.ms ? new Date(Date.now() - selectedPeriod.ms).toISOString().replace(/Z$/, "") : undefined
-      const rows = await fetchSensorReadings(tankId, sensorId, { limit: 5000, startAt })
+      const rows = await fetchSensorReadings(storageFacilityId, sensorId, { limit: 5000, startAt })
       setReadings(rows.filter((item) => item.sensorId === sensorId).sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt)))
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load analytics readings")
@@ -62,7 +62,7 @@ export default function WaterLevelAnalyticsPage() {
     } finally {
       setLoading(false)
     }
-  }, [fetchSensorReadings, period, sensorId, tankId])
+  }, [fetchSensorReadings, period, sensorId, storageFacilityId])
 
   useEffect(() => { void load() }, [load])
 
@@ -106,11 +106,11 @@ export default function WaterLevelAnalyticsPage() {
     <div className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Button variant="ghost" onClick={() => router.push(`/dashboard/sensor-data/${tankId}?sensor=${sensorId}`)} className="mb-2 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500">
+          <Button variant="ghost" onClick={() => router.push(`/dashboard/sensor-data/${storageFacilityId}?sensor=${sensorId}`)} className="mb-2 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500">
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to sensor details
           </Button>
           <div className="flex items-center gap-2 text-cyan-700"><BarChart3 className="h-5 w-5" /><span className="text-sm font-semibold">Water level analytics</span></div>
-          <h1 className="mt-1 text-2xl font-bold text-slate-800">{tankName}</h1>
+          <h1 className="mt-1 text-2xl font-bold text-slate-800">{storageFacilityName}</h1>
           <p className="mt-1 text-sm text-slate-500">Sensor {sensor?.deviceId ?? sensorId} · Water level sensor</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -125,7 +125,7 @@ export default function WaterLevelAnalyticsPage() {
           <Metric icon={Droplets} title="Current water level" value={latest?.waterLevelM != null ? `${latest.waterLevelM.toFixed(2)} m` : "—"} detail={latest ? formatTanzaniaDateTime(latest.occurredAt) : "No readings yet"} />
           <Metric icon={Activity} title="Change in period" value={`${stats.change > 0 ? "+" : ""}${stats.change.toFixed(2)} m`} detail={insight} trend={stats.change} />
           <Metric icon={Waves} title="Average level" value={`${stats.average.toFixed(2)} m`} detail={`${readings.length.toLocaleString()} readings`} />
-          <Metric icon={Gauge} title="Range" value={`${stats.minimum.toFixed(2)}–${stats.maximum.toFixed(2)} m`} detail={configuredTankLength && latest?.waterLevelM != null ? `${fillPercent(latest.waterLevelM, configuredTankLength).toFixed(0)}% of configured tank length` : "Tank length not configured"} />
+          <Metric icon={Gauge} title="Range" value={`${stats.minimum.toFixed(2)}–${stats.maximum.toFixed(2)} m`} detail={configuredStorageFacilityLength && latest?.waterLevelM != null ? `${fillPercent(latest.waterLevelM, configuredStorageFacilityLength).toFixed(0)}% of configured storage facility length` : "Storage facility length not configured"} />
         </div>
 
         <Card className="border-slate-200/70 shadow-sm">
@@ -138,10 +138,10 @@ export default function WaterLevelAnalyticsPage() {
               <AreaChart data={chartData} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
                 <defs><linearGradient id="levelFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#0891b2" stopOpacity={0.28} /><stop offset="100%" stopColor="#0891b2" stopOpacity={0.02} /></linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="time" tickFormatter={formatTanzaniaTime} minTickGap={36} tick={{ fontSize: 11, fill: "#64748b" }} />
+                <XAxis dataKey="time" tickFormatter={(value) => formatTanzaniaTime(value)} minTickGap={36} tick={{ fontSize: 11, fill: "#64748b" }} />
                 <YAxis domain={["auto", "auto"]} unit=" m" width={62} tick={{ fontSize: 11, fill: "#64748b" }} />
                 <Tooltip labelFormatter={(label) => formatTanzaniaDateTime(String(label))} formatter={(value) => [`${Number(value).toFixed(2)} m`, "Water level"]} />
-                {configuredTankLength && <ReferenceLine y={configuredTankLength} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: "Tank length", fill: "#b45309", fontSize: 11 }} />}
+                {configuredStorageFacilityLength && <ReferenceLine y={configuredStorageFacilityLength} stroke="#f59e0b" strokeDasharray="5 5" label={{ value: "Storage facility length", fill: "#b45309", fontSize: 11 }} />}
                 <Area type="monotone" dataKey="level" name="Water level" stroke="#0891b2" strokeWidth={2.5} fill="url(#levelFill)" connectNulls={false} />
               </AreaChart>
             </ResponsiveContainer>}

@@ -1,7 +1,7 @@
 """
-Tank reconciliation from uploaded utility infrastructure layers.
+StorageFacility reconciliation from uploaded utility infrastructure layers.
 
-Tanks are materialized from ``storage_facilities`` layers on upload. Tanks are
+StorageFacilitys are materialized from ``storage_facilities`` layers on upload. StorageFacilitys are
 never hard-deleted: features that disappear from a re-upload are soft-marked
 ``deactivated`` so historical sensor readings and manual DMA assignments remain
 intact.
@@ -16,25 +16,28 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models import (
-    Tank,
-    TankStatusEnum,
+    StorageFacility,
+    StorageFacilityStatusEnum,
     UtilityInfrastructureLayer,
 )
 
-TANK_NAME_KEY_CANDIDATES: Tuple[str, ...] = (
+STORAGE_FACILITY_NAME_KEY_CANDIDATES: Tuple[str, ...] = (
     "fid",
     "name",
-    "tank_name",
-    "tank",
+    "storage_facility_name",
+    "storage_facility",
     "id",
     "code",
     "asset_id",
+    "storage_facility_id",
+    "tank_name",
+    "tank",
     "tank_id",
 )
 
 COORDINATE_KEY_PREFIX = "coord:"
 
-DEFAULT_TANK_NAME = "TANK"
+DEFAULT_STORAGE_FACILITY_NAME = "STORAGE_FACILITY"
 
 
 def _normalize_property_key(key: str) -> str:
@@ -54,7 +57,7 @@ def _is_missing_value(value: Any) -> bool:
 
 
 def _is_usable_name(value: Any) -> bool:
-    """True when the value is a human-readable tank name.
+    """True when the value is a human-readable storage_facility name.
 
     Purely numeric values (e.g. ``322``, ``1357``) come from numeric ID
     columns such as ``ObjectID``/``Id`` and are not real names, so callers
@@ -66,7 +69,7 @@ def _is_usable_name(value: Any) -> bool:
     return any(char.isalpha() for char in text)
 
 
-_NUMERIC_DEFAULT_RE = re.compile(r"^TANK-\d+$")
+_NUMERIC_DEFAULT_RE = re.compile(r"^STORAGE_FACILITY-\d+$")
 
 
 def _is_numeric_only(value: Any) -> bool:
@@ -77,29 +80,29 @@ def _is_numeric_only(value: Any) -> bool:
     return text.isdigit()
 
 
-def _resolve_tank_name(raw_value: Any) -> str:
-    """Convert a raw name value into a human-readable tank name.
+def _resolve_storage_facility_name(raw_value: Any) -> str:
+    """Convert a raw name value into a human-readable storage_facility name.
 
     - Readable names (containing letters) are returned as-is.
-    - Purely numeric values become ``TANK-<number>`` (e.g. ``TANK-322``).
-    - Missing or non-readable values become the plain default ``TANK``.
+    - Purely numeric values become ``STORAGE_FACILITY-<number>`` (e.g. ``STORAGE_FACILITY-322``).
+    - Missing or non-readable values become the plain default ``STORAGE_FACILITY``.
     """
     if _is_missing_value(raw_value):
-        return DEFAULT_TANK_NAME
+        return DEFAULT_STORAGE_FACILITY_NAME
     text = str(raw_value).strip()
     if _is_numeric_only(raw_value):
-        return f"{DEFAULT_TANK_NAME}-{text}"
+        return f"{DEFAULT_STORAGE_FACILITY_NAME}-{text}"
     if _is_usable_name(raw_value):
         return text
-    return DEFAULT_TANK_NAME
+    return DEFAULT_STORAGE_FACILITY_NAME
 
 
 def _name_priority(name: Optional[str]) -> int:
-    """Return a priority score for a tank name (higher = more informative).
+    """Return a priority score for a storage_facility name (higher = more informative).
 
     3 = real readable name
-    2 = numbered default ``TANK-<n>``
-    1 = plain default ``TANK``
+    2 = numbered default ``STORAGE_FACILITY-<n>``
+    1 = plain default ``STORAGE_FACILITY``
     0 = unusable / missing / purely numeric
     """
     if not name:
@@ -111,23 +114,23 @@ def _name_priority(name: Optional[str]) -> int:
         return 3
     if _NUMERIC_DEFAULT_RE.match(text):
         return 2
-    if text == DEFAULT_TANK_NAME:
+    if text == DEFAULT_STORAGE_FACILITY_NAME:
         return 1
     return 0
 
 
-def detect_tank_raw_name(properties: Dict[str, Any]) -> Any:
+def detect_storage_facility_raw_name(properties: Dict[str, Any]) -> Any:
     """Return the raw value of the first name-like field, even if numeric.
 
-    Unlike ``detect_tank_key_field`` this does not reject numeric values;
+    Unlike ``detect_storage_facility_key_field`` this does not reject numeric values;
     it merely finds the first non-missing candidate field. The caller then
-    decides how to interpret the value (via ``_resolve_tank_name``).
+    decides how to interpret the value (via ``_resolve_storage_facility_name``).
     """
     canonical_to_original = {
         _canonical_key(str(key)): key
         for key in properties.keys()
     }
-    for candidate in TANK_NAME_KEY_CANDIDATES:
+    for candidate in STORAGE_FACILITY_NAME_KEY_CANDIDATES:
         canonical_candidate = _canonical_key(candidate)
         original_key = canonical_to_original.get(canonical_candidate)
         if original_key is None:
@@ -138,15 +141,15 @@ def detect_tank_raw_name(properties: Dict[str, Any]) -> Any:
     return None
 
 
-def detect_tank_key_field(properties: Dict[str, Any]) -> Optional[str]:
+def detect_storage_facility_key_field(properties: Dict[str, Any]) -> Optional[str]:
     """
     Pick the first usable name-like property matched against candidates.
 
     Property keys are matched case-insensitively and ignoring separators
-    (``TankName`` matches candidate ``tank_name``). Only human-readable values
+    (``StorageFacilityName`` matches candidate ``storage_facility_name``). Only human-readable values
     are accepted: purely numeric values (e.g. ``ObjectID``/``Id`` exports like
     ``322``) are rejected so callers fall back to the coordinate hash and the
-    default ``TANK`` name. Returns the actual property key present in the
+    default ``STORAGE_FACILITY`` name. Returns the actual property key present in the
     feature, or ``None`` when no usable candidate is available.
     """
     canonical_to_original = {
@@ -169,7 +172,7 @@ def detect_tank_key_field(properties: Dict[str, Any]) -> Optional[str]:
         if fid_key is not None and fid_key != "":
             return fid_key
 
-    for candidate in TANK_NAME_KEY_CANDIDATES:
+    for candidate in STORAGE_FACILITY_NAME_KEY_CANDIDATES:
         if candidate == "fid":
             continue  # Already handled above
         canonical_candidate = _canonical_key(candidate)
@@ -235,31 +238,31 @@ def _sync_summary(
     }
 
 
-def sync_tanks_from_layer(
+def sync_storage_facilities_from_layer(
     db: Session,
     utility_id: str,
     features: List[Dict[str, Any]],
     layer: UtilityInfrastructureLayer,
 ) -> Dict[str, Any]:
     """
-    Reconcile the ``tank`` table from the features of an uploaded storage
+    Reconcile the ``storage_facility`` table from the features of an uploaded storage
     infrastructure layer.
 
-    Matching is by ``(utility_id, source_key)``. Tanks present before but
-    absent from the new layer are soft-deactivated. Tanks that come back in a
+    Matching is by ``(utility_id, source_key)``. StorageFacilitys present before but
+    absent from the new layer are soft-deactivated. StorageFacilitys that come back in a
     later upload are reactivated.
     """
-    existing_tanks = {
-        tank.source_key: tank
-        for tank in db.query(Tank).filter(Tank.utility_id == utility_id).all()
+    existing_storage_facilities = {
+        storage_facility.source_key: storage_facility
+        for storage_facility in db.query(StorageFacility).filter(StorageFacility.utility_id == utility_id).all()
     }
 
     # Coordinate index for duplicate detection: unnamed features are matched
-    # against existing tank locations so re-uploads never create duplicates.
-    coords_index: Dict[str, Tank] = {}
-    for tank in existing_tanks.values():
-        if tank.latitude is not None and tank.longitude is not None:
-            coords_index[coordinate_hash(tank.latitude, tank.longitude)] = tank
+    # against existing storage_facility locations so re-uploads never create duplicates.
+    coords_index: Dict[str, StorageFacility] = {}
+    for storage_facility in existing_storage_facilities.values():
+        if storage_facility.latitude is not None and storage_facility.longitude is not None:
+            coords_index[coordinate_hash(storage_facility.latitude, storage_facility.longitude)] = storage_facility
 
     seen_source_keys: set[str] = set()
     chosen_key_field: Optional[str] = None
@@ -279,12 +282,12 @@ def sync_tanks_from_layer(
         if not isinstance(properties, dict):
             properties = {}
 
-        key_field = detect_tank_key_field(properties)
+        key_field = detect_storage_facility_key_field(properties)
         key_field_counts[key_field] = key_field_counts.get(key_field, 0) + 1
 
         # Raw name from the first name-like field (even if numeric) so we can
-        # fold numeric identifiers into a "TANK-<n>" default.
-        raw_name_value = detect_tank_raw_name(properties)
+        # fold numeric identifiers into a "STORAGE_FACILITY-<n>" default.
+        raw_name_value = detect_storage_facility_raw_name(properties)
 
         geometry = feature.get("geometry")
 
@@ -312,8 +315,8 @@ def sync_tanks_from_layer(
 
         if source_key is None:
             # Unnamed feature: fall back to the coordinate hash, but first
-            # check for an existing tank at the same location so re-uploads
-            # (with or without names) never create duplicate tanks.
+            # check for an existing storage_facility at the same location so re-uploads
+            # (with or without names) never create duplicate storage_facilities.
             if latitude is None or longitude is None:
                 continue
             coords_hash = coordinate_hash(latitude, longitude, fid)
@@ -321,7 +324,7 @@ def sync_tanks_from_layer(
             if existing_by_coords is not None:
                 seen_source_keys.add(existing_by_coords.source_key)
                 # Upgrade placeholder names when we can derive a more specific one.
-                candidate = _resolve_tank_name(raw_name_value)
+                candidate = _resolve_storage_facility_name(raw_name_value)
                 if _name_priority(candidate) > _name_priority(existing_by_coords.name):
                     existing_by_coords.name = candidate
                 stats["skipped_duplicates"] += 1
@@ -332,62 +335,62 @@ def sync_tanks_from_layer(
         if not source_key:
             continue
 
-        # Human-readable fallback: never display coordinates as a tank name.
-        fallback_name = name or _resolve_tank_name(raw_name_value)
+        # Human-readable fallback: never display coordinates as a storage_facility name.
+        fallback_name = name or _resolve_storage_facility_name(raw_name_value)
 
         # Check if we've already seen this source_key in the current batch
-        # to avoid creating duplicate tanks within the same batch.
+        # to avoid creating duplicate storage_facilities within the same batch.
         if source_key in seen_source_keys:
             stats["skipped_duplicates"] += 1
             continue
 
         seen_source_keys.add(source_key)
 
-        # Also check the database directly for any tanks that may have been
-        # created in this transaction but not yet in existing_tanks.
+        # Also check the database directly for any storage_facilities that may have been
+        # created in this transaction but not yet in existing_storage_facilities.
         # This handles the case where a previous feature in this batch
-        # created a tank with the same source_key that was flushed to the DB.
+        # created a storage_facility with the same source_key that was flushed to the DB.
         # Flush first to ensure any pending changes are visible to the query.
         db.flush()
-        existing = existing_tanks.get(source_key)
+        existing = existing_storage_facilities.get(source_key)
         if existing is None:
-            # Double-check the database directly in case a tank with this
+            # Double-check the database directly in case a storage_facility with this
             # source_key was created and flushed earlier in this transaction.
-            from app.models import Tank as MainTank
-            existing = db.query(Tank).filter(
-                Tank.utility_id == utility_id,
-                Tank.source_key == source_key
+            from app.models import StorageFacility as MainStorageFacility
+            existing = db.query(StorageFacility).filter(
+                StorageFacility.utility_id == utility_id,
+                StorageFacility.source_key == source_key
             ).first()
             if existing:
-                existing_tanks[source_key] = existing
+                existing_storage_facilities[source_key] = existing
 
         if existing is None:
-            tank = Tank(
+            storage_facility = StorageFacility(
                 utility_id=utility_id,
                 source_key=source_key,
                 name=fallback_name,
                 latitude=latitude,
                 longitude=longitude,
-                status=TankStatusEnum.ACTIVE,
+                status=StorageFacilityStatusEnum.ACTIVE,
             )
-            db.add(tank)
+            db.add(storage_facility)
             if latitude is not None and longitude is not None:
-                coords_index[coordinate_hash(latitude, longitude)] = tank
+                coords_index[coordinate_hash(latitude, longitude)] = storage_facility
             stats["created"] += 1
         else:
-            was_deactivated = existing.status == TankStatusEnum.DEACTIVATED
+            was_deactivated = existing.status == StorageFacilityStatusEnum.DEACTIVATED
             # Prefer real names; otherwise upgrade placeholders when possible.
             if _is_usable_name(name):
                 existing.name = name
             elif _name_priority(existing.name) < 2:
-                # Existing name is plain "TANK" or unusable; try to use raw value.
-                candidate = _resolve_tank_name(raw_name_value)
+                # Existing name is plain "STORAGE_FACILITY" or unusable; try to use raw value.
+                candidate = _resolve_storage_facility_name(raw_name_value)
                 if _name_priority(candidate) > _name_priority(existing.name):
                     existing.name = candidate
             existing.latitude = latitude if latitude is not None else existing.latitude
             existing.longitude = longitude if longitude is not None else existing.longitude
             if was_deactivated:
-                existing.status = TankStatusEnum.ACTIVE
+                existing.status = StorageFacilityStatusEnum.ACTIVE
                 existing.deactivated_at = None
                 stats["reactivated"] += 1
             else:
@@ -396,25 +399,25 @@ def sync_tanks_from_layer(
     if key_field_counts:
         chosen_key_field = max(key_field_counts, key=lambda field: key_field_counts[field])
     if chosen_key_field is not None:
-        layer.tank_key_field = chosen_key_field
+        layer.storage_facility_key_field = chosen_key_field
 
     deactivated_count = 0
     deactivated_with_sensors = 0
-    for tank in existing_tanks.values():
-        if tank.source_key in seen_source_keys:
+    for storage_facility in existing_storage_facilities.values():
+        if storage_facility.source_key in seen_source_keys:
             continue
-        if tank.status == TankStatusEnum.DEACTIVATED:
+        if storage_facility.status == StorageFacilityStatusEnum.DEACTIVATED:
             continue
-        tank.status = TankStatusEnum.DEACTIVATED
-        tank.deactivated_at = datetime.utcnow()
+        storage_facility.status = StorageFacilityStatusEnum.DEACTIVATED
+        storage_facility.deactivated_at = datetime.utcnow()
         deactivated_count += 1
-        has_active_sensor = _tank_has_active_sensor(db, tank.id)
+        has_active_sensor = _storage_facility_has_active_sensor(db, storage_facility.id)
         if has_active_sensor:
             deactivated_with_sensors += 1
 
-    # Mirror every touched tank into the sensor platform DB (best effort;
+    # Mirror every touched storage_facility into the sensor platform DB (best effort;
     # failures queue in the outbox and drain later).
-    _mirror_synced_tanks(db, existing_tanks.values(), seen_source_keys)
+    _mirror_synced_storage_facilities(db, existing_storage_facilities.values(), seen_source_keys)
 
     return _sync_summary(
         created=stats["created"],
@@ -423,12 +426,12 @@ def sync_tanks_from_layer(
         deactivated=deactivated_count,
         deactivated_with_sensors=deactivated_with_sensors,
         skipped_duplicates=stats["skipped_duplicates"],
-        total=len(existing_tanks) + stats["created"],
+        total=len(existing_storage_facilities) + stats["created"],
     )
 
 
-def _tank_has_active_sensor(db: Session, tank_id: str) -> bool:
-    """True when the tank has any activated sensor (sensor platform DB)."""
+def _storage_facility_has_active_sensor(db: Session, storage_facility_id: str) -> bool:
+    """True when the storage_facility has any activated sensor (sensor platform DB)."""
     try:
         from app.database.sensor_session import SensorSessionLocal
         from app.models.sensor_platform import SensorDevice as PlatformSensorDevice
@@ -437,7 +440,7 @@ def _tank_has_active_sensor(db: Session, tank_id: str) -> bool:
             return (
                 sensor_db.query(PlatformSensorDevice.id)
                 .filter(
-                    PlatformSensorDevice.tank_id == tank_id,
+                    PlatformSensorDevice.storage_facility_id == storage_facility_id,
                     PlatformSensorDevice.activated.is_(True),
                 )
                 .first()
@@ -448,16 +451,16 @@ def _tank_has_active_sensor(db: Session, tank_id: str) -> bool:
         return False
 
 
-def _mirror_synced_tanks(db: Session, tanks, seen_source_keys) -> None:
-    """Best-effort mirror of tanks touched by a storage-layer sync."""
-    from app.services.sensor_platform_sync import mirror_tank
+def _mirror_synced_storage_facilities(db: Session, storage_facilities, seen_source_keys) -> None:
+    """Best-effort mirror of storage_facilities touched by a storage-layer sync."""
+    from app.services.sensor_platform_sync import mirror_storage_facility
 
-    created_or_updated = [t for t in tanks if t.source_key in seen_source_keys]
-    # Deactivated tanks are also mirrored (status change matters downstream).
-    for tank in list(created_or_updated) + [
-        t for t in tanks if t.status == TankStatusEnum.DEACTIVATED and t.deactivated_at is not None
+    created_or_updated = [t for t in storage_facilities if t.source_key in seen_source_keys]
+    # Deactivated storage_facilities are also mirrored (status change matters downstream).
+    for storage_facility in list(created_or_updated) + [
+        t for t in storage_facilities if t.status == StorageFacilityStatusEnum.DEACTIVATED and t.deactivated_at is not None
     ]:
         try:
-            mirror_tank(db, tank)
+            mirror_storage_facility(db, storage_facility)
         except Exception:
             continue

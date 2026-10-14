@@ -10,14 +10,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
-import { TankCombobox } from "@/components/water-level/tank-combobox"
+import { StorageFacilityCombobox } from "@/components/water-level/storage-facility-combobox"
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type RegisterSensorInput, type SensorCategory, type SensorSnap } from "@/store/data-store"
 
 interface RegisterSensorModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  defaultTankId?: string
+  defaultStorageFacilityId?: string
   sensor?: SensorSnap | null
 }
 
@@ -26,15 +26,15 @@ function configValue(config: Record<string, unknown>, snakeCaseKey: string): unk
   return config[camelCaseKey] ?? config[snakeCaseKey]
 }
 
-export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor }: RegisterSensorModalProps) {
+export function RegisterSensorModal({ open, onOpenChange, defaultStorageFacilityId, sensor }: RegisterSensorModalProps) {
   const { currentUser } = useAuthStore()
-  const { tanks, dmas, fetchTanks, fetchSensor, fetchDMAs, registerSensor, updateSensor, detectSensorDma } = useDataStore()
+  const { storageFacilities, dmas, fetchStorageFacilities, fetchSensor, fetchDMAs, registerSensor, updateSensor, detectSensorDma } = useDataStore()
 
   const role = currentUser?.role
   const isEdit = Boolean(sensor)
 
   const [deviceId, setDeviceId] = useState("")
-  const [tankId, setTankId] = useState("")
+  const [storageFacilityId, setStorageFacilityId] = useState("")
   const [category, setCategory] = useState<SensorCategory>("water_level")
   const [h1M, setH1M] = useState("")
   const [depthM, setDepthM] = useState("")
@@ -60,14 +60,17 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
   useEffect(() => {
     let cancelled = false
     if (!open) return
-    if (!tanks.length) void fetchTanks()
+    if (!storageFacilities.length) void fetchStorageFacilities()
     if (sensor) {
       setLoadingSensor(true)
       void fetchSensor(sensor.deviceId)
         .then((liveSensor) => {
           if (cancelled) return
+          if (liveSensor.assetType !== "storage_facility" || !liveSensor.storageFacilityId) {
+            throw new Error("This sensor is not registered to a storage facility.")
+          }
           setDeviceId(liveSensor.deviceId)
-          setTankId(liveSensor.tankId)
+          setStorageFacilityId(liveSensor.storageFacilityId)
           setCategory(liveSensor.category ?? "water_level")
           const cfg = (liveSensor.config ?? {}) as Record<string, any>
           const configText = (key: string) => {
@@ -105,7 +108,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     } else {
       setLoadingSensor(false)
       setDeviceId("")
-      setTankId(defaultTankId ?? "")
+      setStorageFacilityId(defaultStorageFacilityId ?? "")
       setCategory("water_level")
       setH1M("")
       setDepthM("")
@@ -124,75 +127,81 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     return () => {
       cancelled = true
     }
-  }, [open, sensor, defaultTankId])
+  }, [open, sensor, defaultStorageFacilityId])
 
-  // Active categories per tank (for the one-active-sensor-per-category rule)
-  const activeCategoriesByTank = useMemo(() => {
+  // Active categories per storageFacility (for the one-active-sensor-per-category rule)
+  const activeCategoriesByStorageFacility = useMemo(() => {
     const { sensors: all } = useDataStore.getState()
     const map = new Map<string, Set<string>>()
     for (const s of all) {
-      if (!s.activated) continue
-      const set = map.get(s.tankId) ?? new Set<string>()
+      if (!s.activated || s.assetType !== "storage_facility" || !s.storageFacilityId) continue
+      const set = map.get(s.storageFacilityId) ?? new Set<string>()
       set.add(s.category)
-      map.set(s.tankId, set)
+      map.set(s.storageFacilityId, set)
     }
     return map
-  }, [tanks, isEdit])
+  }, [storageFacilities, isEdit])
 
-  const scopedTanks = useMemo(() => {
-    if (!tanks.length) return []
-    let filtered = tanks
+  const scopedStorageFacilities = useMemo(() => {
+    if (!storageFacilities.length) return []
+    let filtered = storageFacilities
     if (role !== "admin") {
       const myUtility = currentUser?.utilityId
-      filtered = myUtility ? tanks.filter((t) => t.utilityId === myUtility) : tanks
+      filtered = myUtility ? storageFacilities.filter((t) => t.utilityId === myUtility) : storageFacilities
     }
     return filtered
-  }, [currentUser?.utilityId, role, tanks])
+  }, [currentUser?.utilityId, role, storageFacilities])
 
-  // A tank is selectable for NEW registration when the chosen category is not
-  // yet active on it (edit keeps the sensor's own tank selectable).
-  const selectableTanks = useMemo(() => {
-    if (isEdit) return scopedTanks
-    return scopedTanks.filter((t) => {
-      const active = activeCategoriesByTank.get(t.id)
+  // A storageFacility is selectable for NEW registration when the chosen category is not
+  // yet active on it (edit keeps the sensor's own storageFacility selectable).
+  const selectableStorageFacilities = useMemo(() => {
+    if (isEdit) return scopedStorageFacilities
+    return scopedStorageFacilities.filter((t) => {
+      const active = activeCategoriesByStorageFacility.get(t.id)
       return !active?.has(category)
     })
-  }, [scopedTanks, activeCategoriesByTank, category, isEdit])
+  }, [scopedStorageFacilities, activeCategoriesByStorageFacility, category, isEdit])
 
   const categoryUnavailable = useMemo(() => {
-    if (!tankId) return false
-    const active = activeCategoriesByTank.get(tankId)
+    if (!storageFacilityId) return false
+    const active = activeCategoriesByStorageFacility.get(storageFacilityId)
     if (!active) return false
     if (isEdit && sensor) {
       // Only other sensors count for edit
       const { sensors: all } = useDataStore.getState()
-      const others = all.filter((s) => s.activated && s.tankId === tankId && s.id !== sensor.id)
+      const others = all.filter(
+        (s) =>
+          s.activated &&
+          s.assetType === "storage_facility" &&
+          s.storageFacilityId === storageFacilityId &&
+          s.id !== sensor.id
+      )
       return others.some((s) => s.category === category)
     }
     return active.has(category)
-  }, [tankId, activeCategoriesByTank, category, isEdit, sensor])
+  }, [storageFacilityId, activeCategoriesByStorageFacility, category, isEdit, sensor])
 
   // Submit is enabled only when every required input is satisfied:
-  // device ID + tank (+ valid category combination for that tank).
+  // device ID + storageFacility (+ valid category combination for that storageFacility).
   const formValid = Boolean(
-    deviceId.trim() && tankId && !categoryUnavailable
+    deviceId.trim() && storageFacilityId && !categoryUnavailable
   )
 
-  const tankOptions = useMemo(
+  const storageFacilityOptions = useMemo(
     () =>
-      selectableTanks.map((tank) => ({
-        id: tank.id,
-        name: tank.name || tank.sourceKey || tank.id,
-        latitude: tank.latitude,
-        longitude: tank.longitude,
+      selectableStorageFacilities.map((storageFacility) => ({
+        id: storageFacility.id,
+        name: storageFacility.name || storageFacility.sourceKey || storageFacility.id,
+        latitude: storageFacility.latitude,
+        longitude: storageFacility.longitude,
       })),
-    [selectableTanks]
+    [selectableStorageFacilities]
   )
 
-  const selectedTankName = useMemo(() => {
-    const option = tankOptions.find((o) => o.id === tankId)
+  const selectedStorageFacilityName = useMemo(() => {
+    const option = storageFacilityOptions.find((o) => o.id === storageFacilityId)
     return option ? option.name : ""
-  }, [tankOptions, tankId])
+  }, [storageFacilityOptions, storageFacilityId])
 
   const scopedDMAs = useMemo(() => {
     if (!sensor) return []
@@ -209,11 +218,11 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     return Number.isFinite(value) ? value : undefined
   }
 
-  const runDmaDetection = async (tankIdToCheck: string) => {
-    if (!tankIdToCheck) return
+  const runDmaDetection = async (storageFacilityIdToCheck: string) => {
+    if (!storageFacilityIdToCheck) return
     setDetecting(true)
     try {
-      const detected = await detectSensorDma(tankIdToCheck)
+      const detected = await detectSensorDma(storageFacilityIdToCheck)
       if (detected.dmaId) {
         setDetectedDmaId(detected.dmaId)
         setDmaId(detected.dmaId)
@@ -225,11 +234,11 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
     }
   }
 
-  const handleTankChange = (newTankId: string) => {
-    setTankId(newTankId)
+  const handleStorageFacilityChange = (newStorageFacilityId: string) => {
+    setStorageFacilityId(newStorageFacilityId)
     if (isEdit) {
       setDetectedDmaId(null)
-      void runDmaDetection(newTankId)
+      void runDmaDetection(newStorageFacilityId)
     }
   }
 
@@ -247,7 +256,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       }
       const payload: RegisterSensorInput = {
         device_id: deviceId.trim(),
-        tank_id: tankId,
+        storage_facility_id: storageFacilityId,
         category,
         activated,
         ...(isWq
@@ -261,7 +270,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
       }
       if (isEdit && sensor) {
         await updateSensor(sensor.deviceId, {
-          tank_id: tankId,
+          storage_facility_id: storageFacilityId,
           activated,
           dma_id: dmaId || null,
           ...(isWq
@@ -317,8 +326,8 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <DialogTitle className="text-xl">{isEdit ? "Edit sensor" : "Register sensor"}</DialogTitle>
             <DialogDescription>
               {isEdit
-                ? "Update the sensor configuration and tank assignment."
-                : "Connect a water-level or water-quality sensor to a tank."}
+                ? "Update the sensor configuration and storage facility assignment."
+                : "Connect a water-level or water-quality sensor to a storage facility."}
             </DialogDescription>
           </DialogHeader>
 
@@ -327,7 +336,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <AlertTitle className="text-amber-800 text-sm font-semibold">Verify Device ID</AlertTitle>
             <AlertDescription className="text-amber-700 text-xs">
               Double-check that the Device ID below exactly matches the ID printed on the physical sensor
-              planted (or to be planted) in the field. A wrong ID will link readings to the wrong tank.
+              planted (or to be planted) in the field. A wrong ID will link readings to the wrong storage facility.
             </AlertDescription>
           </Alert>
 
@@ -351,26 +360,26 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
                 <Label>Category</Label>
                 <div className="grid grid-cols-2 gap-2">
                   {(["water_level", "water_quality"] as SensorCategory[]).map((cat) => {
-                    const disabledByTank = Boolean(tankId) && (activeCategoriesByTank.get(tankId)?.has(cat) ?? false)
+                    const disabledByStorageFacility = Boolean(storageFacilityId) && (activeCategoriesByStorageFacility.get(storageFacilityId)?.has(cat) ?? false)
                     return (
                       <button
                         key={cat}
                         type="button"
-                        disabled={disabledByTank}
+                        disabled={disabledByStorageFacility}
                         onClick={() => setCategory(cat)}
                         className={`rounded-xl border px-3 py-2.5 text-left text-sm font-medium transition-colors ${
                           category === cat
                             ? "border-cyan-500 bg-cyan-50 text-cyan-800"
                             : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                        } ${disabledByTank ? "cursor-not-allowed opacity-50" : ""}`}
+                        } ${disabledByStorageFacility ? "cursor-not-allowed opacity-50" : ""}`}
                       >
                         <span className="flex items-center gap-1.5">
                           {cat === "water_level" ? <Waves className="h-4 w-4" /> : <FlaskConical className="h-4 w-4" />}
                           {cat === "water_level" ? "Water Level" : "Water Quality"}
                         </span>
-                        {disabledByTank && (
+                        {disabledByStorageFacility && (
                           <span className="mt-0.5 block text-[11px] font-normal text-amber-600">
-                            Already active on this tank
+                            Already active on this storage facility
                           </span>
                         )}
                       </button>
@@ -378,24 +387,24 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
                   })}
                 </div>
                 <p className="text-xs text-slate-400">
-                  One active sensor per category per tank. Tanks with the chosen category already active are hidden from the list.
+                  One active sensor per category per storage facility. Storage facilities with the chosen category already active are hidden from the list.
                 </p>
               </div>
             )}
 
             <div className="grid gap-1.5">
-              <Label>Tank</Label>
-              <TankCombobox
-                value={tankId}
-                onChange={handleTankChange}
-                options={tankOptions}
-                placeholder="Select a tank…"
-                searchPlaceholder="Type to search tanks…"
-                emptyText={category === "water_quality" ? "All tanks already have an active water-quality sensor." : "No tanks match your search."}
+              <Label>Storage facility</Label>
+              <StorageFacilityCombobox
+                value={storageFacilityId}
+                onChange={handleStorageFacilityChange}
+                options={storageFacilityOptions}
+                placeholder="Select a storage facility…"
+                searchPlaceholder="Type to search storage facilities…"
+                emptyText={category === "water_quality" ? "All storage facilities already have an active water-quality sensor." : "No storage facilities match your search."}
               />
               {isEdit && categoryUnavailable && (
                 <p className="text-xs text-amber-600">
-                  Another {category === "water_quality" ? "water-quality" : "water-level"} sensor is already active on this tank.
+                  Another {category === "water_quality" ? "water-quality" : "water-level"} sensor is already active on this storage facility.
                 </p>
               )}
             </div>
@@ -426,13 +435,13 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
                 </select>
                 <p className="text-xs text-slate-400">
                   {detectedDmaId !== null
-                    ? "DMA auto-detected from the tank's location. Change the tank to re-detect."
-                    : "No DMA matched the tank's location — choose one manually."}
+                    ? "DMA auto-detected from the storage facility's location. Change the storage facility to re-detect."
+                    : "No DMA matched the storage facility's location — choose one manually."}
                 </p>
               </div>
             ) : (
               <p className="text-xs text-slate-400">
-                The DMA is detected automatically from the tank's location when the sensor is registered.
+                The DMA is detected automatically from the storage facility's location when the sensor is registered.
               </p>
             )}
 
@@ -496,7 +505,7 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <div className="flex flex-col items-end gap-1.5">
               {!formValid && (
                 <span className="text-[11px] font-medium text-slate-400">
-                  {isEdit ? "Select a tank to save changes" : "Enter Device ID and select a tank to continue"}
+                  {isEdit ? "Select a storage facility to save changes" : "Enter Device ID and select a storage facility to continue"}
                 </span>
               )}
               <Button
@@ -533,8 +542,8 @@ export function RegisterSensorModal({ open, onOpenChange, defaultTankId, sensor 
             <span className="font-mono font-semibold text-slate-800">{deviceId.trim() || "—"}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-slate-500">Tank</span>
-            <span className="font-medium text-slate-800">{selectedTankName || "—"}</span>
+            <span className="text-slate-500">Storage facility</span>
+            <span className="font-medium text-slate-800">{selectedStorageFacilityName || "—"}</span>
           </div>
           {!isEdit && (
             <div className="flex justify-between text-sm">

@@ -8,7 +8,7 @@ from app.schemas.utc_datetime import UTCDateTime
 from typing import Any, Optional, List
 from pydantic import BaseModel, EmailStr, Field
 from app.constants.enums import EntityStatus
-from app.schemas.sensors import TankSyncSummary
+from app.schemas.sensors import StorageFacilitySyncSummary, WaterSourceSyncSummary
 
 
 # ============================================================================
@@ -221,7 +221,8 @@ class UtilityInfrastructureUploadResponse(BaseModel):
     utility: UtilityResponse
     asset: UtilityInfrastructureAssetResponse
     ingest_summary: PipeNetworkIngestSummary
-    tank_sync: Optional[TankSyncSummary] = None
+    storage_facility_sync: Optional[StorageFacilitySyncSummary] = None
+    water_source_sync: Optional[WaterSourceSyncSummary] = None
 
 
 class UtilityListResponse(BaseModel):

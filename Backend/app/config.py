@@ -5,6 +5,7 @@ Centralized environment and application settings
 
 import os
 from typing import Any, List
+from urllib.parse import urlsplit
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -43,6 +44,9 @@ class Settings(BaseSettings):
     # ===== Report media object storage =====
     media_storage_backend: str = Field(default="local", alias="MEDIA_STORAGE_BACKEND")
     media_storage_path: str = Field(default=".media_objects", alias="MEDIA_STORAGE_PATH")
+    media_storage_api_url: str = Field(default="", alias="MEDIA_STORAGE_API_URL")
+    media_storage_api_key: str = Field(default="", alias="MEDIA_STORAGE_API_KEY")
+    # Legacy S3 source settings remain available for the one-time Garage migration.
     media_s3_bucket: str = Field(default="", alias="MEDIA_S3_BUCKET")
     media_s3_region: str = Field(default="", alias="MEDIA_S3_REGION")
     media_s3_endpoint_url: str = Field(default="", alias="MEDIA_S3_ENDPOINT_URL")
@@ -136,8 +140,8 @@ class Settings(BaseSettings):
     legacy_duwasa_import_strict: bool = Field(default=False, alias="LEGACY_DUWASA_IMPORT_STRICT")
     legacy_duwasa_import_limit: int | None = Field(default=None, alias="LEGACY_DUWASA_IMPORT_LIMIT")
 
-    # ===== Optional GPKG tank sync on startup =====
-    run_tank_gpkg_sync_on_startup: bool = Field(default=True, alias="RUN_TANK_GPKG_SYNC_ON_STARTUP")
+    # ===== Optional GPKG storage_facility sync on startup =====
+    run_storage_facility_gpkg_sync_on_startup: bool = Field(default=True, alias="RUN_STORAGE_FACILITY_GPKG_SYNC_ON_STARTUP")
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -160,7 +164,7 @@ class Settings(BaseSettings):
         "media_backfill_on_startup",
         "legacy_duwasa_import_on_startup",
         "legacy_duwasa_import_strict",
-        "run_tank_gpkg_sync_on_startup",
+        "run_storage_facility_gpkg_sync_on_startup",
         mode="before",
     )
     @classmethod
@@ -175,6 +179,8 @@ class Settings(BaseSettings):
     def normalize_runtime_fields(self) -> "Settings":
         self.environment = self.environment.strip().lower()
         self.media_storage_backend = self.media_storage_backend.strip().lower()
+        self.media_storage_api_url = self.media_storage_api_url.strip().rstrip("/")
+        self.media_storage_api_key = self.media_storage_api_key.strip()
         self.media_s3_region = self.media_s3_region.strip()
         self.public_backend_url = self.public_backend_url.rstrip("/")
         self.hydraulic_model_base_url = self.hydraulic_model_base_url.rstrip("/")
@@ -183,10 +189,23 @@ class Settings(BaseSettings):
         if self.environment == "production":
             self.run_startup_migrations = False
             self.run_startup_schema_sync = False
-            if self.media_storage_backend != "s3":
-                raise ValueError("Production requires MEDIA_STORAGE_BACKEND=s3")
-        if self.media_storage_backend not in {"local", "s3"}:
-            raise ValueError("MEDIA_STORAGE_BACKEND must be 'local' or 's3'")
+            if self.media_storage_backend != "http":
+                raise ValueError("Production requires MEDIA_STORAGE_BACKEND=http")
+        if self.media_storage_backend not in {"local", "http", "s3"}:
+            raise ValueError("MEDIA_STORAGE_BACKEND must be 'local', 'http', or 's3'")
+        if self.media_storage_backend == "http":
+            if not self.media_storage_api_url.strip():
+                raise ValueError("MEDIA_STORAGE_API_URL is required when MEDIA_STORAGE_BACKEND=http")
+            if not self.media_storage_api_key.strip():
+                raise ValueError("MEDIA_STORAGE_API_KEY is required when MEDIA_STORAGE_BACKEND=http")
+            storage_url = urlsplit(self.media_storage_api_url)
+            if (
+                storage_url.scheme not in {"http", "https"}
+                or not storage_url.hostname
+                or storage_url.query
+                or storage_url.fragment
+            ):
+                raise ValueError("MEDIA_STORAGE_API_URL must be a base HTTP(S) URL")
         if self.media_storage_backend == "s3" and not self.media_s3_bucket.strip():
             raise ValueError("MEDIA_S3_BUCKET is required when MEDIA_STORAGE_BACKEND=s3")
         if "debug" not in self.__pydantic_fields_set__:

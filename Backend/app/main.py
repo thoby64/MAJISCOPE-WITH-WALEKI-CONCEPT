@@ -31,10 +31,13 @@ from app.api import (
     hydraulic_model_router,
     dashboard_router,
     sensors_router,
-    tanks_router,
+    storage_facilities_router,
+    water_sources_router,
+    water_source_sensors_router,
     infrastructure_templates_router,
 )
 from app.services.database_migrations import run_heavy_startup_migrations, run_safe_startup_migrations
+from app.services.storage_facility_migrations import migrate_storage_facility_schema
 from import_legacy_duwasa_reports import DEFAULT_CSV_PATH, import_legacy_duwasa_data
 
 # ============================================================
@@ -64,6 +67,10 @@ async def lifespan(app: FastAPI):
         print("   Startup Schema Sync Skipped: disabled for PostgreSQL web startup")
     print(f"   Legacy DUWASA Startup Import: {settings.legacy_duwasa_import_on_startup}")
     print("=" * 60)
+    from app.database.sensor_session import sensor_engine
+
+    migrate_storage_facility_schema(engine)
+    migrate_storage_facility_schema(sensor_engine, sensor_platform=True)
     if settings.run_startup_migrations:
         run_safe_startup_migrations(engine)
         run_heavy_startup_migrations(engine)
@@ -136,7 +143,8 @@ async def lifespan(app: FastAPI):
             from app.services.sensor_platform_sync import (
                 drain_outbox,
                 ensure_outbox_table,
-                reconcile_all_tanks,
+                reconcile_all_storage_facilities,
+                reconcile_all_water_sources,
             )
 
             if settings.run_startup_schema_sync:
@@ -149,23 +157,32 @@ async def lifespan(app: FastAPI):
                     drained = drain_outbox(boot_db)
                     if drained:
                         print(f"   Sensor mirror outbox drained: {drained} entr(y/ies)")
-                    result = reconcile_all_tanks(boot_db)
+                    result = reconcile_all_storage_facilities(boot_db)
                     print(
-                        f"   Sensor platform tank mirror: {result['mirrored']}/{result['total']} tank(s) in sync"
+                        f"   Sensor platform storage_facility mirror: {result['mirrored']}/{result['total']} storage_facility(s) in sync"
+                    )
+                    source_result = reconcile_all_water_sources(boot_db)
+                    print(
+                        f"   Sensor platform water-source mirror: "
+                        f"{source_result['mirrored']}/{source_result['total']} source(s) in sync"
                     )
                 else:
                     print("   Sensor platform startup reconciliation disabled by configuration")
         except Exception as exc:
             print(f"   Sensor platform startup sync failed (non-fatal): {exc}")
 
-        if settings.run_tank_gpkg_sync_on_startup:
-            from app.services.gpkg_startup_sync import run_tank_gpkg_sync_on_startup
+        if settings.run_storage_facility_gpkg_sync_on_startup:
+            from app.services.gpkg_startup_sync import (
+                run_storage_facility_gpkg_sync_on_startup,
+                run_water_source_gpkg_sync_on_startup,
+            )
 
             try:
                 with SessionLocal() as sync_db:
-                    run_tank_gpkg_sync_on_startup(sync_db)
+                    run_storage_facility_gpkg_sync_on_startup(sync_db)
+                    run_water_source_gpkg_sync_on_startup(sync_db)
             except Exception as exc:
-                print(f"Tank GPKG startup sync failed: {exc}")
+                print(f"StorageFacility GPKG startup sync failed: {exc}")
 
     if settings.legacy_duwasa_import_on_startup:
         csv_path = (
@@ -268,7 +285,9 @@ app.include_router(uploads_router)
 app.include_router(hydraulic_model_router)
 app.include_router(dashboard_router)
 app.include_router(sensors_router)
-app.include_router(tanks_router)
+app.include_router(storage_facilities_router)
+app.include_router(water_sources_router)
+app.include_router(water_source_sensors_router)
 app.include_router(infrastructure_templates_router)
 
 # ============================================================

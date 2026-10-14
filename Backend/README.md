@@ -71,6 +71,26 @@ use the controlled Alembic workflow in `migrations/README.md` for both stores.
 - `/api/push-tokens`
 - `/api/logs`
 - `/api/uploads`
+- `/api/water-sources`
+- `/api/water-source-sensors`
+
+## Water-source sensors
+
+Water sources are materialized from uploaded `water_sources` GeoPackages and
+mirrored into the sensor platform as reference rows. Their sensor devices,
+pending readings, and water-level/water-quality readings use dedicated tables;
+they are intentionally separate from the storage-facility sensor registry.
+
+- Register and manage source assets at `/api/water-sources`.
+- Register/list source sensors at `/api/water-source-sensors`.
+- Send source readings to `/api/water-source-sensors/ingest`; the existing
+  `/api/sensors/ingest` endpoint remains for storage-facility sensors.
+- Main migration revision: `0004_water_sources`.
+- Sensor-platform migration revision: `0003_water_source_sensors`.
+
+Run both Alembic histories through the controlled migration procedure before
+deploying code that uses these schemas. Re-uploaded GeoPackages preserve source
+IDs by preferring explicit source identifier fields over mutable display names.
 
 ## Push notifications
 
@@ -104,12 +124,11 @@ startup.
 
 Report images and videos are stored as private objects. PostgreSQL retains the
 upload metadata, report relationships, checksums, and object keys. Development
-defaults to `.media_objects/`; production refuses to start unless
-`MEDIA_STORAGE_BACKEND=s3` and `MEDIA_S3_BUCKET` are configured. For AWS, use
-the service's IAM role or credential chain when available. Configure a private
-bucket with public access blocked, lifecycle/versioning and encryption policies
-appropriate to your retention requirements. S3-compatible endpoints can be set
-with `MEDIA_S3_ENDPOINT_URL`.
+defaults to `.media_objects/`; production uses the single-port Python storage
+service and requires `MEDIA_STORAGE_BACKEND=http`,
+`MEDIA_STORAGE_API_URL`, and `MEDIA_STORAGE_API_KEY`. The API key is server to
+server only and must never be sent to the frontend. `MEDIA_S3_*` settings are
+retained temporarily to read the legacy Garage source during migration.
 
 Before deploying the new backend code, back up the main database and run the
 controlled migration once:
@@ -119,25 +138,34 @@ cd Backend
 make db-main-upgrade
 ```
 
-Configure object storage before accepting uploads. New uploads use the object
-store; old database-backed uploads remain readable. The idempotent migration
-copies every `image_upload` payload, converts legacy inline report data URIs to
-upload records, verifies each object by SHA-256, updates report media references,
-and can then clear the old database bytes.
+Configure the Python storage API before accepting uploads. New uploads use the
+HTTP API; old database-backed and S3-backed uploads remain readable during
+migration. First run the backfill without purging database bytes:
 
 ```bash
 python scripts/backfill_media_object_storage.py
+python scripts/backfill_media_object_storage.py --apply
+```
+
+This idempotent migration verifies each object by SHA-256, updates media rows,
+converts legacy inline report data URIs to upload records, and repoints queued
+deletions. For Garage-backed objects, first copy the complete S3 bucket to the
+new service using `CS3-OBJECT-STORAGE/copy_bucket.py`; keep the Garage service
+and its disk untouched throughout the copy. Then configure the backend's new
+HTTP API URL/key while retaining legacy `MEDIA_S3_*` source settings, and run
+the backfill from a controlled environment against the production database.
+
+After checking migration counts and reading representative report media
+through the application, database binary payloads may be purged in a separate
+operation:
+
+```bash
 python scripts/backfill_media_object_storage.py --apply --purge-binary
 ```
 
-`MEDIA_BACKFILL_ON_STARTUP` defaults to false. To run the migration on Render,
-configure the backend's S3 endpoint, bucket, region, and credentials, take a
-database backup, then set `MEDIA_BACKFILL_ON_STARTUP=true` and redeploy. The
-backend prepares the media schema and runs the migration in a background thread
-after the web server starts, so the upload does not delay Render's port scan.
-Watch the Render logs for the migration started, complete, or failed message
-and its row counts. Set the variable back to false after completion; enabling it
-on a later deploy is harmless because completed rows are skipped.
+Keep `MEDIA_BACKFILL_ON_STARTUP=false`; use the controlled command for a
+production cutover and retain the old Garage disk for rollback until the new
+storage service has been verified.
 
 The migration uses a PostgreSQL advisory lock to prevent multiple replicas from
 copying media simultaneously. It is resumable and verifies each CS3 object
@@ -150,7 +178,7 @@ The existing Alembic revision `0002_media_object_storage` adds nullable media
 payloads, S3 object references, SHA-256 checksums, and the deletion retry queue.
 Production startup keeps schema DDL disabled on web replicas. The Render
 pre-deploy script applies both Alembic histories once before the backend
-process starts; normal sensor and tank reconciliation remain enabled at
+process starts; normal sensor and storage-facility reconciliation remain enabled at
 application startup.
 
 ## Historical DUWASA import on deploy

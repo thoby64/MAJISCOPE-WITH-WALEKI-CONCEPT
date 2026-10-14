@@ -230,7 +230,7 @@ ASSET_SCHEMAS: Dict[str, Dict[str, Any]] = {
                     "OutletDiam": 200,
                     "OutletDi_1": 8,
                     "TankMateri": "Concrete",
-                    "AssetID": "TANK-001",
+                    "AssetID": "STORAGE_FACILITY-001",
                     "Location": "Main Treatment Plant",
                     "ZoneLocati": "Central Zone",
                     "Status": "Active",
@@ -244,7 +244,7 @@ ASSET_SCHEMAS: Dict[str, Dict[str, Any]] = {
             {
                 "geometry": Point(35.77, -6.22),
                 "properties": {
-                    "Name": "ELEVATED TANK NORTH",
+                    "Name": "ELEVATED STORAGE_FACILITY NORTH",
                     "TankCapaci": 2000.0,
                     "TankDepthM": 8.0,
                     "OperatingM": 6.5,
@@ -253,7 +253,7 @@ ASSET_SCHEMAS: Dict[str, Dict[str, Any]] = {
                     "OutletDiam": 150,
                     "OutletDi_1": 6,
                     "TankMateri": "Steel",
-                    "AssetID": "TANK-002",
+                    "AssetID": "STORAGE_FACILITY-002",
                     "Location": "North Hill",
                     "ZoneLocati": "North Zone",
                     "Status": "Active",

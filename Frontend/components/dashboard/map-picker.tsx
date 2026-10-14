@@ -9,15 +9,10 @@ const TANZANIA_CENTER: [number, number] = [-6.3690, 34.8888]
 const MARKER_COLOR = "#0891b2"
 const MARKER_FILL = "#06b6d4"
 
-type CoordinatePoint = { latitude: number; longitude: number }
-
-function ClickHandler({ onCenterChange }: { onCenterChange: (next: CoordinatePoint) => void }) {
+function ClickHandler({ onCenterChange }: { onCenterChange: (latitude: number, longitude: number) => void }) {
   useMapEvents({
     click(event: LeafletMouseEvent) {
-      onCenterChange({
-        latitude: event.latlng.lat,
-        longitude: event.latlng.lng,
-      })
+      onCenterChange(event.latlng.lat, event.latlng.lng)
     },
   })
 
@@ -60,12 +55,12 @@ export function MapPicker({
     }
 
     // For utility_manager: use utility center
-    if (userRole === "utility_manager" && utilityCenter?.latitude !== null && utilityCenter?.longitude !== null) {
+    if (userRole === "utility_manager" && utilityCenter?.latitude != null && utilityCenter.longitude != null) {
       return [utilityCenter.latitude, utilityCenter.longitude]
     }
 
     // For dma_manager: use DMA center
-    if (userRole === "dma_manager" && dmaCenter?.latitude !== null && dmaCenter?.longitude !== null) {
+    if (userRole === "dma_manager" && dmaCenter?.latitude != null && dmaCenter.longitude != null) {
       return [dmaCenter.latitude, dmaCenter.longitude]
     }
 
@@ -82,9 +77,9 @@ export function MapPicker({
     <div className="h-full w-full overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
         <div>
-          <p className="text-sm font-semibold text-slate-800">Tank Location</p>
+          <p className="text-sm font-semibold text-slate-800">Storage facility location</p>
           <p className="mt-1 text-xs text-slate-500">
-            Click the map to set the tank location. You can also enter coordinates manually in the fields above.
+            Click the map to set the storage facility location. You can also enter coordinates manually in the fields above.
           </p>
         </div>
       </div>
@@ -114,14 +109,14 @@ export function MapPicker({
             }}
           >
             <Tooltip direction="top" offset={[0, -10]}>
-              Tank location
+              Storage facility location
             </Tooltip>
           </CircleMarker>
         ) : null}
       </MapContainer>
 
       <div className="border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-500">
-        Tank location is required for spatial mapping and hydraulic modeling.
+        Storage facility location is required for spatial mapping and hydraulic modeling.
       </div>
     </div>
   )

@@ -19,13 +19,13 @@ from shapely.geometry import Point, mapping
 from shapely import wkb
 
 from app.models import (
-    Tank,
-    TankStatusEnum,
+    StorageFacility,
+    StorageFacilityStatusEnum,
     UtilityInfrastructureLayer,
     Utility,
 )
 from app.models.sensor_platform import SensorDevice as PlatformSensorDevice, SensorCategoryEnum
-from app.services.tank_sync import sync_tanks_from_layer
+from app.services.storage_facility_sync import sync_storage_facilities_from_layer
 from app.services.gpkg_utils import load_storage_facilities_features
 from app.services.activity_logs import audit_log
 
@@ -79,7 +79,7 @@ FORM_TO_GPKG_COLUMN = {
     "capacity": "TankCapaci",
     "depth_m": "TankDepthM",
     "elevation_m": "ElevationM",
-    "tank_shape": "TankShape",
+    "storage_facility_shape": "TankShape",
     "status": "Status",
     "condition": "Condition",
     "location": "Location",
@@ -92,7 +92,7 @@ FORM_TO_GPKG_COLUMN = {
     "outlet_diameter_mm": "OutletDiam",
     "outlet_diameter_in": "OutletDi_1",
     "operating_level_m": "OperatingM",
-    "tank_base_elevation_m": "TankBaseEl",
+    "storage_facility_base_elevation_m": "TankBaseEl",
     "operating_level_m_2": "Operatin_1",
     "installation_date": "Installati",
     "remark": "remark",
@@ -294,7 +294,7 @@ def _create_new_gpkg() -> bytes:
 def _append_feature_to_gpkg(
     gpkg_data: bytes,
     file_name: str,
-    tank_data: StorageFacilityCreateData,
+    storage_facility_data: StorageFacilityCreateData,
     next_fid: int,
 ) -> bytes:
     """Append a new feature to the storage table in GPKG."""
@@ -313,7 +313,7 @@ def _append_feature_to_gpkg(
             existing_columns = _get_table_columns(conn, "storage")
             
             # Prepare feature data
-            geometry_wkb = _gpkg_geometry_wkb(tank_data.latitude, tank_data.longitude)
+            geometry_wkb = _gpkg_geometry_wkb(storage_facility_data.latitude, storage_facility_data.longitude)
             
             # Build column list and values
             columns = []
@@ -333,10 +333,10 @@ def _append_feature_to_gpkg(
             # Standard attributes from form
             for form_key, gpkg_col in FORM_TO_GPKG_COLUMN.items():
                 if gpkg_col in existing_columns and gpkg_col not in AUTO_COLUMNS:
-                    # Check tank_data.attributes first, then custom_attributes
-                    value = tank_data.attributes.get(form_key)
+                    # Check storage_facility_data.attributes first, then custom_attributes
+                    value = storage_facility_data.attributes.get(form_key)
                     if value is None:
-                        value = tank_data.custom_attributes.get(form_key)
+                        value = storage_facility_data.custom_attributes.get(form_key)
                     
                     if value is not None:
                         columns.append(gpkg_col)
@@ -346,11 +346,11 @@ def _append_feature_to_gpkg(
             # Add X, Y columns
             if "X" in existing_columns:
                 columns.append("X")
-                values.append(tank_data.longitude)
+                values.append(storage_facility_data.longitude)
                 placeholders.append("?")
             if "Y" in existing_columns:
                 columns.append("Y")
-                values.append(tank_data.latitude)
+                values.append(storage_facility_data.latitude)
                 placeholders.append("?")
             
             # Insert the feature
@@ -378,19 +378,19 @@ def _append_feature_to_gpkg(
 def append_storage_facility(
     db: Session,
     utility_id: str,
-    tank_data: StorageFacilityCreateData,
+    storage_facility_data: StorageFacilityCreateData,
     current_user_id: str,
     register_sensor: bool = False,
     sensor_device_id: Optional[str] = None,
     sensor_h1_m: Optional[float] = None,
     sensor_depth_m: Optional[float] = None,
     sensor_activated: bool = False,
-) -> Tuple[bytes, Tank, Optional[PlatformSensorDevice]]:
+) -> Tuple[bytes, StorageFacility, Optional[PlatformSensorDevice]]:
     """
     Append a storage facility to GPKG and materialize in database.
     
     Returns:
-        Tuple of (updated_gpkg_bytes, created_tank, created_sensor_or_none)
+        Tuple of (updated_gpkg_bytes, created_storage_facility, created_sensor_or_none)
     """
     # 1. Get existing layer or create new GPKG
     existing_layer = _get_existing_storage_layer(db, utility_id)
@@ -404,7 +404,7 @@ def append_storage_facility(
         updated_gpkg_data = _append_feature_to_gpkg(
             existing_layer.file_data,
             existing_layer.file_name,
-            tank_data,
+            storage_facility_data,
             next_fid,
         )
     else:
@@ -416,7 +416,7 @@ def append_storage_facility(
         updated_gpkg_data = _append_feature_to_gpkg(
             updated_gpkg_data,
             "storage.gpkg",
-            tank_data,
+            storage_facility_data,
             next_fid,
         )
     
@@ -443,17 +443,17 @@ def append_storage_facility(
     
     db.flush()
     
-    # 3. Run sync_tanks_from_layer to materialize tank
+    # 3. Run sync_storage_facilities_from_layer to materialize storage_facility
     features = _load_gpkg_features(updated_gpkg_data, "storage.gpkg")
-    sync_result = sync_tanks_from_layer(db, utility_id, features, layer)
+    sync_result = sync_storage_facilities_from_layer(db, utility_id, features, layer)
     
-    # 4. Find the newly created tank (by source_key matching name or coordinate hash)
-    from app.services.tank_sync import detect_tank_key_field, coordinate_hash
+    # 4. Find the newly created storage_facility (by source_key matching name or coordinate hash)
+    from app.services.storage_facility_sync import detect_storage_facility_key_field, coordinate_hash
     
-    new_tank = None
+    new_storage_facility = None
     for feature in features:
         props = feature.get("properties", {})
-        key_field = detect_tank_key_field(props)
+        key_field = detect_storage_facility_key_field(props)
         geom = feature.get("geometry")
         
         source_key = None
@@ -464,38 +464,38 @@ def append_storage_facility(
             if len(coords) >= 2:
                 source_key = coordinate_hash(coords[1], coords[0])  # lat, lon
         
-        if source_key and source_key == tank_data.name:
-            new_tank = (
-                db.query(Tank)
-                .filter(Tank.utility_id == utility_id, Tank.source_key == source_key)
+        if source_key and source_key == storage_facility_data.name:
+            new_storage_facility = (
+                db.query(StorageFacility)
+                .filter(StorageFacility.utility_id == utility_id, StorageFacility.source_key == source_key)
                 .first()
             )
             break
     
-    # Fallback: find tank by name and location
-    if not new_tank:
-        new_tank = (
-            db.query(Tank)
+    # Fallback: find storage_facility by name and location
+    if not new_storage_facility:
+        new_storage_facility = (
+            db.query(StorageFacility)
             .filter(
-                Tank.utility_id == utility_id,
-                Tank.name == tank_data.name,
-                Tank.latitude == tank_data.latitude,
-                Tank.longitude == tank_data.longitude,
+                StorageFacility.utility_id == utility_id,
+                StorageFacility.name == storage_facility_data.name,
+                StorageFacility.latitude == storage_facility_data.latitude,
+                StorageFacility.longitude == storage_facility_data.longitude,
             )
-            .order_by(Tank.created_at.desc())
+            .order_by(StorageFacility.created_at.desc())
             .first()
         )
     
-    if not new_tank:
-        raise ValueError("Failed to find newly created tank after sync")
+    if not new_storage_facility:
+        raise ValueError("Failed to find newly created storage_facility after sync")
     
     # 4. Optionally register sensor (sensor registry lives in the sensor DB)
     created_sensor = None
     if register_sensor and sensor_device_id:
         from app.database.sensor_session import SensorSessionLocal
         from app.services.sensor_platform_sync import (
-            ensure_tank_ref,
-            refresh_tank_sensor_counts,
+            ensure_storage_facility_ref,
+            refresh_storage_facility_sensor_counts,
         )
 
         with SensorSessionLocal() as sensor_db:
@@ -508,16 +508,16 @@ def append_storage_facility(
             if existing_sensor:
                 raise ValueError(f"Sensor with device_id {sensor_device_id} already exists")
 
-            # Mirror the new tank into the sensor DB (self-heals if needed)
-            tank_ref = ensure_tank_ref(db, sensor_db, new_tank.id)
-            if tank_ref is None:
-                raise ValueError("Failed to mirror tank to sensor platform")
+            # Mirror the new storage_facility into the sensor DB (self-heals if needed)
+            storage_facility_ref = ensure_storage_facility_ref(db, sensor_db, new_storage_facility.id)
+            if storage_facility_ref is None:
+                raise ValueError("Failed to mirror storage_facility to sensor platform")
 
             if sensor_activated:
                 clash = (
                     sensor_db.query(PlatformSensorDevice)
                     .filter(
-                        PlatformSensorDevice.tank_id == tank_ref.id,
+                        PlatformSensorDevice.storage_facility_id == storage_facility_ref.id,
                         PlatformSensorDevice.category == SensorCategoryEnum.WATER_LEVEL,
                         PlatformSensorDevice.activated.is_(True),
                     )
@@ -525,13 +525,13 @@ def append_storage_facility(
                 )
                 if clash is not None:
                     raise ValueError(
-                        f"Tank already has an active water_level sensor ({clash.device_id})"
+                        f"StorageFacility already has an active water_level sensor ({clash.device_id})"
                     )
 
             created_sensor = PlatformSensorDevice(
                 device_id=sensor_device_id,
                 category=SensorCategoryEnum.WATER_LEVEL,
-                tank_id=tank_ref.id,
+                storage_facility_id=storage_facility_ref.id,
                 activated=sensor_activated,
                 config={
                     "h1_m": sensor_h1_m,
@@ -543,9 +543,9 @@ def append_storage_facility(
             sensor_db.add(created_sensor)
             sensor_db.commit()
             sensor_db.refresh(created_sensor)
-            refresh_tank_sensor_counts(sensor_db, tank_ref.id)
+            refresh_storage_facility_sensor_counts(sensor_db, storage_facility_ref.id)
     
     # 5. Audit log for GPKG update
     # (Will be called by API endpoint with proper request context)
     
-    return updated_gpkg_data, new_tank, created_sensor
+    return updated_gpkg_data, new_storage_facility, created_sensor

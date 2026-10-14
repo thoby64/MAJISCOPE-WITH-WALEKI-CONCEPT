@@ -9,8 +9,8 @@ Shares NOTHING with the MajiScope backend — only knows one URL and one key,
 exactly like a real sensor deployed in the field.
 
 Usage:
-    python3 sensor_simulator.py                # interactive CLI REPL
-    python3 sensor_simulator.py --web          # browser-based UI
+    python3 sensor_simulator.py                # interactive CLI and browser UI
+    python3 sensor_simulator.py --web          # browser-based UI only
     python3 sensor_simulator.py --once         # send one round and exit
     python3 sensor_simulator.py --interval 10  # override interval
 """
@@ -29,7 +29,7 @@ import urllib.request
 from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlunparse
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -89,7 +89,7 @@ def save_env(cfg: dict) -> None:
 
 
 # ─── Sensors persistence ─────────────────────────────────────────────────────
-def load_sensors() -> list[dict]:
+def load_sensors() -> list[dict[str, str]]:
     """Load persisted sensors. Plain-string entries are legacy water_level."""
     if SENSORS_FILE.exists():
         try:
@@ -104,13 +104,14 @@ def load_sensors() -> list[dict]:
             sensors.append({
                 "device_id": entry.get("device_id", ""),
                 "category": entry.get("category", "water_level"),
+                "asset_type": entry.get("asset_type", "storage_facility"),
             })
         elif isinstance(entry, str):
-            sensors.append({"device_id": entry, "category": "water_level"})
+            sensors.append({"device_id": entry, "category": "water_level", "asset_type": "storage_facility"})
     return sensors
 
 
-def save_sensors(sensors: list) -> None:
+def save_sensors(sensors: list[dict[str, str]]) -> None:
     SENSORS_FILE.write_text(json.dumps(sensors, indent=2) + "\n")
 
 
@@ -242,9 +243,10 @@ def send_reading(url: str, key: str, device_id: str, depth_m: float,
 # ─── Per-sensor send loop (runs in its own thread) ───────────────────────────
 class SensorLoop:
     def __init__(self, device_id: str, url: str, key: str, interval: int,
-                 category: str = "water_level"):
+                 category: str = "water_level", asset_type: str = "storage_facility"):
         self.device_id = device_id
         self.category = category
+        self.asset_type = asset_type
         self.url = url
         self.key = key
         self.interval = interval
@@ -318,7 +320,7 @@ class SensorLoop:
 class Simulator:
     def __init__(self):
         self.cfg = load_env()
-        self.sensors: list[str] = load_sensors()
+        self.sensors: list[dict[str, str]] = load_sensors()
         self.loops: dict[str, SensorLoop] = {}
         self._shutdown = False
         self._interval = int(self.cfg.get("INTERVAL", 30))
@@ -330,16 +332,53 @@ class Simulator:
             return False
         return True
 
-    def start_sensor(self, dev_id: str, category: str = "water_level") -> str:
+    def endpoint_for(self, asset_type: str) -> str:
+        base_url = self.cfg.get("MAJISCOPE_URL", "").strip()
+        parsed = urlparse(base_url)
+        path = parsed.path.rstrip("/")
+        facility_path = "/api/sensors/ingest"
+        source_path = "/api/water-source-sensors/ingest"
+        if asset_type == "water_source":
+            if path.endswith(facility_path):
+                path = path[:-len(facility_path)] + source_path
+            elif not path or path == "/":
+                path = source_path
+            elif path.endswith("/api"):
+                path += "/water-source-sensors/ingest"
+            elif not path.endswith(source_path):
+                raise ValueError("MAJISCOPE_URL must point to /api/sensors/ingest or end in /api")
+        else:
+            if path.endswith(source_path):
+                path = path[:-len(source_path)] + facility_path
+            elif not path or path == "/":
+                path = facility_path
+            elif path.endswith("/api"):
+                path += "/sensors/ingest"
+            elif not path.endswith(facility_path):
+                raise ValueError("MAJISCOPE_URL must point to /api/sensors/ingest or end in /api")
+        return urlunparse(parsed._replace(path=path))
+
+    def start_sensor(
+        self,
+        dev_id: str,
+        category: str = "water_level",
+        asset_type: str = "storage_facility",
+    ) -> str:
         if dev_id in self.loops and self.loops[dev_id].alive:
             return "already_active"
+        if asset_type not in ("water_source", "storage_facility"):
+            raise ValueError("asset_type must be water_source or storage_facility")
         loop = SensorLoop(
-            dev_id, self.cfg["MAJISCOPE_URL"], self.cfg["INGEST_KEY"], self._interval,
+            dev_id,
+            self.endpoint_for(asset_type),
+            self.cfg["INGEST_KEY"],
+            self._interval,
             category=category,
+            asset_type=asset_type,
         )
         self.loops[dev_id] = loop
         loop.start()
-        entry = {"device_id": dev_id, "category": category}
+        entry = {"device_id": dev_id, "category": category, "asset_type": asset_type}
         if entry not in self.sensors:
             self.sensors.append(entry)
             save_sensors(self.sensors)
@@ -362,6 +401,7 @@ class Simulator:
         return {
             "device_id": dev_id,
             "category": loop.category,
+            "asset_type": loop.asset_type,
             "alive": loop.alive,
             "send_count": loop.send_count,
             "last_status": loop.last_status,
@@ -400,11 +440,17 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
         elif path == "/api/sensors":
             self._json_response(self.sim.all_sensors_status())
         elif path == "/api/config":
-            self._json_response({
-                "url": self.sim.cfg.get("MAJISCOPE_URL", ""),
-                "key_masked": self.sim.cfg.get("INGEST_KEY", "")[:8] + "..." if len(self.sim.cfg.get("INGEST_KEY", "")) > 8 else "***",
-                "interval": self.sim._interval,
-            })
+            try:
+                config = {
+                    "url": self.sim.endpoint_for("storage_facility"),
+                    "water_source_url": self.sim.endpoint_for("water_source"),
+                    "key_masked": self.sim.cfg.get("INGEST_KEY", "")[:8] + "..." if len(self.sim.cfg.get("INGEST_KEY", "")) > 8 else "***",
+                    "interval": self.sim._interval,
+                }
+            except ValueError as exc:
+                self._json_response({"error": str(exc)}, 500)
+                return
+            self._json_response(config)
         elif path.startswith("/api/sensors/") and path.count("/") == 3:
             dev_id = path.split("/")[-1]
             self._json_response(self.sim.sensor_status(dev_id))
@@ -419,14 +465,22 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
         if path == "/api/sensors/add":
             dev_id = (body or {}).get("device_id", "").strip()
             category = (body or {}).get("category", "water_level")
+            asset_type = (body or {}).get("asset_type", "storage_facility")
             if category not in ("water_level", "water_quality"):
                 self._json_response({"error": "category must be water_level or water_quality"}, 400)
+                return
+            if asset_type not in ("water_source", "storage_facility"):
+                self._json_response({"error": "asset_type must be water_source or storage_facility"}, 400)
                 return
             if not dev_id:
                 self._json_response({"error": "device_id is required"}, 400)
                 return
-            result = self.sim.start_sensor(dev_id, category=category)
-            self._json_response({"status": result, "device_id": dev_id, "category": category})
+            try:
+                result = self.sim.start_sensor(dev_id, category=category, asset_type=asset_type)
+            except ValueError as exc:
+                self._json_response({"error": str(exc)}, 400)
+                return
+            self._json_response({"status": result, "device_id": dev_id, "category": category, "asset_type": asset_type})
 
         elif path == "/api/sensors/remove":
             dev_id = (body or {}).get("device_id", "").strip()
@@ -439,17 +493,22 @@ class SimHTTPHandler(BaseHTTPRequestHandler):
         elif path == "/api/send-test":
             dev_id = (body or {}).get("device_id", "").strip()
             category = (body or {}).get("category", "water_level")
+            asset_type = (body or {}).get("asset_type", "storage_facility")
             key = self.sim.cfg.get("INGEST_KEY", "")
-            url = self.sim.cfg.get("MAJISCOPE_URL", "")
+            try:
+                url = self.sim.endpoint_for(asset_type)
+            except ValueError as exc:
+                self._json_response({"error": str(exc)}, 400)
+                return
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if category == "water_quality":
                 wq = WaterQualityGenerator().next()
                 resp = send_reading(url, key, dev_id, 0.0, now, wq_values=wq)
-                self._json_response({"category": "water_quality", "values": wq, "occurred_at": now, "response": resp})
+                self._json_response({"category": "water_quality", "asset_type": asset_type, "values": wq, "occurred_at": now, "response": resp})
             else:
                 d = round(random.uniform(0.5, 15.0), 3)
                 resp = send_reading(url, key, dev_id, d, now)
-                self._json_response({"category": "water_level", "depth_m": d, "occurred_at": now, "response": resp})
+                self._json_response({"category": "water_level", "asset_type": asset_type, "depth_m": d, "occurred_at": now, "response": resp})
 
         else:
             self.send_error(404)
@@ -571,6 +630,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)
     <div class="config-bar">
       <div class="conn-status"><span class="conn-dot" id="connDot"></span> <span id="connText">connecting…</span></div>
       <div class="pill">Endpoint: <b id="cfgUrl">…</b></div>
+      <div class="pill">Water source endpoint: <b id="cfgWaterSourceUrl">…</b></div>
       <div class="pill">Interval: <b id="cfgInterval">…</b>s</div>
       <div class="pill">Key: <b id="cfgKey">…</b></div>
     </div>
@@ -580,11 +640,15 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)
     <div class="card-header">
       <h2>Active Sensors <span class="count" id="sensorCount">0</span></h2>
       <div class="add-form">
-        <input type="text" id="addInput" placeholder="Device ID — e.g. AU_NAM_0001" spellcheck="false">
+        <select id="assetTypeSelect" aria-label="Sensor parent asset" style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;outline:none">
+          <option value="water_source">Water source (borehole, well, intake)</option>
+          <option value="storage_facility">Storage facility (tank or reservoir)</option>
+        </select>
         <select id="categorySelect" style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;outline:none">
           <option value="water_level">🌊 Water Level</option>
           <option value="water_quality">🧪 Water Quality</option>
         </select>
+        <input type="text" id="addInput" placeholder="Device ID — e.g. AU_NAM_0001" spellcheck="false">
         <button class="btn btn-primary" onclick="addSensor()">+ Add &amp; Start</button>
       </div>
     </div>
@@ -631,6 +695,7 @@ async function loadConfig() {
   document.getElementById('connDot').className = 'conn-dot ok';
   document.getElementById('connText').textContent = 'connected';
   document.getElementById('cfgUrl').textContent = cfg.url || '—';
+  document.getElementById('cfgWaterSourceUrl').textContent = cfg.water_source_url || '—';
   document.getElementById('cfgInterval').textContent = cfg.interval || 30;
   document.getElementById('cfgKey').textContent = cfg.key_masked || '—';
 }
@@ -683,6 +748,7 @@ function render() {
           <span class="sensor-dot ${dotClass}"></span>
           <span class="sensor-id">${esc(s.device_id)}</span>
           ${catTag}
+          <span style="font-size:.65rem;padding:2px 8px;border-radius:8px;background:rgba(59,130,246,.15);color:#60a5fa;margin-left:6px;font-weight:600">${s.asset_type === 'water_source' ? 'WATER SOURCE' : 'STORAGE FACILITY'}</span>
           ${badge}
           <span class="status-badge ${statusClass}">${esc(statusText)}</span>
         </div>
@@ -694,7 +760,7 @@ function render() {
         ${valuesHtml ? `<div style="margin-top:4px">${valuesHtml}</div>` : ''}
       </div>
       <div class="sensor-actions">
-        <button class="btn btn-ghost" onclick="testSend('${esc(s.device_id)}', '${s.category || 'water_level'}')">Test Send</button>
+        <button class="btn btn-ghost" onclick="testSend('${esc(s.device_id)}', '${s.category || 'water_level'}', '${s.asset_type || 'storage_facility'}')">Test Send</button>
         <button class="btn btn-danger" onclick="removeSensor('${esc(s.device_id)}')">Remove</button>
       </div>
     </div>`;
@@ -706,14 +772,15 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 async function addSensor() {
   const input = document.getElementById('addInput');
   const devId = input.value.trim();
+  const assetType = document.getElementById('assetTypeSelect').value;
   const category = document.getElementById('categorySelect').value;
   if (!devId) { toast('Enter a device ID', 'error'); return; }
 
-  const r = await api('POST', '/api/sensors/add', { device_id: devId, category });
+  const r = await api('POST', '/api/sensors/add', { device_id: devId, asset_type: assetType, category });
   if (r.error) { toast(r.error, 'error'); return; }
 
   input.value = '';
-  toast(`${devId} (${category === 'water_quality' ? 'WQ' : 'WL'}) — started`);
+  toast(`${devId} (${assetType === 'water_source' ? 'water source' : 'storage facility'}, ${category === 'water_quality' ? 'WQ' : 'WL'}) — started`);
   refreshSensors();
 }
 
@@ -724,8 +791,8 @@ async function removeSensor(devId) {
   refreshSensors();
 }
 
-async function testSend(devId, category) {
-  const r = await api('POST', '/api/send-test', { device_id: devId, category });
+async function testSend(devId, category, assetType) {
+  const r = await api('POST', '/api/send-test', { device_id: devId, category, asset_type: assetType });
   if (r.error) { toast(r.error, 'error'); return; }
   const resp = r.response || {};
   if (resp.error) toast(`Error ${resp.status}: ${resp.detail}`, 'error');
@@ -747,17 +814,22 @@ setInterval(refreshSensors, 3000);
 
 
 # ─── CLI REPL (same as before) ───────────────────────────────────────────────
-def run_cli(sim: Simulator, once=False, interval_override=None):
+def run_cli(sim: Simulator, once=False, interval_override=None, web_url=None):
     interval = interval_override or sim._interval
 
     print(f"\n{c(' MajiScope Sensor Simulator ', CYAN + BOLD)}")
-    print(f"  Endpoint : {c(sim.cfg['MAJISCOPE_URL'], DIM)}")
-    print(f"  Interval : {c(f'{interval}s', DIM)}\n")
+    print(f"  Storage-facility endpoint: {c(sim.endpoint_for('storage_facility'), DIM)}")
+    print(f"  Water-source endpoint    : {c(sim.endpoint_for('water_source'), DIM)}")
+    print(f"  Interval : {c(f'{interval}s', DIM)}")
+    if web_url:
+        print(f"  Browser UI: {c(web_url, GREEN)}")
+    print()
 
     for entry in sim.sensors:
         dev_id = entry["device_id"] if isinstance(entry, dict) else entry
         category = entry.get("category", "water_level") if isinstance(entry, dict) else "water_level"
-        sim.start_sensor(dev_id, category=category)
+        asset_type = entry.get("asset_type", "storage_facility") if isinstance(entry, dict) else "storage_facility"
+        sim.start_sensor(dev_id, category=category, asset_type=asset_type)
 
     if once:
         time.sleep(interval + 5)
@@ -776,6 +848,9 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
 
         if choice == "1":
             print(f"\n  {c('Add sensor', BOLD)}")
+            print(f"  Parent asset: {c('1', GREEN)} Water source (borehole, well, intake)   {c('2', GREEN)} Storage facility (tank or reservoir)")
+            asset_choice = input(f"  Sensor parent [1/2, default 1]: ").strip()
+            asset_type = "storage_facility" if asset_choice == "2" else "water_source"
             print(f"  Naming convention: {c('UTILITY_DMA_SEQ', CYAN)}  e.g. {c('AU_NAM_0001', CYAN)}")
             dev_id = input(f"  Device ID: ").strip()
             if not dev_id:
@@ -788,11 +863,12 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
                 print(f"  {c('Naming convention OK', GREEN)}")
             else:
                 print(f"  {c('Note:', YELLOW)} does not match {{UTILITY}}_{{DMA}}_{{SEQ}} convention — still accepted.")
-            result = sim.start_sensor(dev_id, category=category)
+            result = sim.start_sensor(dev_id, category=category, asset_type=asset_type)
             if result == "already_active":
                 print(f"  {c('Already active.', YELLOW)}")
             else:
-                print(f"  {c(f'Sensor added ({category}) and started.', GREEN)} Sending every {interval}s.\n")
+                label = "water source" if asset_type == "water_source" else "storage facility"
+                print(f"  {c(f'Sensor added for {label} ({category}) and started.', GREEN)} Sending every {interval}s.\n")
 
         elif choice == "2":
             print(f"\n  {c('Sensors', BOLD)}")
@@ -804,7 +880,8 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
                     c("●", YELLOW) if loop.consecutive_errors < 3 else c("●", RED))
                 last = loop.last_status if loop.last_status != "idle" else c("—", DIM)
                 cat = "🧪 WQ" if loop.category == "water_quality" else "🌊 WL"
-                print(f"  {icon} {c(dev_id, BOLD)}  [{cat}]")
+                parent = "water source" if loop.asset_type == "water_source" else "storage facility"
+                print(f"  {icon} {c(dev_id, BOLD)}  [{parent} · {cat}]")
                 print(f"      Sends: {loop.send_count}  |  Last: {c(last, CYAN if loop.last_status == 'pending' else DIM)}  |  Errors: {loop.consecutive_errors}")
             print()
 
@@ -825,23 +902,29 @@ def run_cli(sim: Simulator, once=False, interval_override=None):
 
 
 # ─── Web server launcher ─────────────────────────────────────────────────────
-def run_web(sim: Simulator, port: int = 8081):
-    # ThreadingHTTPServer: sensor threads + concurrent browser requests must
-    # not block each other (single-threaded HTTPServer deadlocks under load).
+def create_web_server(sim: Simulator, port: int):
     from http.server import ThreadingHTTPServer
 
     SimHTTPHandler.sim = sim
-    server = ThreadingHTTPServer(("0.0.0.0", port), SimHTTPHandler)
+    return ThreadingHTTPServer(("0.0.0.0", port), SimHTTPHandler)
+
+
+def run_web(sim: Simulator, port: int = 8081):
+    # ThreadingHTTPServer: sensor threads + concurrent browser requests must
+    # not block each other (single-threaded HTTPServer deadlocks under load).
+    server = create_web_server(sim, port)
 
     print(f"\n{c(' MajiScope Sensor Simulator — Web UI ', CYAN + BOLD)}")
-    print(f"  Endpoint : {c(sim.cfg['MAJISCOPE_URL'], DIM)}")
+    print(f"  Storage-facility endpoint: {c(sim.endpoint_for('storage_facility'), DIM)}")
+    print(f"  Water-source endpoint    : {c(sim.endpoint_for('water_source'), DIM)}")
     print(f"  Interval : {c(f'{sim._interval}s', DIM)}")
-    print(f"  Open     : {c(f'http://localhost:{port}', GREEN)}\n")
+    print(f"  Browser UI: {c(f'http://127.0.0.1:{port}', GREEN)}\n")
 
     for entry in sim.sensors:
         dev_id = entry["device_id"] if isinstance(entry, dict) else entry
         category = entry.get("category", "water_level") if isinstance(entry, dict) else "water_level"
-        sim.start_sensor(dev_id, category=category)
+        asset_type = entry.get("asset_type", "storage_facility") if isinstance(entry, dict) else "storage_facility"
+        sim.start_sensor(dev_id, category=category, asset_type=asset_type)
 
     if sim.sensors:
         print(f"  {c(f'Resumed {len(sim.sensors)} saved sensor(s).', DIM)}\n")
@@ -885,7 +968,23 @@ def main():
         port = args.port or int(sim.cfg.get("PORT", 8081))
         run_web(sim, port=port)
     else:
-        run_cli(sim, once=args.once, interval_override=args.interval)
+        port = args.port or int(sim.cfg.get("PORT", 8081))
+        server = None
+        try:
+            if not args.once:
+                server = create_web_server(sim, port)
+                web_thread = threading.Thread(target=server.serve_forever, daemon=True)
+                web_thread.start()
+            run_cli(
+                sim,
+                once=args.once,
+                interval_override=args.interval,
+                web_url=f"http://127.0.0.1:{port}" if server else None,
+            )
+        finally:
+            if server:
+                server.shutdown()
+                server.server_close()
 
 
 if __name__ == "__main__":

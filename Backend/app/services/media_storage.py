@@ -1,12 +1,17 @@
-"""Private object storage for report media, with a local development adapter."""
+"""Private report-media storage with local, HTTP API, and legacy S3 adapters."""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import uuid
 from pathlib import Path
 from typing import BinaryIO
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
+from urllib.request import Request, urlopen
 
 from app.config import settings
 
@@ -42,7 +47,44 @@ def new_storage_key() -> str:
     return f"reports/{uuid.uuid4().hex}"
 
 
+def _http_request(key: str, method: str, data: bytes | None = None, content_type: str | None = None) -> bytes:
+    endpoint = settings.media_storage_api_url.rstrip("/")
+    token = settings.media_storage_api_key
+    if not endpoint or not token:
+        raise RuntimeError("HTTP media storage requires MEDIA_STORAGE_API_URL and MEDIA_STORAGE_API_KEY")
+    endpoint_parts = urlsplit(endpoint)
+    if (
+        endpoint_parts.scheme not in {"http", "https"}
+        or not endpoint_parts.hostname
+        or endpoint_parts.query
+        or endpoint_parts.fragment
+    ):
+        raise RuntimeError("MEDIA_STORAGE_API_URL must be an HTTP(S) URL")
+
+    url = f"{endpoint_parts.geturl()}/internal/objects/{quote(key, safe='/')}"
+    headers = {"Authorization": f"Bearer {token}"}
+    if content_type:
+        headers["Content-Type"] = content_type
+    request = Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=120) as response:
+            return response.read()
+    except HTTPError as exc:
+        raise RuntimeError(f"HTTP media storage returned status {exc.code}") from exc
+    except URLError as exc:
+        raise RuntimeError("Could not reach the HTTP media storage service") from exc
+
+
 def put_object(key: str, data: bytes, content_type: str) -> None:
+    if settings.media_storage_backend == "http":
+        response = json.loads(_http_request(key, "PUT", data, content_type))
+        if (
+            response.get("key") != key
+            or response.get("size") != len(data)
+            or response.get("sha256") != hashlib.sha256(data).hexdigest()
+        ):
+            raise RuntimeError("HTTP media storage upload verification failed")
+        return
     if settings.media_storage_backend == "s3":
         args = {"Bucket": settings.media_s3_bucket, "Key": key, "Body": data, "ContentType": content_type}
         if settings.media_s3_sse:
@@ -67,6 +109,8 @@ def put_object(key: str, data: bytes, content_type: str) -> None:
 
 def get_object(key: str, backend: str | None = None) -> bytes:
     backend = backend or settings.media_storage_backend
+    if backend == "http":
+        return _http_request(key, "GET")
     if backend == "s3":
         response = _s3_client().get_object(Bucket=settings.media_s3_bucket, Key=key)
         body: BinaryIO = response["Body"]
@@ -79,9 +123,11 @@ def get_object(key: str, backend: str | None = None) -> bytes:
 
 def delete_object(key: str, backend: str | None = None) -> None:
     backend = backend or settings.media_storage_backend
+    if backend == "http":
+        _http_request(key, "DELETE")
+        return
     if backend == "s3":
         # S3 delete is idempotent, which makes the retry queue safe.
         _s3_client().delete_object(Bucket=settings.media_s3_bucket, Key=key)
         return
     _local_path(key).unlink(missing_ok=True)
-

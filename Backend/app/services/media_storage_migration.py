@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import re
 import uuid
 from urllib.parse import unquote_to_bytes
 
-from sqlalchemy import cast, func, or_, select, Text
+from sqlalchemy import cast, func, or_, select, Text, update
 from sqlalchemy.orm import Session
 
+from botocore.exceptions import ClientError, ResponseStreamingError
 from app.config import settings
-from app.models import ImageUpload, Report
+from app.models import ImageUpload, MediaStorageDeletion, Report
 from app.models.uploads import ImageTypeEnum
 from app.services.media_storage import get_object, put_object
 
 UPLOAD_REF = re.compile(r"/api/uploads/([0-9a-fA-F-]{36})(?:$|[?#])")
+logger = logging.getLogger(__name__)
 
 
 def _decode_data_uri(value: str) -> tuple[bytes, str]:
@@ -44,44 +47,60 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
     Inline report data URIs are converted to ImageUpload records and rewritten to
     the normal authenticated upload endpoint. Other URL references are retained.
     """
-    if settings.media_storage_backend != "s3":
-        raise RuntimeError("Report media migration requires MEDIA_STORAGE_BACKEND=s3")
+    target_backend = settings.media_storage_backend
+    if target_backend not in {"http", "s3"}:
+        raise RuntimeError("Report media migration requires a remote object-storage backend")
 
     counts = {
         "uploads_seen": 0,
+        "database_payloads": 0,
         "objects_verified": 0,
         "objects_already_migrated": 0,
+        "source_objects_missing": 0,
+        "source_objects_unreadable": 0,
         "inline_photos_converted": 0,
         "payloads_purged": 0,
+        "deletion_queue_repointed": 0,
     }
     counts["uploads_seen"] = db.execute(select(func.count(ImageUpload.id))).scalar_one()
+    counts["database_payloads"] = db.execute(
+        select(func.count(ImageUpload.id)).where(ImageUpload.file_data.is_not(None))
+    ).scalar_one()
     counts["objects_already_migrated"] = db.execute(
         select(func.count(ImageUpload.id)).where(
             ImageUpload.file_data.is_(None),
-            ImageUpload.storage_backend == "s3",
+            ImageUpload.storage_backend == target_backend,
             ImageUpload.storage_key.is_not(None),
             ImageUpload.sha256.is_not(None),
         )
     ).scalar_one()
-    pending = or_(
-        ImageUpload.file_data.is_not(None),
+    pending_conditions = [
         ImageUpload.storage_key.is_(None),
         ImageUpload.storage_backend.is_(None),
-        ImageUpload.storage_backend != "s3",
+        ImageUpload.storage_backend != target_backend,
         ImageUpload.sha256.is_(None),
-    )
+    ]
+    if purge_binary:
+        pending_conditions.append(ImageUpload.file_data.is_not(None))
+    pending = or_(*pending_conditions)
+    missing_source_ids: set[str] = set()
     pending_count = db.execute(
         select(func.count(ImageUpload.id)).where(pending)
     ).scalar_one()
     print(
         "   Report media backfill inventory: "
-        f"uploads={counts['uploads_seen']}, pending={pending_count}, "
+        f"uploads={counts['uploads_seen']}, database_payloads={counts['database_payloads']}, "
+        f"pending={pending_count}, "
         f"already_migrated={counts['objects_already_migrated']}"
     )
     while True:
         # Bounded pages keep startup memory and transaction sizes predictable.
         images = db.execute(
-            select(ImageUpload).where(pending).order_by(ImageUpload.id).limit(100)
+            select(ImageUpload)
+            .where(pending)
+            .where(ImageUpload.id.not_in(missing_source_ids))
+            .order_by(ImageUpload.id)
+            .limit(100)
         ).scalars().all()
         if not images:
             break
@@ -94,13 +113,33 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
             if image.file_data is not None:
                 payload = bytes(image.file_data)
             else:
-                payload = get_object(image.storage_key, source_backend)
+                try:
+                    payload = get_object(image.storage_key, source_backend)
+                except (ClientError, ResponseStreamingError) as exc:
+                    if source_backend != "s3":
+                        raise
+                    if isinstance(exc, ClientError):
+                        error_code = str(exc.response.get("Error", {}).get("Code", ""))
+                        if error_code not in {"NoSuchKey", "404", "NotFound"}:
+                            raise
+                        counts["source_objects_missing"] += 1
+                        reason = "its legacy S3 object is missing"
+                    else:
+                        counts["source_objects_unreadable"] += 1
+                        reason = "its legacy S3 object could not be read completely"
+                    missing_source_ids.add(image.id)
+                    logger.warning(
+                        "Skipping media row %s during backfill: database payload is empty and %s",
+                        image.id,
+                        reason,
+                    )
+                    continue
 
             digest = hashlib.sha256(payload).hexdigest()
             if image.sha256 and image.sha256 != digest:
                 raise RuntimeError(f"Media row {image.id} database checksum does not match its payload")
 
-            if source_backend == "s3" and image.storage_key:
+            if source_backend in {"s3", "http"} and image.storage_key:
                 object_key = image.storage_key
             else:
                 object_key = f"reports/{image.id}"
@@ -108,11 +147,11 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
             # Re-putting deterministic bytes is safe and repairs a partially written
             # or stale object. Confirm a fresh read before moving the DB reference.
             put_object(object_key, payload, image.mime_type)
-            copied = get_object(object_key, "s3")
+            copied = get_object(object_key, target_backend)
             if hashlib.sha256(copied).hexdigest() != digest:
                 raise RuntimeError(f"Object readback checksum mismatch for media row {image.id}")
 
-            image.storage_backend = "s3"
+            image.storage_backend = target_backend
             image.storage_key = object_key
             image.sha256 = digest
             if purge_binary and image.file_data is not None:
@@ -122,7 +161,9 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
             counts["objects_verified"] += 1
         print(
             "   Report media backfill progress: "
-            f"verified={counts['objects_verified']}/{pending_count}"
+            f"verified={counts['objects_verified']}, "
+            f"source_objects_missing={counts['source_objects_missing']}, "
+            f"source_objects_unreadable={counts['source_objects_unreadable']}/{pending_count}"
         )
 
     # Legacy mobile clients could embed report photos as data URIs instead of
@@ -169,10 +210,10 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
                 object_key = f"reports/{image.id}"
                 put_object(object_key, payload, mime_type)
                 created_keys.append(object_key)
-                copied = get_object(object_key, "s3")
+                copied = get_object(object_key, target_backend)
                 if hashlib.sha256(copied).hexdigest() != image.sha256:
                     raise RuntimeError(f"Object readback checksum mismatch for inline media in report {report.id}")
-                image.storage_backend = "s3"
+                image.storage_backend = target_backend
                 image.storage_key = object_key
                 rewritten.append(f"/api/uploads/{image.id}")
                 changed = True
@@ -189,9 +230,17 @@ def migrate_report_media(db: Session, *, purge_binary: bool = True) -> dict[str,
 
             for key in created_keys:
                 try:
-                    delete_object(key, "s3")
+                    delete_object(key, target_backend)
                 except Exception:
-                    pass
+                    logger.exception("Failed to remove partially migrated media object %s", key)
             raise
+
+    result = db.execute(
+        update(MediaStorageDeletion)
+        .where(MediaStorageDeletion.storage_backend == "s3")
+        .values(storage_backend=target_backend)
+    )
+    counts["deletion_queue_repointed"] = result.rowcount or 0
+    db.commit()
 
     return counts

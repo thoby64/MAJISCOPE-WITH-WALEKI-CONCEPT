@@ -6,21 +6,21 @@ import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { Activity, ArrowLeft, BarChart3, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Pencil, Plus, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { SensorIcon } from "@/components/icons/sensor-icon"
-import { useDataStore, type SensorCategory, type SensorSnap, type TankReading } from "@/store/data-store"
+import { useDataStore, type SensorCategory, type SensorSnap, type StorageFacilityReading } from "@/store/data-store"
 import { useAuthStore } from "@/store/auth-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { WaterLevelTank } from "@/components/water-level/water-level-tank"
+import { WaterLevelStorageFacility } from "@/components/water-level/water-level-storage-facility"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import { RegisterSensorModal } from "@/components/water-level/register-sensor-modal"
 import { formatTanzaniaDateTime } from "@/lib/date-time"
 import {
   READING_HISTORY_LIMIT,
   WATER_LEVEL_POLL_INTERVAL_MS,
-  readStoredTankLength,
-  stashTankLength,
-  tankLengthFor,
+  readStoredStorageFacilityLength,
+  stashStorageFacilityLength,
+  storageFacilityLengthFor,
 } from "@/lib/water-level"
 
 const WQ_PARAM_LABELS: Record<string, string> = {
@@ -122,17 +122,17 @@ function sensorSummary(sensor: SensorSnap): string {
   return "No readings yet"
 }
 
-export default function WaterLevelTankDetailPage() {
+export default function WaterLevelStorageFacilityDetailPage() {
   const router = useRouter()
-  const params = useParams<{ tankId: string }>()
-  const tankId = Array.isArray(params?.tankId) ? params.tankId[0] : params?.tankId
+  const params = useParams<{ storageFacilityId: string }>()
+  const storageFacilityId = Array.isArray(params?.storageFacilityId) ? params.storageFacilityId[0] : params?.storageFacilityId
   const searchParams = useSearchParams()
   const selectedSensorId = searchParams.get("sensor")
 
-  const { sensors, tanks, tankReadingsByTank, fetchSensors, fetchTanks, fetchTankReadings } = useDataStore()
+  const { sensors, storageFacilities, storageFacilityReadingsByStorageFacility, fetchSensors, fetchStorageFacilities, fetchStorageFacilityReadings } = useDataStore()
 
   const [lengthOverride, setLengthOverride] = useState<number | null>(() =>
-    tankId ? readStoredTankLength(tankId) : null
+    storageFacilityId ? readStoredStorageFacilityLength(storageFacilityId) : null
   )
 
   const { currentUser } = useAuthStore()
@@ -140,47 +140,47 @@ export default function WaterLevelTankDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const canRegister = currentUser?.role === "admin" || currentUser?.role === "utility_manager"
 
-  const tankSensors = useMemo(
-    () => sensors.filter((s) => s.tankId === tankId),
-    [sensors, tankId]
+  const storageFacilitySensors = useMemo(
+    () => sensors.filter((s) => s.storageFacilityId === storageFacilityId),
+    [sensors, storageFacilityId]
   )
 
   const selected: SensorSnap | undefined = useMemo(
-    () => tankSensors.find((s) => s.id === selectedSensorId) ?? undefined,
-    [tankSensors, selectedSensorId]
+    () => storageFacilitySensors.find((s) => s.id === selectedSensorId) ?? undefined,
+    [storageFacilitySensors, selectedSensorId]
   )
 
   const selectedCategory: SensorCategory = selected?.category ?? "water_level"
 
   useEffect(() => {
-    if (!tankId) return
+    if (!storageFacilityId) return
     void fetchSensors()
-    void fetchTanks()
+    void fetchStorageFacilities()
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
         void fetchSensors()
       }
     }, WATER_LEVEL_POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [tankId, fetchSensors, fetchTanks])
+  }, [storageFacilityId, fetchSensors, fetchStorageFacilities])
 
   useEffect(() => {
-    if (!tankId || !selectedSensorId || !selected) return
-    void fetchTankReadings(tankId, READING_HISTORY_LIMIT, selectedCategory)
+    if (!storageFacilityId || !selectedSensorId || !selected) return
+    void fetchStorageFacilityReadings(storageFacilityId, READING_HISTORY_LIMIT, selectedCategory)
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
-        void fetchTankReadings(tankId, READING_HISTORY_LIMIT, selectedCategory)
+        void fetchStorageFacilityReadings(storageFacilityId, READING_HISTORY_LIMIT, selectedCategory)
       }
     }, WATER_LEVEL_POLL_INTERVAL_MS)
     return () => clearInterval(interval)
-  }, [tankId, selectedSensorId, selectedCategory, selected, fetchTankReadings])
+  }, [storageFacilityId, selectedSensorId, selectedCategory, selected, fetchStorageFacilityReadings])
 
-  const tank = useMemo(() => tanks.find((t) => t.id === tankId), [tanks, tankId])
-  const tankName = tank?.name || selected?.tankName || tankId || "Tank"
+  const storageFacility = useMemo(() => storageFacilities.find((t) => t.id === storageFacilityId), [storageFacilities, storageFacilityId])
+  const storageFacilityName = storageFacility?.name || selected?.storageFacilityName || storageFacilityId || "Storage facility"
 
-  const readings: TankReading[] = useMemo(
-    () => (tankId ? tankReadingsByTank[`${tankId}:${selectedCategory}`] ?? [] : []),
-    [tankReadingsByTank, tankId, selectedCategory]
+  const readings: StorageFacilityReading[] = useMemo(
+    () => (storageFacilityId ? storageFacilityReadingsByStorageFacility[`${storageFacilityId}:${selectedCategory}`] ?? [] : []),
+    [storageFacilityReadingsByStorageFacility, storageFacilityId, selectedCategory]
   )
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -199,8 +199,8 @@ export default function WaterLevelTankDetailPage() {
             Back to monitoring
           </Button>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
-            {tank && <WaterStatusPill status={tank.status} />}
+            <h1 className="text-2xl font-bold text-slate-800">{storageFacilityName}</h1>
+            {storageFacility && <WaterStatusPill status={storageFacility.status} />}
           </div>
           <p className="text-sm text-slate-500">
             Sensors linked to this storage facility. Select a sensor to view its readings.
@@ -213,7 +213,7 @@ export default function WaterLevelTankDetailPage() {
           )}
         </div>
 
-        {tankSensors.length === 0 ? (
+        {storageFacilitySensors.length === 0 ? (
           <Card className="border-slate-200/70 bg-white shadow-sm">
             <CardContent className="py-16 text-center">
               <div className="flex flex-col items-center gap-4">
@@ -223,7 +223,7 @@ export default function WaterLevelTankDetailPage() {
                 <div>
                   <p className="text-lg font-semibold text-slate-800">No sensors registered</p>
                   <p className="mt-1 text-sm text-slate-500">
-                    This tank does not have any sensor registered yet.
+                    This storageFacility does not have any sensor registered yet.
                   </p>
                 </div>
               </div>
@@ -231,13 +231,13 @@ export default function WaterLevelTankDetailPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {tankSensors.map((sensor) => {
+            {storageFacilitySensors.map((sensor) => {
               const lr = sensor.lastReading
               return (
                 <button
                   key={sensor.id}
                   onClick={() =>
-                    router.push(`/dashboard/sensor-data/${tankId}?sensor=${sensor.id}`)
+                    router.push(`/dashboard/sensor-data/${storageFacilityId}?sensor=${sensor.id}`)
                   }
                   className="group text-left"
                 >
@@ -278,30 +278,30 @@ export default function WaterLevelTankDetailPage() {
           </div>
         )}
 
-        {tank?.latitude != null && tank?.longitude != null && (
+        {storageFacility?.latitude != null && storageFacility?.longitude != null && (
           <Card className="border-slate-200/70 bg-white shadow-sm">
             <CardContent className="p-5">
               <div className="flex items-center gap-2 text-sm text-slate-600 font-mono">
                 <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
-                <span>{tank.latitude.toFixed(6)}°, {tank.longitude.toFixed(6)}°</span>
+                <span>{storageFacility.latitude.toFixed(6)}°, {storageFacility.longitude.toFixed(6)}°</span>
               </div>
             </CardContent>
           </Card>
         )}
-        <RegisterSensorModal open={registerOpen} onOpenChange={setRegisterOpen} defaultTankId={tankId} />
+        <RegisterSensorModal open={registerOpen} onOpenChange={setRegisterOpen} defaultStorageFacilityId={storageFacilityId} />
       </div>
     )
   }
 
   // ═══════════════════════════════════════════════════════════════════════
-  // No such sensor on this tank — fall back to the list
+  // No such sensor on this storageFacility — fall back to the list
   // ═══════════════════════════════════════════════════════════════════════
   if (!selected) {
     return (
       <div className="flex min-w-0 flex-col gap-6">
         <Button
           variant="ghost"
-          onClick={() => router.push(`/dashboard/sensor-data/${tankId}`)}
+          onClick={() => router.push(`/dashboard/sensor-data/${storageFacilityId}`)}
           className="mb-1 -ml-2 h-8 rounded-lg px-2 text-sm text-slate-500 hover:text-slate-700"
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -309,7 +309,7 @@ export default function WaterLevelTankDetailPage() {
         </Button>
         <Card className="border-slate-200/70 bg-white shadow-sm">
           <CardContent className="py-16 text-center text-sm text-slate-500">
-            Sensor not found on this tank.
+            Sensor not found on this storageFacility.
           </CardContent>
         </Card>
       </div>
@@ -323,20 +323,20 @@ export default function WaterLevelTankDetailPage() {
     return (
       <>
         <WaterLevelReadingsView
-          tankId={tankId ?? ""}
-          tankName={tankName}
+          storageFacilityId={storageFacilityId ?? ""}
+          storageFacilityName={storageFacilityName}
           sensor={selected}
           readings={readings}
-          tank={tank ?? null}
+          storageFacility={storageFacility ?? null}
           lengthOverride={lengthOverride}
           canEdit={canRegister}
           onEdit={() => setEditOpen(true)}
           onLengthChange={(v) => {
             setLengthOverride(v)
-            if (tankId) stashTankLength(tankId, v)
+            if (storageFacilityId) stashStorageFacilityLength(storageFacilityId, v)
           }}
-          onAnalytics={() => router.push(`/dashboard/sensor-data/${tankId}/analytics?sensor=${selected.id}`)}
-          onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
+          onAnalytics={() => router.push(`/dashboard/sensor-data/${storageFacilityId}/analytics?sensor=${selected.id}`)}
+          onBack={() => router.push(`/dashboard/sensor-data/${storageFacilityId}`)}
         />
         <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
       </>
@@ -349,14 +349,14 @@ export default function WaterLevelTankDetailPage() {
   return (
     <>
       <WaterQualityReadingsView
-        tankName={tankName}
+        storageFacilityName={storageFacilityName}
         sensor={selected}
         readings={readings}
-        tank={tank ?? null}
+        storageFacility={storageFacility ?? null}
         canEdit={canRegister}
         onEdit={() => setEditOpen(true)}
-        onAnalytics={() => router.push(`/dashboard/sensor-data/${tankId}/water-quality-analytics?sensor=${selected.id}`)}
-        onBack={() => router.push(`/dashboard/sensor-data/${tankId}`)}
+        onAnalytics={() => router.push(`/dashboard/sensor-data/${storageFacilityId}/water-quality-analytics?sensor=${selected.id}`)}
+        onBack={() => router.push(`/dashboard/sensor-data/${storageFacilityId}`)}
       />
       <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
     </>
@@ -366,11 +366,11 @@ export default function WaterLevelTankDetailPage() {
 // ─── Water level view ────────────────────────────────────────────────────────
 
 function WaterLevelReadingsView({
-  tankId,
-  tankName,
+  storageFacilityId,
+  storageFacilityName,
   sensor,
   readings,
-  tank,
+  storageFacility,
   lengthOverride,
   canEdit,
   onEdit,
@@ -378,11 +378,11 @@ function WaterLevelReadingsView({
   onAnalytics,
   onBack,
 }: {
-  tankId: string
-  tankName: string
+  storageFacilityId: string
+  storageFacilityName: string
   sensor: SensorSnap
-  readings: TankReading[]
-  tank: { latitude: number | null; longitude: number | null } | null
+  readings: StorageFacilityReading[]
+  storageFacility: { latitude: number | null; longitude: number | null } | null
   lengthOverride: number | null
   canEdit: boolean
   onEdit: () => void
@@ -392,7 +392,7 @@ function WaterLevelReadingsView({
 }) {
   const latest = sensor.lastReading ?? null
   const status = latest?.status ?? sensor.status ?? "inactive"
-  const tankLength = tankLengthFor(sensor, lengthOverride)
+  const storageFacilityLength = storageFacilityLengthFor(sensor, lengthOverride)
   const h1 = (sensor.config?.h1M ?? sensor.config?.h1_m) as number | undefined ?? 0
   const depthDefault = (sensor.config?.depthM ?? sensor.config?.depth_m) as number | undefined ?? 0
 
@@ -419,7 +419,7 @@ function WaterLevelReadingsView({
         </Button>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{storageFacilityName}</h1>
             <WaterStatusPill status={status} />
           </div>
           <Button variant="default" onClick={onAnalytics} className="rounded-xl shadow-sm shadow-primary/20">
@@ -433,10 +433,10 @@ function WaterLevelReadingsView({
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <WaterLevelTank
-          tankName={tankName}
+        <WaterLevelStorageFacility
+          storageFacilityName={storageFacilityName}
           waterHeightM={latest?.waterLevelM ?? 0}
-          tankDepthM={tankLength}
+          storageFacilityDepthM={storageFacilityLength}
           sensorHangingM={h1}
           sensorDepthM={latest?.depthM ?? depthDefault}
           status={status}
@@ -465,13 +465,13 @@ function WaterLevelReadingsView({
               </div>
               <div className="flex items-center gap-3">
                 <Ruler className="h-4 w-4 shrink-0 text-cyan-600" />
-                <span className="text-sm text-slate-500">Tank length</span>
+                <span className="text-sm text-slate-500">StorageFacility length</span>
                 <label className="ml-auto flex items-center gap-1.5">
                   <Input
                     type="number"
                     min="0.1"
                     step="0.1"
-                    value={tankLength}
+                    value={storageFacilityLength}
                     onChange={handleLengthChange}
                     className="h-8 w-20 rounded-lg px-2 text-right text-sm"
                   />
@@ -510,12 +510,12 @@ function WaterLevelReadingsView({
                 <span className="text-sm text-slate-500">Sensor ID</span>
                 <strong className="ml-auto font-mono font-semibold text-slate-800">{sensor.deviceId}</strong>
               </div>
-              {tank?.latitude != null && tank?.longitude != null && (
+              {storageFacility?.latitude != null && storageFacility?.longitude != null && (
                 <div className="flex items-center gap-3">
                   <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
                   <span className="text-sm text-slate-500">Coordinates</span>
                   <strong className="ml-auto font-mono font-semibold text-slate-800">
-                    {tank.latitude.toFixed(6)}°, {tank.longitude.toFixed(6)}°
+                    {storageFacility.latitude.toFixed(6)}°, {storageFacility.longitude.toFixed(6)}°
                   </strong>
                 </div>
               )}
@@ -577,19 +577,19 @@ function WaterLevelReadingsView({
 // ─── Water quality view ──────────────────────────────────────────────────────
 
 function WaterQualityReadingsView({
-  tankName,
+  storageFacilityName,
   sensor,
   readings,
-  tank,
+  storageFacility,
   canEdit,
   onEdit,
   onAnalytics,
   onBack,
 }: {
-  tankName: string
+  storageFacilityName: string
   sensor: SensorSnap
-  readings: TankReading[]
-  tank: { latitude: number | null; longitude: number | null } | null
+  readings: StorageFacilityReading[]
+  storageFacility: { latitude: number | null; longitude: number | null } | null
   canEdit: boolean
   onEdit: () => void
   onAnalytics: () => void
@@ -624,7 +624,7 @@ function WaterQualityReadingsView({
         </Button>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{tankName}</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{storageFacilityName}</h1>
             <WaterStatusPill status={status} />
           </div>
           <Button variant="default" onClick={onAnalytics} className="rounded-xl shadow-sm shadow-primary/20">
@@ -658,8 +658,8 @@ function WaterQualityReadingsView({
               <MapPin className="h-4 w-4 shrink-0 text-cyan-600" />
               <span className="text-sm text-slate-500">Coordinates</span>
               <strong className="ml-auto font-mono font-semibold text-slate-800">
-                {tank?.latitude != null && tank?.longitude != null
-                  ? `${tank.latitude.toFixed(6)}°, ${tank.longitude.toFixed(6)}°`
+                {storageFacility?.latitude != null && storageFacility?.longitude != null
+                  ? `${storageFacility.latitude.toFixed(6)}°, ${storageFacility.longitude.toFixed(6)}°`
                   : "Not available"}
               </strong>
             </div>

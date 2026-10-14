@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Droplets, FlaskConical, Gauge, MapPin, Plus, RefreshCw, Waves } from "lucide-react"
 import { InfrastructureIcon } from "@/components/icons/infrastructure-icon"
 import { useAuthStore } from "@/store/auth-store"
-import { useDataStore, type SensorCategory, type SensorSnap, type TankSnap } from "@/store/data-store"
+import { useDataStore, type SensorCategory, type SensorSnap, type StorageFacilitySnap } from "@/store/data-store"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -16,17 +16,18 @@ import {
   WATER_LEVEL_POLL_INTERVAL_MS,
   fillPercent,
   formatRelativeTime,
-  readStoredTankLength,
-  tankLengthFor,
+  readStoredStorageFacilityLength,
+  storageFacilityLengthFor,
 } from "@/lib/water-level"
 import { cn } from "@/lib/utils"
 
-interface TankGroup {
-  tank: TankSnap
+interface StorageFacilityGroup {
+  storageFacility: StorageFacilitySnap
   representative: SensorSnap | null
   sensorCount: number
   activeSensorCount: number
   activeCategories: SensorCategory[]
+  sensorCategories: SensorCategory[]
 }
 
 function wqHeadline(parameters: Record<string, number> | null | undefined): string {
@@ -48,15 +49,17 @@ function wqHeadline(parameters: Record<string, number> | null | undefined): stri
 export default function SensorDataPage() {
   const router = useRouter()
   const { currentUser } = useAuthStore()
-  const { sensors, tanks, dmas, utilities, fetchSensors, fetchTanks, fetchDMAs, fetchUtilities } = useDataStore()
+  const { sensors, storageFacilities, dmas, utilities, fetchSensors, fetchStorageFacilities, fetchDMAs, fetchUtilities } = useDataStore()
 
   const role = currentUser?.role
   const canView = role === "admin" || role === "utility_manager" || role === "dma_manager"
 
   const [utilityFilter, setUtilityFilter] = useState("")
   const [dmaFilter, setDmaFilter] = useState("")
+  const [search, setSearch] = useState("")
+  const [sensorFilter, setSensorFilter] = useState("all")
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalTankId, setModalTankId] = useState<string | undefined>(undefined)
+  const [modalStorageFacilityId, setModalStorageFacilityId] = useState<string | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
 
   const effectiveUtilityId =
@@ -67,13 +70,13 @@ export default function SensorDataPage() {
   // Initial load + poll
   useEffect(() => {
     void fetchSensors()
-    void fetchTanks()
+    void fetchStorageFacilities()
     void fetchUtilities()
     void fetchDMAs()
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
         void fetchSensors()
-        void fetchTanks()
+        void fetchStorageFacilities()
       }
     }, WATER_LEVEL_POLL_INTERVAL_MS)
     const ticker = setInterval(() => setNow(Date.now()), 30_000)
@@ -81,7 +84,7 @@ export default function SensorDataPage() {
       clearInterval(interval)
       clearInterval(ticker)
     }
-  }, [fetchSensors, fetchTanks, fetchUtilities, fetchDMAs])
+  }, [fetchSensors, fetchStorageFacilities, fetchUtilities, fetchDMAs])
 
   // Lock utility filter for managers
   useEffect(() => {
@@ -121,52 +124,84 @@ export default function SensorDataPage() {
     return dmas
   }, [currentUser?.dmaId, dmas, role, utilityFilter])
 
-  // Build latest sensor-per-tank (prefer activated sensors with fresh readings)
-  const latestSensorByTank = useMemo(() => {
+  // Build latest sensor-per-storageFacility (prefer activated sensors with fresh readings)
+  const latestSensorByStorageFacility = useMemo(() => {
     const map = new Map<string, SensorSnap>()
     for (const sensor of sensors) {
-      const current = map.get(sensor.tankId)
+      const facilityId = sensor.storageFacilityId
+      if (sensor.assetType !== "storage_facility" || !facilityId) continue
+      const current = map.get(facilityId)
       if (
         !current ||
         (sensor.activated &&
           sensor.lastReading &&
           new Date(sensor.lastReading.occurredAt) > new Date(current.lastReading?.occurredAt ?? 0))
       ) {
-        if (sensor.activated || !current) map.set(sensor.tankId, sensor)
+        if (sensor.activated || !current) map.set(facilityId, sensor)
       }
     }
     return map
   }, [sensors])
 
-  const tankGroups: TankGroup[] = useMemo(() => {
-    return tanks
-      .map((tank) => {
-        const tankSensors = sensors.filter((s) => s.tankId === tank.id)
+  const storageFacilityGroups: StorageFacilityGroup[] = useMemo(() => {
+    return storageFacilities
+      .map((storageFacility) => {
+        const storageFacilitySensors = sensors.filter(
+          (sensor) => sensor.assetType === "storage_facility" && sensor.storageFacilityId === storageFacility.id
+        )
         const activeCategories = Array.from(
-          new Set(tankSensors.filter((s) => s.activated).map((s) => s.category))
+          new Set(storageFacilitySensors.filter((s) => s.activated).map((s) => s.category))
         )
         return {
-          tank,
-          representative: latestSensorByTank.get(tank.id) ?? null,
-          sensorCount: tankSensors.length,
-          activeSensorCount: tank.activeSensorCount,
+          storageFacility,
+          representative: latestSensorByStorageFacility.get(storageFacility.id) ?? null,
+          sensorCount: storageFacilitySensors.length,
+          activeSensorCount: storageFacility.activeSensorCount,
           activeCategories,
+          sensorCategories: Array.from(new Set(storageFacilitySensors.map((sensor) => sensor.category))),
         }
       })
       .filter((group) => {
-        if (utilityFilter && group.tank.utilityId !== utilityFilter) return false
+        if (utilityFilter && group.storageFacility.utilityId !== utilityFilter) return false
         if (dmaFilter) {
-          return dmaFilter === "unassigned" ? !group.tank.dmaId : group.tank.dmaId === dmaFilter
+          return dmaFilter === "unassigned" ? !group.storageFacility.dmaId : group.storageFacility.dmaId === dmaFilter
         }
         return true
       })
-  }, [dmaFilter, latestSensorByTank, sensors, tanks, utilityFilter])
+      .filter((group) => {
+        if (sensorFilter === "with_sensors" && group.sensorCount === 0) return false
+        if (sensorFilter === "without_sensors" && group.sensorCount > 0) return false
+        if (sensorFilter === "water_quality" && !group.sensorCategories.includes("water_quality")) return false
+        if (sensorFilter === "water_level" && !group.sensorCategories.includes("water_level")) return false
+        if (sensorFilter === "water_quality_only" && (
+          !group.sensorCategories.includes("water_quality") || group.sensorCategories.includes("water_level")
+        )) return false
+        if (sensorFilter === "water_level_only" && (
+          !group.sensorCategories.includes("water_level") || group.sensorCategories.includes("water_quality")
+        )) return false
+        if (sensorFilter === "both" && !(
+          group.sensorCategories.includes("water_quality") && group.sensorCategories.includes("water_level")
+        )) return false
+        const query = search.trim().toLocaleLowerCase()
+        const dmaName = dmas.find((dma) => dma.id === group.storageFacility.dmaId)?.name ?? "unassigned"
+        const utilityName = utilities.find((utility) => utility.id === group.storageFacility.utilityId)?.name ?? ""
+        return !query || [group.storageFacility.name, group.storageFacility.sourceKey, dmaName, utilityName]
+          .some((value) => value?.toLocaleLowerCase().includes(query))
+      })
+      .sort((a, b) =>
+        (a.storageFacility.name || a.storageFacility.sourceKey).localeCompare(
+          b.storageFacility.name || b.storageFacility.sourceKey,
+          undefined,
+          { sensitivity: "base" }
+        )
+      )
+  }, [dmaFilter, dmas, latestSensorByStorageFacility, search, sensorFilter, sensors, storageFacilities, utilities, utilityFilter])
 
   const canRegister = role === "admin" || role === "utility_manager"
   const canCreateFacility = role === "admin" || role === "utility_manager"
 
-  const openTank = useCallback(
-    (tankId: string) => router.push(`/dashboard/sensor-data/${tankId}`),
+  const openStorageFacility = useCallback(
+    (storageFacilityId: string) => router.push(`/dashboard/sensor-data/${storageFacilityId}`),
     [router]
   )
 
@@ -174,8 +209,8 @@ export default function SensorDataPage() {
     router.push('/dashboard/storage-facilities/new')
   }, [router])
 
-  const openRegister = useCallback((tankId?: string) => {
-    setModalTankId(tankId)
+  const openRegister = useCallback((storageFacilityId?: string) => {
+    setModalStorageFacilityId(storageFacilityId)
     setModalOpen(true)
   }, [])
 
@@ -211,12 +246,19 @@ export default function SensorDataPage() {
         actionIcon={RefreshCw}
         onAction={() => {
           void fetchSensors()
-          void fetchTanks()
+          void fetchStorageFacilities()
         }}
       />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search name, DMA, or utility"
+          aria-label="Search storage facilities by name, DMA, or utility"
+          className="h-10 min-w-56 rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none"
+        />
         <select
           value={utilityFilter}
           onChange={(e) => {
@@ -256,11 +298,29 @@ export default function SensorDataPage() {
             </option>
           ))}
         </select>
+        <select
+          value={sensorFilter}
+          onChange={(event) => setSensorFilter(event.target.value)}
+          aria-label="Filter storage facilities by installed sensors"
+          className={cn(
+            "h-10 rounded-xl border bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-cyan-400/20",
+            sensorFilter !== "all" ? "border-cyan-400/70 text-cyan-700" : "border-slate-200/80 text-slate-500"
+          )}
+        >
+          <option value="all">All sensor configurations</option>
+          <option value="with_sensors">With sensors</option>
+          <option value="without_sensors">Without sensors</option>
+          <option value="water_quality">With water-quality sensor</option>
+          <option value="water_level">With water-level sensor</option>
+          <option value="water_quality_only">Water-quality sensor only</option>
+          <option value="water_level_only">Water-level sensor only</option>
+          <option value="both">Both sensor types</option>
+        </select>
 
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-sm text-slate-500">
             <Gauge className="h-4 w-4" />
-            {tankGroups.length} tank{tankGroups.length !== 1 ? "s" : ""}
+            {storageFacilityGroups.length} storageFacility{storageFacilityGroups.length !== 1 ? "s" : ""}
           </span>
           {canCreateFacility && (
             <Button size="sm" variant="outline" onClick={openCreateFacility}>
@@ -278,13 +338,13 @@ export default function SensorDataPage() {
       </div>
 
       {/* Cards */}
-      {tanks.length === 0 ? (
+      {storageFacilities.length === 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-44 rounded-xl" />
           ))}
         </div>
-      ) : tankGroups.length === 0 ? (
+      ) : storageFacilityGroups.length === 0 ? (
         <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
           <CardContent className="py-16 text-center">
             <div className="flex flex-col items-center gap-4">
@@ -292,26 +352,26 @@ export default function SensorDataPage() {
                 <Droplets className="h-8 w-8 text-slate-400" />
               </div>
               <div>
-                <p className="text-lg font-semibold text-slate-800">No tanks found</p>
-                <p className="mt-1 text-sm text-slate-500">No monitored tanks match the current filter.</p>
+                <p className="text-lg font-semibold text-slate-800">No storage facilities found</p>
+                <p className="mt-1 text-sm text-slate-500">No monitored storage facilities match the current filter.</p>
               </div>
             </div>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tankGroups.map((group) => {
-            const { tank, representative } = group
+          {storageFacilityGroups.map((group) => {
+            const { storageFacility, representative } = group
             const reading = representative?.lastReading ?? null
             const isWq = representative?.category === "water_quality"
-            const tankLength = tankLengthFor(representative ?? {}, readStoredTankLength(tank.id))
-            const percent = reading && !isWq ? fillPercent(reading.waterLevelM ?? 0, tankLength) : 0
-            const status = representative?.status ?? (tank.status === "deactivated" ? "inactive" : "unknown")
+            const storageFacilityLength = storageFacilityLengthFor(representative ?? {}, readStoredStorageFacilityLength(storageFacility.id))
+            const percent = reading && !isWq ? fillPercent(reading.waterLevelM ?? 0, storageFacilityLength) : 0
+            const status = representative?.status ?? (storageFacility.status === "deactivated" ? "inactive" : "unknown")
 
             return (
               <Card
-                key={tank.id}
-                onClick={() => openTank(tank.id)}
+                key={storageFacility.id}
+                onClick={() => openStorageFacility(storageFacility.id)}
                 className="cursor-pointer overflow-hidden rounded-xl border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-slate-200/60"
               >
                 <div
@@ -331,13 +391,13 @@ export default function SensorDataPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <Droplets className="h-4 w-4 shrink-0 text-cyan-600" />
-                        <h3 className="truncate font-semibold text-slate-800">{tank.name || tank.sourceKey}</h3>
+                        <h3 className="truncate font-semibold text-slate-800">{storageFacility.name || storageFacility.sourceKey}</h3>
                       </div>
                       <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
                         <MapPin className="h-3 w-3 shrink-0" />
-                        {group.tank.dmaId ? dmas.find((dma) => dma.id === group.tank.dmaId)?.name || "Unassigned" : "Unassigned"}
+                        {group.storageFacility.dmaId ? dmas.find((dma) => dma.id === group.storageFacility.dmaId)?.name || "Unassigned" : "Unassigned"}
                       </p>
-                      {/* Category chips: which sensor types are fitted on this tank */}
+                      {/* Category chips: which sensor types are fitted on this storageFacility */}
                       {group.activeCategories.length > 0 && (
                         <div className="mt-1.5 flex items-center gap-1">
                           {group.activeCategories.map((cat) => (
@@ -421,7 +481,7 @@ export default function SensorDataPage() {
                       className="mt-3 w-full"
                       onClick={(event) => {
                         event.stopPropagation()
-                        openRegister(tank.id)
+                        openRegister(storageFacility.id)
                       }}
                     >
                       <Plus className="mr-1.5 h-4 w-4" />
@@ -438,7 +498,7 @@ export default function SensorDataPage() {
       <RegisterSensorModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        defaultTankId={modalTankId}
+        defaultStorageFacilityId={modalStorageFacilityId}
       />
     </div>
   )

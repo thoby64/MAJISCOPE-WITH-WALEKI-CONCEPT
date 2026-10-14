@@ -81,7 +81,8 @@ def run_safe_startup_migrations(engine: Engine) -> None:
     _migrate_dma_boundary_columns(engine)
     _migrate_utility_infrastructure_layer_table(engine)
     _migrate_sensor_tables(engine)
-    _migrate_tank_key_field(engine)
+    _migrate_storage_facility_key_field(engine)
+    _migrate_water_source_schema(engine)
     _migrate_hydraulic_model_tables(engine)
     _migrate_hydraulic_snapshot_report_columns(engine)
     ensure_media_object_storage_schema(engine)
@@ -246,29 +247,56 @@ def _migrate_utility_infrastructure_layer_table(engine: Engine) -> None:
             connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_utility_infrastructure_layer_uploaded_by_manager_id ON utility_infrastructure_layer (uploaded_by_manager_id)")
 
 
-def _migrate_tank_key_field(engine: Engine) -> None:
+def _migrate_storage_facility_key_field(engine: Engine) -> None:
     inspector = inspect(engine)
     if "utility_infrastructure_layer" not in inspector.get_table_names():
         return
 
     columns = {column["name"] for column in inspector.get_columns("utility_infrastructure_layer")}
-    if "tank_key_field" in columns:
+    if "storage_facility_key_field" in columns:
         return
 
     with engine.begin() as connection:
         if engine.dialect.name.startswith("postgresql"):
             if not _run_postgres_ddl_without_timeout(
                 connection,
-                'ALTER TABLE utility_infrastructure_layer ADD COLUMN IF NOT EXISTS tank_key_field VARCHAR(100)',
+                'ALTER TABLE utility_infrastructure_layer ADD COLUMN IF NOT EXISTS storage_facility_key_field VARCHAR(100)',
             ):
                 return
         else:
-            connection.exec_driver_sql("ALTER TABLE utility_infrastructure_layer ADD COLUMN tank_key_field VARCHAR(100)")
+            connection.exec_driver_sql("ALTER TABLE utility_infrastructure_layer ADD COLUMN storage_facility_key_field VARCHAR(100)")
+
+
+def _migrate_water_source_schema(engine: Engine) -> None:
+    """Apply the additive water-source schema needed by local startup."""
+    inspector = inspect(engine)
+    if "utility_infrastructure_layer" not in inspector.get_table_names():
+        return
+
+    from app.models import UtilityInfrastructureLayer, WaterSource, WaterSourceSensorMirrorOutbox
+
+    columns = {column["name"] for column in inspector.get_columns("utility_infrastructure_layer")}
+    with engine.begin() as connection:
+        if "water_source_key_field" not in columns:
+            statement = (
+                "ALTER TABLE utility_infrastructure_layer "
+                "ADD COLUMN IF NOT EXISTS water_source_key_field VARCHAR(100)"
+                if engine.dialect.name.startswith("postgresql")
+                else "ALTER TABLE utility_infrastructure_layer ADD COLUMN water_source_key_field VARCHAR(100)"
+            )
+            if engine.dialect.name.startswith("postgresql"):
+                if not _run_postgres_ddl_without_timeout(connection, statement, required=True):
+                    return
+            else:
+                connection.exec_driver_sql(statement)
+
+        WaterSource.__table__.create(bind=connection, checkfirst=True)
+        WaterSourceSensorMirrorOutbox.__table__.create(bind=connection, checkfirst=True)
 
 
 def _migrate_sensor_tables(engine: Engine) -> None:
     """
-    Ensure the tank table exists (main DB source of truth), and DROP the
+    Ensure the storage_facilities table exists (main DB source of truth), and DROP the
     legacy sensor tables that moved to the sensor platform database.
 
     Legacy tables (sensor_device, sensor_reading, sensor_pending_reading) were
@@ -280,11 +308,11 @@ def _migrate_sensor_tables(engine: Engine) -> None:
     if "utility" not in existing_tables or "dma" not in existing_tables:
         return
 
-    if "tank" not in existing_tables:
+    if "storage_facilities" not in existing_tables:
         if engine.dialect.name.startswith("postgresql"):
             ddl_statements = [
                 """
-                CREATE TABLE IF NOT EXISTS tank (
+                CREATE TABLE IF NOT EXISTS storage_facilities (
                     id VARCHAR(36) PRIMARY KEY,
                     utility_id VARCHAR(36) NOT NULL REFERENCES utility(id) ON DELETE CASCADE,
                     dma_id VARCHAR(36) REFERENCES dma(id) ON DELETE SET NULL,
@@ -296,17 +324,17 @@ def _migrate_sensor_tables(engine: Engine) -> None:
                     created_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL,
                     deactivated_at TIMESTAMP,
-                    CONSTRAINT uq_tank_utility_source_key UNIQUE (utility_id, source_key)
+                    CONSTRAINT uq_storage_facilities_utility_source_key UNIQUE (utility_id, source_key)
                 )
                 """,
-                "CREATE INDEX IF NOT EXISTS ix_tank_utility_id ON tank (utility_id)",
-                "CREATE INDEX IF NOT EXISTS ix_tank_dma_id ON tank (dma_id)",
-                "CREATE INDEX IF NOT EXISTS ix_tank_status ON tank (status)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_utility_id ON storage_facilities (utility_id)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_dma_id ON storage_facilities (dma_id)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_status ON storage_facilities (status)",
             ]
         else:
             ddl_statements = [
                 """
-                CREATE TABLE IF NOT EXISTS tank (
+                CREATE TABLE IF NOT EXISTS storage_facilities (
                     id VARCHAR(36) PRIMARY KEY,
                     utility_id VARCHAR(36) NOT NULL,
                     dma_id VARCHAR(36),
@@ -318,14 +346,14 @@ def _migrate_sensor_tables(engine: Engine) -> None:
                     created_at DATETIME NOT NULL,
                     updated_at DATETIME NOT NULL,
                     deactivated_at DATETIME,
-                    CONSTRAINT uq_tank_utility_source_key UNIQUE (utility_id, source_key),
+                    CONSTRAINT uq_storage_facilities_utility_source_key UNIQUE (utility_id, source_key),
                     FOREIGN KEY(utility_id) REFERENCES utility(id) ON DELETE CASCADE,
                     FOREIGN KEY(dma_id) REFERENCES dma(id) ON DELETE SET NULL
                 )
                 """,
-                "CREATE INDEX IF NOT EXISTS ix_tank_utility_id ON tank (utility_id)",
-                "CREATE INDEX IF NOT EXISTS ix_tank_dma_id ON tank (dma_id)",
-                "CREATE INDEX IF NOT EXISTS ix_tank_status ON tank (status)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_utility_id ON storage_facilities (utility_id)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_dma_id ON storage_facilities (dma_id)",
+                "CREATE INDEX IF NOT EXISTS ix_storage_facilities_status ON storage_facilities (status)",
             ]
         with engine.begin() as connection:
             for statement in ddl_statements:

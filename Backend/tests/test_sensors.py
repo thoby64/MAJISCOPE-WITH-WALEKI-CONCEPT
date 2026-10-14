@@ -1,6 +1,6 @@
 """
-Sensor and Tank API Tests
-Tests for sensor registration, ingest, status derivation, tank reconciliation,
+Sensor and StorageFacility API Tests
+Tests for sensor registration, ingest, status derivation, storage_facility reconciliation,
 and role-scoped listing.
 """
 
@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import (
     DMA,
-    Tank,
-    TankStatusEnum,
+    StorageFacility,
+    StorageFacilityStatusEnum,
     Utility,
     UtilityInfrastructureLayer,
     UtilityManager,
@@ -29,7 +29,7 @@ from app.models.sensor_platform import (
     WaterLevelReading,
 )
 from app.security.auth import create_access_token, hash_password
-from app.services.tank_sync import sync_tanks_from_layer
+from app.services.storage_facility_sync import sync_storage_facilities_from_layer
 from app.services.sensor_services import parse_timestamp
 from app.services.water_level_services import (
     compute_water_level,
@@ -54,49 +54,49 @@ def _make_dma(db: Session, utility: Utility, name: str = "DMA 1") -> DMA:
     return dma
 
 
-def _make_tank(
+def _make_storage_facility(
     db: Session,
     utility: Utility,
     sensor_db: Session,
-    source_key: str = "Tank A",
+    source_key: str = "StorageFacility A",
     **kwargs,
-) -> Tank:
-    """Create a main-DB tank AND mirror it into the sensor platform."""
-    from app.services.sensor_platform_sync import upsert_tank_ref
+) -> StorageFacility:
+    """Create a main-DB storage_facility AND mirror it into the sensor platform."""
+    from app.services.sensor_platform_sync import upsert_storage_facility_ref
 
-    tank = Tank(
+    storage_facility = StorageFacility(
         utility_id=utility.id,
         source_key=source_key,
         name=kwargs.get("name", source_key),
         latitude=kwargs.get("latitude", -3.4),
         longitude=kwargs.get("longitude", 36.7),
     )
-    db.add(tank)
+    db.add(storage_facility)
     db.commit()
-    db.refresh(tank)
+    db.refresh(storage_facility)
 
-    upsert_tank_ref(
+    upsert_storage_facility_ref(
         sensor_db,
         {
-            "id": tank.id,
-            "utility_id": tank.utility_id,
-            "dma_id": tank.dma_id,
-            "source_key": tank.source_key,
-            "name": tank.name,
-            "latitude": tank.latitude,
-            "longitude": tank.longitude,
-            "status": tank.status.value,
-            "created_at": tank.created_at,
-            "updated_at": tank.updated_at,
-            "deactivated_at": tank.deactivated_at,
+            "id": storage_facility.id,
+            "utility_id": storage_facility.utility_id,
+            "dma_id": storage_facility.dma_id,
+            "source_key": storage_facility.source_key,
+            "name": storage_facility.name,
+            "latitude": storage_facility.latitude,
+            "longitude": storage_facility.longitude,
+            "status": storage_facility.status.value,
+            "created_at": storage_facility.created_at,
+            "updated_at": storage_facility.updated_at,
+            "deactivated_at": storage_facility.deactivated_at,
         },
     )
-    return tank
+    return storage_facility
 
 
 def _make_sensor(
     sensor_db: Session,
-    tank,
+    storage_facility,
     device_id: str = "dev-1",
     **kwargs,
 ) -> SensorDevice:
@@ -105,7 +105,7 @@ def _make_sensor(
     sensor = SensorDevice(
         device_id=device_id,
         category=SensorCategoryEnum.WATER_LEVEL,
-        tank_id=tank.id,
+        storage_facility_id=storage_facility.id,
         activated=kwargs.get("activated", True),
         config={
             "h1_m": kwargs.get("h1_m", 12.0),
@@ -185,57 +185,57 @@ class TestWaterLevelCore:
         assert parse_timestamp("garbage-not-a-date", None) is None
 
 
-class TestTankSync:
+class TestStorageFacilitySync:
     def test_created_updated_deactivated(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
-        existing_tank = _make_tank(db, utility, sensor_db, source_key="Existing", name="Existing")
+        existing_storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Existing", name="Existing")
         layer = UtilityInfrastructureLayer(
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=2,
         )
         db.add(layer)
         db.commit()
         db.refresh(layer)
-        assert layer.tank_key_field is None
+        assert layer.storage_facility_key_field is None
 
         features = [
             {"type": "Feature", "properties": {"TankName": "Existing"}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
-            {"type": "Feature", "properties": {"TankName": "New Tank"}, "geometry": {"type": "Point", "coordinates": [36.8, -3.5]}},
+            {"type": "Feature", "properties": {"TankName": "New Reservoir"}, "geometry": {"type": "Point", "coordinates": [36.8, -3.5]}},
         ]
-        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        summary = sync_storage_facilities_from_layer(db, utility.id, features, layer)
 
         assert summary["created"] == 1
         assert summary["updated"] == 1
         assert summary["deactivated"] == 0
         assert summary["total"] == 2
-        assert layer.tank_key_field == "TankName"
+        assert layer.storage_facility_key_field == "TankName"
 
         db.flush()
-        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).all()
-        assert len(tanks) == 2
+        storage_facilities = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).all()
+        assert len(storage_facilities) == 2
 
-        # Re-upload with only one tank -> the other is soft-deactivated
+        # Re-upload with only one storage_facility -> the other is soft-deactivated
         features2 = [
             {"type": "Feature", "properties": {"TankName": "Existing"}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
         ]
-        summary2 = sync_tanks_from_layer(db, utility.id, features2, layer)
+        summary2 = sync_storage_facilities_from_layer(db, utility.id, features2, layer)
         assert summary2["deactivated"] == 1
         db.flush()
-        new_tank = db.query(Tank).filter(Tank.source_key == "New Tank").first()
-        assert new_tank.status == TankStatusEnum.DEACTIVATED
-        assert new_tank.deactivated_at is not None
-        assert existing_tank.id is not None
+        new_storage_facility = db.query(StorageFacility).filter(StorageFacility.source_key == "New Reservoir").first()
+        assert new_storage_facility.status == StorageFacilityStatusEnum.DEACTIVATED
+        assert new_storage_facility.deactivated_at is not None
+        assert existing_storage_facility.id is not None
 
         # Re-upload again -> reactivated
-        summary3 = sync_tanks_from_layer(db, utility.id, features, layer)
+        summary3 = sync_storage_facilities_from_layer(db, utility.id, features, layer)
         assert summary3["reactivated"] == 1
         db.flush()
-        db.refresh(new_tank)
-        assert new_tank.status == TankStatusEnum.ACTIVE
+        db.refresh(new_storage_facility)
+        assert new_storage_facility.status == StorageFacilityStatusEnum.ACTIVE
 
     def test_coordinate_fallback_key(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
@@ -243,7 +243,7 @@ class TestTankSync:
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=1,
         )
@@ -254,20 +254,20 @@ class TestTankSync:
         features = [
             {"type": "Feature", "properties": {"SomeOther": "x"}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
         ]
-        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        summary = sync_storage_facilities_from_layer(db, utility.id, features, layer)
         assert summary["created"] == 1
         db.flush()
-        tank = db.query(Tank).filter(Tank.utility_id == utility.id).first()
-        assert tank.source_key.startswith("coord:")
-        assert layer.tank_key_field is None
+        storage_facility = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).first()
+        assert storage_facility.source_key.startswith("coord:")
+        assert layer.storage_facility_key_field is None
 
-    def test_coordinate_fallback_uses_tank_default_name(self, db: Session, sensor_db: Session):
+    def test_coordinate_fallback_uses_storage_facility_default_name(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
         layer = UtilityInfrastructureLayer(
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=1,
         )
@@ -278,20 +278,20 @@ class TestTankSync:
         features = [
             {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
         ]
-        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        summary = sync_storage_facilities_from_layer(db, utility.id, features, layer)
         assert summary["created"] == 1
         db.flush()
-        tank = db.query(Tank).filter(Tank.utility_id == utility.id).first()
-        assert tank.name == "TANK"
-        assert tank.latitude is not None and tank.longitude is not None
+        storage_facility = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).first()
+        assert storage_facility.name == "STORAGE_FACILITY"
+        assert storage_facility.latitude is not None and storage_facility.longitude is not None
 
-    def test_numeric_only_name_falls_back_to_tank(self, db: Session, sensor_db: Session):
+    def test_numeric_only_name_falls_back_to_storage_facility(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
         layer = UtilityInfrastructureLayer(
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=2,
         )
@@ -300,19 +300,19 @@ class TestTankSync:
         db.refresh(layer)
 
         # Name-like fields holding purely numeric values (e.g. ObjectID / Id
-        # exports) are not readable names: fall back to "TANK-<number>".
+        # exports) are not readable names: fall back to "STORAGE_FACILITY-<number>".
         features = [
             {"type": "Feature", "properties": {"Name": "322"}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
             {"type": "Feature", "properties": {"Id": 1357}, "geometry": {"type": "Point", "coordinates": [36.8, -3.5]}},
         ]
-        summary = sync_tanks_from_layer(db, utility.id, features, layer)
+        summary = sync_storage_facilities_from_layer(db, utility.id, features, layer)
         assert summary["created"] == 2
         db.flush()
-        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).order_by(Tank.source_key).all()
-        assert len(tanks) == 2
-        for tank in tanks:
-            assert tank.name.startswith("TANK-")
-            assert tank.source_key.startswith("coord:")
+        storage_facilities = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).order_by(StorageFacility.source_key).all()
+        assert len(storage_facilities) == 2
+        for storage_facility in storage_facilities:
+            assert storage_facility.name.startswith("STORAGE_FACILITY-")
+            assert storage_facility.source_key.startswith("coord:")
 
     def test_reupload_unnamed_duplicate_skipped_by_coordinates(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
@@ -320,7 +320,7 @@ class TestTankSync:
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=1,
         )
@@ -331,29 +331,29 @@ class TestTankSync:
         features = [
             {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [36.7, -3.4]}},
         ]
-        sync_tanks_from_layer(db, utility.id, features, layer)
+        sync_storage_facilities_from_layer(db, utility.id, features, layer)
         db.commit()
 
         # Re-upload the same unnamed feature: coordinates already exist, so
-        # no duplicate tank is created and the original stays active.
-        summary2 = sync_tanks_from_layer(db, utility.id, features, layer)
+        # no duplicate storage_facility is created and the original stays active.
+        summary2 = sync_storage_facilities_from_layer(db, utility.id, features, layer)
         db.commit()
         assert summary2["created"] == 0
         assert summary2["skipped_duplicates"] == 1
         assert summary2["deactivated"] == 0
-        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).all()
-        assert len(tanks) == 1
-        assert tanks[0].name == "TANK"
+        storage_facilities = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).all()
+        assert len(storage_facilities) == 1
+        assert storage_facilities[0].name == "STORAGE_FACILITY"
 
     def test_deactivated_with_sensor_warns(self, db: Session, sensor_db: Session):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Only")
-        _make_sensor(sensor_db, tank, device_id="dev-warn", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Only")
+        _make_sensor(sensor_db, storage_facility, device_id="dev-warn", activated=True)
         layer = UtilityInfrastructureLayer(
             utility_id=utility.id,
             asset_type="storage_facilities",
             file_data=b"",
-            file_name="tanks.gpkg",
+            file_name="storage_facilities.gpkg",
             file_size=0,
             feature_count=0,
         )
@@ -361,7 +361,7 @@ class TestTankSync:
         db.commit()
         db.refresh(layer)
 
-        summary = sync_tanks_from_layer(db, utility.id, [], layer)
+        summary = sync_storage_facilities_from_layer(db, utility.id, [], layer)
         assert summary["deactivated"] == 1
         assert summary["deactivated_with_sensors"] == 1
         assert summary["has_warnings"] is True
@@ -370,13 +370,13 @@ class TestTankSync:
 class TestSensorRegistration:
     def test_register_sensor(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
             json={
                 "device_id": "dev-register",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "h1_m": 12.0,
                 "activated": True,
             },
@@ -391,20 +391,20 @@ class TestSensorRegistration:
 
     def test_register_duplicate_device_conflict(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        _make_sensor(sensor_db, tank, device_id="dev-dup")
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        _make_sensor(sensor_db, storage_facility, device_id="dev-dup")
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "dev-dup", "tank_id": tank.id},
+            json={"device_id": "dev-dup", "storage_facility_id": storage_facility.id},
         )
         assert response.status_code == 409
 
-    def test_register_unknown_tank_404(self, client: TestClient, sensor_db: Session, auth_headers: dict):
+    def test_register_unknown_storage_facility_404(self, client: TestClient, sensor_db: Session, auth_headers: dict):
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "dev-nope", "tank_id": "missing"},
+            json={"device_id": "dev-nope", "storage_facility_id": "missing"},
         )
         assert response.status_code == 404
 
@@ -412,7 +412,7 @@ class TestSensorRegistration:
         # An ordinary User row is an admin; a plain (unauthenticated) request must fail.
         response = client.post(
             "/api/sensors",
-            json={"device_id": "dev-x", "tank_id": "whatever"},
+            json={"device_id": "dev-x", "storage_facility_id": "whatever"},
         )
         assert response.status_code == 401
 
@@ -425,12 +425,12 @@ class TestSensorRegistration:
     ):
         utility_a = _make_utility(db, name="Water Co A")
         utility_b = _make_utility(db, name="Water Co B")
-        tank_b = _make_tank(db, utility_b, sensor_db, source_key="B Tank")
+        storage_facility_b = _make_storage_facility(db, utility_b, sensor_db, source_key="B StorageFacility")
         headers_b = _utility_manager_headers(db, utility_a)
         response = client.post(
             "/api/sensors",
             headers=headers_b,
-            json={"device_id": "dev-cross", "tank_id": tank_b.id},
+            json={"device_id": "dev-cross", "storage_facility_id": storage_facility_b.id},
         )
         assert response.status_code == 403
 
@@ -438,12 +438,12 @@ class TestSensorRegistration:
 class TestIngest:
     def _register(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict, device_id: str = "dev-ingest"):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        sensor = _make_sensor(sensor_db, tank, device_id=device_id, h1_m=12.0, activated=True)
-        return sensor, tank
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        sensor = _make_sensor(sensor_db, storage_facility, device_id=device_id, h1_m=12.0, activated=True)
+        return sensor, storage_facility
 
     def test_ingest_authenticated_user(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
-        sensor, tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, storage_facility = self._register(client, db, sensor_db, auth_headers)
         response = client.post(
             "/api/sensors/ingest",
             headers=auth_headers,
@@ -454,7 +454,7 @@ class TestIngest:
         assert data["ok"] is True
         assert data["status"] == "warning"
         assert data["water_level_m"] == 8.5
-        assert data["utility_id"] == tank.utility_id
+        assert data["utility_id"] == storage_facility.utility_id
 
     def test_ingest_unknown_device_stored_pending(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         response = client.post(
@@ -506,7 +506,7 @@ class TestIngest:
         assert rows == 1
 
     def test_ingest_status_tiers(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
-        sensor, _tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         # active: depth 2 -> water 10 >= warning 10
         resp = client.post("/api/sensors/ingest", headers=auth_headers,
                            json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=2"})
@@ -521,7 +521,7 @@ class TestIngest:
         assert resp.json()["status"] == "critical"
 
     def test_ingest_inactive_sensor(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
-        sensor, _tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         sensor_db.query(SensorDevice).filter(SensorDevice.id == sensor.id).update({"activated": False})
         sensor_db.commit()
         response = client.post(
@@ -533,7 +533,7 @@ class TestIngest:
         assert response.json()["status"] == "inactive"
 
     def test_ingest_accepts_ingest_key(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict, monkeypatch):
-        sensor, _tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         monkeypatch.setattr(settings, "sensor_ingest_key", "test-secret")
         response = client.post(
             "/api/sensors/ingest",
@@ -544,7 +544,7 @@ class TestIngest:
         assert response.json()["ok"] is True
 
     def test_ingest_rejects_bad_key_and_no_auth(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict, monkeypatch):
-        sensor, _tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         monkeypatch.setattr(settings, "sensor_ingest_key", "test-secret")
         # wrong key, no auth
         response = client.post(
@@ -561,7 +561,7 @@ class TestIngest:
         assert response.status_code == 401
 
     def test_ingest_uses_sensor_depth_default(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
-        sensor, _tank = self._register(client, db, sensor_db, auth_headers)
+        sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         sensor = sensor_db.query(SensorDevice).filter(SensorDevice.id == sensor.id).first()
         cfg = dict(sensor.config or {})
         cfg["depth_m"] = 2.0
@@ -578,28 +578,28 @@ class TestIngest:
 
 
 class TestScopedListsAndPatch:
-    def test_list_tanks_role_scoped(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_list_storage_facilities_role_scoped(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility_a = _make_utility(db, name="Water Co A")
         utility_b = _make_utility(db, name="Water Co B")
-        tank_a = _make_tank(db, utility_a, sensor_db, source_key="A Tank")
-        tank_b = _make_tank(db, utility_b, sensor_db, source_key="B Tank")
+        storage_facility_a = _make_storage_facility(db, utility_a, sensor_db, source_key="A StorageFacility")
+        storage_facility_b = _make_storage_facility(db, utility_b, sensor_db, source_key="B StorageFacility")
 
         headers_b = _utility_manager_headers(db, utility_b)
-        response = client.get("/api/tanks", headers=headers_b)
+        response = client.get("/api/storage-facilities", headers=headers_b)
         assert response.status_code == 200
         data = response.json()
         ids = {item["id"] for item in data["items"]}
-        assert tank_b.id in ids
-        assert tank_a.id not in ids
+        assert storage_facility_b.id in ids
+        assert storage_facility_a.id not in ids
         assert data["total"] == 1
 
     def test_list_sensors_scope(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility_a = _make_utility(db, name="Water Co A")
         utility_b = _make_utility(db, name="Water Co B")
-        tank_a = _make_tank(db, utility_a, sensor_db, source_key="A Tank")
-        tank_b = _make_tank(db, utility_b, sensor_db, source_key="B Tank")
-        sensor_a = _make_sensor(sensor_db, tank_a, device_id="dev-a")
-        sensor_b = _make_sensor(sensor_db, tank_b, device_id="dev-b")
+        storage_facility_a = _make_storage_facility(db, utility_a, sensor_db, source_key="A StorageFacility")
+        storage_facility_b = _make_storage_facility(db, utility_b, sensor_db, source_key="B StorageFacility")
+        sensor_a = _make_sensor(sensor_db, storage_facility_a, device_id="dev-a")
+        sensor_b = _make_sensor(sensor_db, storage_facility_b, device_id="dev-b")
 
         headers_b = _utility_manager_headers(db, utility_b)
         response = client.get("/api/sensors", headers=headers_b)
@@ -609,25 +609,25 @@ class TestScopedListsAndPatch:
         assert sensor_b.device_id in ids
         assert sensor_a.device_id not in ids
 
-    def test_patch_tank_assign_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_patch_storage_facility_assign_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         dma = _make_dma(db, utility)
-        tank = _make_tank(db, utility, sensor_db, source_key="Tank P")
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="StorageFacility P")
         response = client.patch(
-            f"/api/tanks/{tank.id}",
+            f"/api/storage-facilities/{storage_facility.id}",
             headers=auth_headers,
             json={"dma_id": dma.id},
         )
         assert response.status_code == 200
         assert response.json()["dma_id"] == dma.id
 
-    def test_patch_tank_dma_must_match_utility(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_patch_storage_facility_dma_must_match_utility(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         other_utility = _make_utility(db, name="Other Co")
         dma = _make_dma(db, other_utility, name="Other DMA")
-        tank = _make_tank(db, utility, sensor_db, source_key="Tank P")
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="StorageFacility P")
         response = client.patch(
-            f"/api/tanks/{tank.id}",
+            f"/api/storage-facilities/{storage_facility.id}",
             headers=auth_headers,
             json={"dma_id": dma.id},
         )
@@ -635,8 +635,8 @@ class TestScopedListsAndPatch:
 
     def test_reads_persisted(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-persist", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-persist", activated=True)
         client.post(
             "/api/sensors/ingest",
             headers=auth_headers,
@@ -649,8 +649,8 @@ class TestScopedListsAndPatch:
         assert readings[0].utility_id == utility.id
 
 
-class TestUploadTankSync:
-    """Endpoint-level wiring: uploading a storage_facilities layer reconciles tanks."""
+class TestUploadStorageFacilitySync:
+    """Endpoint-level wiring: uploading a storage_facilities layer reconciles storage_facilities."""
 
     def _patch_loader(self, monkeypatch, features: list):
         from app.api.utilities import _load_infrastructure_geojson_with_summary as real_loader
@@ -669,7 +669,7 @@ class TestUploadTankSync:
             fake_loader,
         )
 
-    def test_upload_storage_facilities_returns_tank_sync(
+    def test_upload_storage_facilities_returns_storage_facility_sync(
         self, client: TestClient, db: Session, monkeypatch
     ):
         utility = _make_utility(db)
@@ -694,14 +694,14 @@ class TestUploadTankSync:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["tank_sync"] is not None
-        assert data["tank_sync"]["created"] == 2
-        assert data["tank_sync"]["total"] == 2
-        assert data["tank_sync"]["has_warnings"] is False
+        assert data["storage_facility_sync"] is not None
+        assert data["storage_facility_sync"]["created"] == 2
+        assert data["storage_facility_sync"]["total"] == 2
+        assert data["storage_facility_sync"]["has_warnings"] is False
 
-        tanks = db.query(Tank).filter(Tank.utility_id == utility.id).all()
-        assert {t.source_key for t in tanks} == {"Reservoir A", "Reservoir B"}
-        assert all(t.status == TankStatusEnum.ACTIVE for t in tanks)
+        storage_facilities = db.query(StorageFacility).filter(StorageFacility.utility_id == utility.id).all()
+        assert {t.source_key for t in storage_facilities} == {"Reservoir A", "Reservoir B"}
+        assert all(t.status == StorageFacilityStatusEnum.ACTIVE for t in storage_facilities)
 
         layer = (
             db.query(UtilityInfrastructureLayer)
@@ -712,15 +712,15 @@ class TestUploadTankSync:
             .first()
         )
         assert layer is not None
-        assert layer.tank_key_field == "TankName"
+        assert layer.storage_facility_key_field == "TankName"
 
-    def test_upload_reconcile_deactivates_missing_tank(
+    def test_upload_reconcile_deactivates_missing_storage_facility(
         self, client: TestClient, db: Session, sensor_db: Session, monkeypatch
     ):
         utility = _make_utility(db)
         headers = _utility_manager_headers(db, utility)
-        tank = _make_tank(db, utility, sensor_db, source_key="Reservoir A")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-keep", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Reservoir A")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-keep", activated=True)
 
         self._patch_loader(monkeypatch, [
             {
@@ -737,18 +737,18 @@ class TestUploadTankSync:
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["tank_sync"]["created"] == 1
-        assert data["tank_sync"]["deactivated"] == 1
-        assert data["tank_sync"]["deactivated_with_sensors"] == 1
-        assert data["tank_sync"]["has_warnings"] is True
+        assert data["storage_facility_sync"]["created"] == 1
+        assert data["storage_facility_sync"]["deactivated"] == 1
+        assert data["storage_facility_sync"]["deactivated_with_sensors"] == 1
+        assert data["storage_facility_sync"]["has_warnings"] is True
 
-        db.refresh(tank)
-        assert tank.status == TankStatusEnum.DEACTIVATED
-        assert tank.deactivated_at is not None
+        db.refresh(storage_facility)
+        assert storage_facility.status == StorageFacilityStatusEnum.DEACTIVATED
+        assert storage_facility.deactivated_at is not None
 
 
-class TestTankReadings:
-    """GET /api/tanks/{tank_id}/readings — reading history for a tank's active sensors."""
+class TestStorageFacilityReadings:
+    """GET /api/storage-facilities/{storage_facility_id}/readings — active-sensor history."""
 
     def _ingest(
         self,
@@ -771,10 +771,10 @@ class TestTankReadings:
         assert response.status_code == 200
         return response.json()
 
-    def test_readings_empty_for_unmonitored_tank(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_readings_empty_for_unmonitored_storage_facility(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Quiet Tank")
-        response = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Quiet StorageFacility")
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 0
@@ -782,13 +782,13 @@ class TestTankReadings:
 
     def test_readings_latest_first_and_ordered(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Tank R")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-read", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="StorageFacility R")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-read", activated=True)
         self._ingest(client, auth_headers, sensor.device_id, "2026-01-01T10:00:00", "Depth=1")
         self._ingest(client, auth_headers, sensor.device_id, "2026-01-01T12:00:00", "Depth=3")
         self._ingest(client, auth_headers, sensor.device_id, "2026-01-01T11:00:00", "Depth=2")
 
-        response = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 3
@@ -800,11 +800,11 @@ class TestTankReadings:
 
     def test_readings_limit(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Tank L")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-lim", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="StorageFacility L")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-lim", activated=True)
         for i in range(5):
             self._ingest(client, auth_headers, sensor.device_id, f"2026-01-01T10:0{i}:00", "Depth=1")
-        response = client.get(f"/api/tanks/{tank.id}/readings?limit=2", headers=auth_headers)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/readings?limit=2", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 5
@@ -812,10 +812,10 @@ class TestTankReadings:
 
     def test_readings_skips_inactive_sensors(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Tank I")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-inactive", activated=False)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="StorageFacility I")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-inactive", activated=False)
         self._ingest(client, auth_headers, sensor.device_id, "2026-01-01T10:00:00")
-        response = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)
         data = response.json()
         assert data["total"] == 0
         assert data["items"] == []
@@ -823,13 +823,13 @@ class TestTankReadings:
     def test_readings_scoped_403_other_utility(self, client: TestClient, db: Session, sensor_db: Session):
         utility_a = _make_utility(db, name="Water Co A")
         utility_b = _make_utility(db, name="Water Co B")
-        tank = _make_tank(db, utility_a, sensor_db, source_key="Tank S")
+        storage_facility = _make_storage_facility(db, utility_a, sensor_db, source_key="StorageFacility S")
         headers_b = _utility_manager_headers(db, utility_b)
-        response = client.get(f"/api/tanks/{tank.id}/readings", headers=headers_b)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=headers_b)
         assert response.status_code == 403
 
-    def test_readings_404_unknown_tank(self, client: TestClient, sensor_db: Session, auth_headers: dict):
-        response = client.get(f"/api/tanks/{uuid4()}/readings", headers=auth_headers)
+    def test_readings_404_unknown_storage_facility(self, client: TestClient, sensor_db: Session, auth_headers: dict):
+        response = client.get(f"/api/storage-facilities/{uuid4()}/readings", headers=auth_headers)
         assert response.status_code == 404
 
 
@@ -838,8 +838,8 @@ class TestSensorDelete:
 
     def test_delete_sensor_cascades_readings(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Delete Tank")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-del", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Delete StorageFacility")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-del", activated=True)
         response = client.post(
             "/api/sensors/ingest",
             headers=auth_headers,
@@ -862,8 +862,8 @@ class TestSensorDelete:
 
         utility_a = _make_utility(db, name="Water Co A")
         utility_b = _make_utility(db, name="Water Co B")
-        tank = _make_tank(db, utility_b, sensor_db, source_key="Scoped Tank")
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-scoped", activated=True)
+        storage_facility = _make_storage_facility(db, utility_b, sensor_db, source_key="Scoped StorageFacility")
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-scoped", activated=True)
 
         manager_b = UtilityManager(email="mb@example.com", name="Manager B", phone="+1",
                                    password=hash_password("pass123"), utility_id=utility_b.id)
@@ -879,8 +879,8 @@ class TestSensorDelete:
 
     def test_delete_sensor_duplicate_returns_404(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict, admin_auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Twice Tank")
-        _make_sensor(sensor_db, tank, device_id="dev-twice", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Twice StorageFacility")
+        _make_sensor(sensor_db, storage_facility, device_id="dev-twice", activated=True)
         first = client.delete("/api/sensors/dev-twice", headers=admin_auth_headers)
         assert first.status_code == 204
         second = client.delete("/api/sensors/dev-twice", headers=admin_auth_headers)
@@ -888,8 +888,8 @@ class TestSensorDelete:
 
     def test_delete_sensor_audit_logged(self, client: TestClient, db: Session, sensor_db: Session, admin_auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db, source_key="Audit Tank")
-        _make_sensor(sensor_db, tank, device_id="dev-audit", activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Audit StorageFacility")
+        _make_sensor(sensor_db, storage_facility, device_id="dev-audit", activated=True)
         response = client.delete("/api/sensors/dev-audit", headers=admin_auth_headers)
         assert response.status_code == 204
         from app.models import ActivityLog
@@ -939,8 +939,8 @@ class TestIdempotentIngest:
 
     def test_duplicate_reading_returns_existing(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-dedup", h1_m=12.0, activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-dedup", h1_m=12.0, activated=True)
         ts = "2026-01-01T10:00:00"
 
         resp1 = client.post(
@@ -967,8 +967,8 @@ class TestIdempotentIngest:
 
     def test_different_timestamps_create_separate_readings(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
-        sensor = _make_sensor(sensor_db, tank, device_id="dev-multi", h1_m=12.0, activated=True)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-multi", h1_m=12.0, activated=True)
 
         client.post(
             "/api/sensors/ingest",
@@ -990,7 +990,7 @@ class TestPendingReadingsPromotion:
 
     def test_pending_promoted_on_registration(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         client.post(
             "/api/sensors/ingest",
@@ -1013,7 +1013,7 @@ class TestPendingReadingsPromotion:
             headers=auth_headers,
             json={
                 "device_id": "pending-01",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "h1_m": 12.0,
                 "activated": True,
             },
@@ -1027,7 +1027,7 @@ class TestPendingReadingsPromotion:
         ).count()
         assert pending_after == 0
 
-        readings_resp = client.get(f"/api/tanks/{tank.id}/readings", headers=auth_headers)
+        readings_resp = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)
         assert readings_resp.status_code == 200
         readings_data = readings_resp.json()
         assert readings_data["total"] == 2
@@ -1036,14 +1036,14 @@ class TestPendingReadingsPromotion:
 
     def test_registration_without_pending_returns_zero(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
             json={
                 "device_id": "clean-device",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "h1_m": 10.0,
                 "activated": True,
             },
@@ -1053,7 +1053,7 @@ class TestPendingReadingsPromotion:
 
     def test_pending_dedup_key_prevents_double_promotion(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         client.post(
             "/api/sensors/ingest",
@@ -1066,7 +1066,7 @@ class TestPendingReadingsPromotion:
             headers=auth_headers,
             json={
                 "device_id": "dedup-dev",
-                "tank_id": tank.id,
+                "storage_facility_id": storage_facility.id,
                 "h1_m": 8.0,
                 "activated": True,
             },
@@ -1087,9 +1087,9 @@ class TestPendingReadingsPromotion:
 
 
 class TestDmaAutoAssignment:
-    """DMA assignment from tank coordinates on registration + manual DMA choice on edit."""
+    """DMA assignment from storage_facility coordinates on registration + manual DMA choice on edit."""
 
-    POLYGON_AROUND_TANK = [
+    POLYGON_AROUND_STORAGE_FACILITY = [
         [36.5, -3.6], [36.9, -3.6], [36.9, -3.2], [36.5, -3.2], [36.5, -3.6],
     ]
     POLYGON_OTHERWHERE = [
@@ -1108,53 +1108,53 @@ class TestDmaAutoAssignment:
         db.refresh(dma)
         return dma
 
-    def test_register_auto_assigns_dma_from_tank_coords(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_register_auto_assigns_dma_from_storage_facility_coords(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        dma = self._make_dma_with_boundary(db, utility, "Covering DMA", self.POLYGON_AROUND_TANK)
-        tank = _make_tank(db, utility, sensor_db)  # lat=-3.4, lon=36.7, inside POLYGON_AROUND_TANK
+        dma = self._make_dma_with_boundary(db, utility, "Covering DMA", self.POLYGON_AROUND_STORAGE_FACILITY)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)  # lat=-3.4, lon=36.7, inside POLYGON_AROUND_STORAGE_FACILITY
 
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0901", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+            json={"device_id": "AU_NAM_0901", "storage_facility_id": storage_facility.id, "h1_m": 10.0, "activated": True},
         )
         assert response.status_code == 201
         data = response.json()
         assert data["dma_id"] == dma.id
         assert data["dma_auto_assigned"] is True
 
-        db.refresh(tank)
-        assert tank.dma_id == dma.id
+        db.refresh(storage_facility)
+        assert storage_facility.dma_id == dma.id
 
     def test_register_unassigned_when_no_boundary_match(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         self._make_dma_with_boundary(db, utility, "Faraway DMA", self.POLYGON_OTHERWHERE)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0902", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+            json={"device_id": "AU_NAM_0902", "storage_facility_id": storage_facility.id, "h1_m": 10.0, "activated": True},
         )
         assert response.status_code == 201
         data = response.json()
         assert data["dma_id"] is None
         assert data["dma_auto_assigned"] is False
 
-        db.refresh(tank)
-        assert tank.dma_id is None
+        db.refresh(storage_facility)
+        assert storage_facility.dma_id is None
 
-    def test_register_preserves_existing_tank_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_register_preserves_existing_storage_facility_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         existing_dma = _make_dma(db, utility, "Existing DMA")
-        tank = _make_tank(db, utility, sensor_db)
-        tank.dma_id = existing_dma.id
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        storage_facility.dma_id = existing_dma.id
         db.commit()
 
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0903", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+            json={"device_id": "AU_NAM_0903", "storage_facility_id": storage_facility.id, "h1_m": 10.0, "activated": True},
         )
         assert response.status_code == 201
         data = response.json()
@@ -1163,8 +1163,8 @@ class TestDmaAutoAssignment:
 
     def test_promoted_readings_receive_auto_assigned_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        dma = self._make_dma_with_boundary(db, utility, "Promotion DMA", self.POLYGON_AROUND_TANK)
-        tank = _make_tank(db, utility, sensor_db)
+        dma = self._make_dma_with_boundary(db, utility, "Promotion DMA", self.POLYGON_AROUND_STORAGE_FACILITY)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         ingest = client.post(
             "/api/sensors/ingest",
@@ -1177,7 +1177,7 @@ class TestDmaAutoAssignment:
         response = client.post(
             "/api/sensors",
             headers=auth_headers,
-            json={"device_id": "AU_NAM_0904", "tank_id": tank.id, "h1_m": 10.0, "activated": True},
+            json={"device_id": "AU_NAM_0904", "storage_facility_id": storage_facility.id, "h1_m": 10.0, "activated": True},
         )
         assert response.status_code == 201
         assert response.json()["promoted_readings"] == 1
@@ -1196,8 +1196,8 @@ class TestDmaAutoAssignment:
     def test_update_sensor_manual_dma_choice(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         dma = _make_dma(db, utility, "Manual DMA")
-        tank = _make_tank(db, utility, sensor_db)
-        _make_sensor(sensor_db, tank, device_id="AU_NAM_0905")
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        _make_sensor(sensor_db, storage_facility, device_id="AU_NAM_0905")
 
         response = client.patch(
             "/api/sensors/AU_NAM_0905",
@@ -1207,15 +1207,15 @@ class TestDmaAutoAssignment:
         assert response.status_code == 200
         assert response.json()["dma_id"] == dma.id
 
-        db.refresh(tank)
-        assert tank.dma_id == dma.id
+        db.refresh(storage_facility)
+        assert storage_facility.dma_id == dma.id
 
     def test_update_sensor_dma_other_utility_rejected(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         other_utility = _make_utility(db, name="Water Co B")
         foreign_dma = _make_dma(db, other_utility, "Foreign DMA")
-        tank = _make_tank(db, utility, sensor_db)
-        _make_sensor(sensor_db, tank, device_id="AU_NAM_0906")
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
+        _make_sensor(sensor_db, storage_facility, device_id="AU_NAM_0906")
 
         response = client.patch(
             "/api/sensors/AU_NAM_0906",
@@ -1224,65 +1224,65 @@ class TestDmaAutoAssignment:
         )
         assert response.status_code == 400
 
-        db.refresh(tank)
-        assert tank.dma_id is None
+        db.refresh(storage_facility)
+        assert storage_facility.dma_id is None
 
     def test_detect_dma_endpoint(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        dma = self._make_dma_with_boundary(db, utility, "Endpoint DMA", self.POLYGON_AROUND_TANK)
-        tank = _make_tank(db, utility, sensor_db)
+        dma = self._make_dma_with_boundary(db, utility, "Endpoint DMA", self.POLYGON_AROUND_STORAGE_FACILITY)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
-        response = client.get(f"/api/tanks/{tank.id}/detect-dma", headers=auth_headers)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/detect-dma", headers=auth_headers)
         assert response.status_code == 200
         assert response.json() == {"dma_id": dma.id, "dma_name": dma.name}
 
     def test_detect_dma_endpoint_no_match(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        tank = _make_tank(db, utility, sensor_db)
+        storage_facility = _make_storage_facility(db, utility, sensor_db)
 
-        response = client.get(f"/api/tanks/{tank.id}/detect-dma", headers=auth_headers)
+        response = client.get(f"/api/storage-facilities/{storage_facility.id}/detect-dma", headers=auth_headers)
         assert response.status_code == 200
         assert response.json() == {"dma_id": None, "dma_name": None}
 
-    def test_update_sensor_tank_change_redetects_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_update_sensor_storage_facility_change_redetects_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
-        dma = self._make_dma_with_boundary(db, utility, "Redetect DMA", self.POLYGON_AROUND_TANK)
-        old_tank = _make_tank(db, utility, sensor_db, source_key="Old Tank", latitude=-3.9, longitude=37.0)
-        new_tank = _make_tank(db, utility, sensor_db, source_key="New Tank")  # inside POLYGON_AROUND_TANK
-        _make_sensor(sensor_db, old_tank, device_id="AU_NAM_0907")
+        dma = self._make_dma_with_boundary(db, utility, "Redetect DMA", self.POLYGON_AROUND_STORAGE_FACILITY)
+        old_storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Old StorageFacility", latitude=-3.9, longitude=37.0)
+        new_storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="New StorageFacility")  # inside POLYGON_AROUND_STORAGE_FACILITY
+        _make_sensor(sensor_db, old_storage_facility, device_id="AU_NAM_0907")
 
         response = client.patch(
             "/api/sensors/AU_NAM_0907",
             headers=auth_headers,
-            json={"tank_id": new_tank.id, "dma_id": ""},
+            json={"storage_facility_id": new_storage_facility.id, "dma_id": ""},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["tank_id"] == new_tank.id
+        assert data["storage_facility_id"] == new_storage_facility.id
         assert data["dma_id"] == dma.id
         assert data["dma_auto_assigned"] is True
 
-        db.refresh(new_tank)
-        assert new_tank.dma_id == dma.id
+        db.refresh(new_storage_facility)
+        assert new_storage_facility.dma_id == dma.id
 
-    def test_update_sensor_tank_change_detection_fails_allows_manual(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+    def test_update_sensor_storage_facility_change_detection_fails_allows_manual(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)
         dma = _make_dma(db, utility, "Manual After Move")
-        old_tank = _make_tank(db, utility, sensor_db, source_key="Old Tank B")
-        # New tank has no coordinates -> detection cannot succeed.
-        new_tank = _make_tank(db, utility, sensor_db, source_key="New Tank B", latitude=None, longitude=None)
-        _make_sensor(sensor_db, old_tank, device_id="AU_NAM_0908")
+        old_storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Old StorageFacility B")
+        # New storage_facility has no coordinates -> detection cannot succeed.
+        new_storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="New StorageFacility B", latitude=None, longitude=None)
+        _make_sensor(sensor_db, old_storage_facility, device_id="AU_NAM_0908")
 
         response = client.patch(
             "/api/sensors/AU_NAM_0908",
             headers=auth_headers,
-            json={"tank_id": new_tank.id, "dma_id": dma.id},
+            json={"storage_facility_id": new_storage_facility.id, "dma_id": dma.id},
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["tank_id"] == new_tank.id
+        assert data["storage_facility_id"] == new_storage_facility.id
         assert data["dma_id"] == dma.id
         assert data["dma_auto_assigned"] is False
 
-        db.refresh(new_tank)
-        assert new_tank.dma_id == dma.id
+        db.refresh(new_storage_facility)
+        assert new_storage_facility.dma_id == dma.id

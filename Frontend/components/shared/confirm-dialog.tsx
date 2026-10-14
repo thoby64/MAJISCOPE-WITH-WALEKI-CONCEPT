@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { AlertTriangle, Trash2, Info } from "lucide-react"
+import { AlertTriangle, Loader2, Trash2, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface ConfirmDialogProps {
@@ -36,6 +36,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   onConfirm,
   variant = "destructive",
+  isLoading = false,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -62,19 +63,21 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
-          <AlertDialogCancel className="rounded-xl border-slate-200 hover:bg-slate-50">
+          <AlertDialogCancel disabled={isLoading} className="rounded-xl border-slate-200 hover:bg-slate-50">
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={isLoading}
             className={cn(
-              "rounded-xl text-white shadow-lg transition-all duration-300",
+              "rounded-xl text-white shadow-lg transition-all duration-300 disabled:pointer-events-none disabled:opacity-60",
               variant === "destructive"
                 ? "bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-red-500/25 hover:shadow-red-500/40"
                 : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 shadow-cyan-500/25 hover:shadow-cyan-500/40"
             )}
           >
-            {confirmLabel}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {isLoading ? "Saving…" : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

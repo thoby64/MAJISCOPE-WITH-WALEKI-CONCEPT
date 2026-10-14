@@ -48,9 +48,10 @@ from app.services.hierarchy import (
 )
 from app.services.activity_logs import audit_log
 from app.services.slugs import slugify
-from app.services.tank_sync import sync_tanks_from_layer
+from app.services.storage_facility_sync import sync_storage_facilities_from_layer
+from app.services.water_source_sync import sync_water_sources_from_layer, mirror_synced_water_sources
 from app.services.gpkg_storage_append import append_storage_facility, StorageFacilityCreateData
-from app.schemas.sensors import TankSyncSummary
+from app.schemas.sensors import StorageFacilitySyncSummary, WaterSourceSyncSummary
 
 utilities_router = APIRouter(prefix="/api/utilities", tags=["utilities"])
 
@@ -1324,8 +1325,8 @@ def _normalize_asset_type(asset_type: str) -> str:
         "storage": "storage_facilities",
         "storages": "storage_facilities",
         "storage_facility": "storage_facilities",
-        "tank": "storage_facilities",
-        "tanks": "storage_facilities",
+        "storage_facility": "storage_facilities",
+        "storage_facilities": "storage_facilities",
         "meter": "bulk_meters",
         "meters": "bulk_meters",
         "bulk_meter": "bulk_meters",
@@ -1396,13 +1397,23 @@ def _load_infrastructure_geojson_with_summary(file_name: str, file_data: bytes, 
 def load_storage_facilities_features(file_name: str, file_data: bytes) -> list[dict[str, Any]]:
     """Load the storage_facilities features of a stored GeoPackage as a feature list.
 
-    Public wrapper used by the startup tank sync service; keeps the private
+    Public wrapper used by the startup storage_facility sync service; keeps the private
     ``_load_infrastructure_geojson_with_summary`` out of the service layer.
     """
     feature_collection, _summary = _load_infrastructure_geojson_with_summary(
         file_name,
         file_data,
         "storage_facilities",
+    )
+    return feature_collection.get("features", [])
+
+
+def load_water_sources_features(file_name: str, file_data: bytes) -> list[dict[str, Any]]:
+    """Load water-source features from a stored infrastructure GeoPackage."""
+    feature_collection, _summary = _load_infrastructure_geojson_with_summary(
+        file_name,
+        file_data,
+        "water_sources",
     )
     return feature_collection.get("features", [])
 
@@ -1794,15 +1805,24 @@ async def upload_infrastructure_layer(
     layer.feature_count = len(feature_collection.get("features", []))
     layer.uploaded_by_manager_id = current_user.id if current_user.user_type == "utility_manager" else None
 
-    tank_sync: Optional[TankSyncSummary] = None
+    storage_facility_sync: Optional[StorageFacilitySyncSummary] = None
+    water_source_sync: Optional[WaterSourceSyncSummary] = None
     if normalized_asset_type == "storage_facilities":
-        sync_result = sync_tanks_from_layer(
+        sync_result = sync_storage_facilities_from_layer(
             db,
             utility.id,
             feature_collection.get("features", []),
             layer,
         )
-        tank_sync = TankSyncSummary(**sync_result)
+        storage_facility_sync = StorageFacilitySyncSummary(**sync_result)
+    elif normalized_asset_type == "water_sources":
+        sync_result = sync_water_sources_from_layer(
+            db,
+            utility.id,
+            feature_collection.get("features", []),
+            layer,
+        )
+        water_source_sync = WaterSourceSyncSummary(**sync_result)
 
     _infrastructure_geojson_cache.clear()
     db.flush()
@@ -1828,11 +1848,14 @@ async def upload_infrastructure_layer(
     db.commit()
     db.refresh(utility)
     db.refresh(layer)
+    if normalized_asset_type == "water_sources":
+        mirror_synced_water_sources(db, utility.id)
     return UtilityInfrastructureUploadResponse(
         utility=_build_utility_response(utility, db),
         asset=_build_infrastructure_asset_response(layer),
         ingest_summary=ingest_summary,
-        tank_sync=tank_sync,
+        storage_facility_sync=storage_facility_sync,
+        water_source_sync=water_source_sync,
     )
 
 
@@ -1845,11 +1868,11 @@ async def create_storage_facility_manual(
     db: Session = Depends(get_db),
 ):
     """
-    Manually create a storage facility (tank) by appending to GPKG.
+    Manually create a storage facility (storage_facility) by appending to GPKG.
     
     Creates a new storage facility feature in the utility's GeoPackage file,
-    then runs tank synchronization to materialize the tank in the database.
-    Optionally registers a sensor against the new tank.
+    then runs storage_facility synchronization to materialize the storage_facility in the database.
+    Optionally registers a sensor against the new storage_facility.
     
     Requires utility_manager role.
     """
@@ -1859,8 +1882,8 @@ async def create_storage_facility_manual(
 
     _ensure_utility_access(utility, current_user, db)
 
-    # Prepare tank data for service
-    tank_data = StorageFacilityCreateData(
+    # Prepare storage_facility data for service
+    storage_facility_data = StorageFacilityCreateData(
         name=payload.name,
         latitude=payload.latitude,
         longitude=payload.longitude,
@@ -1877,10 +1900,10 @@ async def create_storage_facility_manual(
 
     try:
         # Call service to append to GPKG and sync
-        updated_gpkg_data, new_tank, created_sensor = append_storage_facility(
+        updated_gpkg_data, new_storage_facility, created_sensor = append_storage_facility(
             db=db,
             utility_id=utility_id,
-            tank_data=tank_data,
+            storage_facility_data=storage_facility_data,
             current_user_id=current_user.id,
             register_sensor=payload.register_sensor,
             sensor_device_id=payload.sensor_device_id,
@@ -1929,35 +1952,35 @@ async def create_storage_facility_manual(
             event_type="storage_facility",
             status="success",
             entity="storage_facility",
-            entity_id=new_tank.id,
-            target_name=new_tank.name or new_tank.source_key,
+            entity_id=new_storage_facility.id,
+            target_name=new_storage_facility.name or new_storage_facility.source_key,
             utility_id=utility.id,
             metadata={
-                "source_key": new_tank.source_key,
-                "latitude": new_tank.latitude,
-                "longitude": new_tank.longitude,
+                "source_key": new_storage_facility.source_key,
+                "latitude": new_storage_facility.latitude,
+                "longitude": new_storage_facility.longitude,
                 "sensor_registered": created_sensor is not None,
             },
         )
 
         db.commit()
-        db.refresh(new_tank)
+        db.refresh(new_storage_facility)
 
         # Build response
         response = StorageFacilityCreateResponse(
-            tank_id=new_tank.id,
-            name=new_tank.name or new_tank.source_key,
-            latitude=new_tank.latitude or 0,
-            longitude=new_tank.longitude or 0,
-            utility_id=new_tank.utility_id,
-            dma_id=new_tank.dma_id,
-            source_key=new_tank.source_key,
-            status=new_tank.status.value if hasattr(new_tank.status, "value") else new_tank.status,
+            storage_facility_id=new_storage_facility.id,
+            name=new_storage_facility.name or new_storage_facility.source_key,
+            latitude=new_storage_facility.latitude or 0,
+            longitude=new_storage_facility.longitude or 0,
+            utility_id=new_storage_facility.utility_id,
+            dma_id=new_storage_facility.dma_id,
+            source_key=new_storage_facility.source_key,
+            status=new_storage_facility.status.value if hasattr(new_storage_facility.status, "value") else new_storage_facility.status,
             sensor_count=1 if created_sensor else 0,
             active_sensor_count=1 if (created_sensor and created_sensor.activated) else 0,
-            created_at=new_tank.created_at,
-            updated_at=new_tank.updated_at,
-            deactivated_at=new_tank.deactivated_at,
+            created_at=new_storage_facility.created_at,
+            updated_at=new_storage_facility.updated_at,
+            deactivated_at=new_storage_facility.deactivated_at,
             gpkg_updated=True,
             warnings=[],
         )
@@ -1973,14 +1996,14 @@ async def create_storage_facility_manual(
 
     except ValueError as e:
         db.rollback()
-        # Check if it's a sensor conflict but tank was created
+        # Check if it's a sensor conflict but storage_facility was created
         error_msg = str(e)
         if "sensor" in error_msg.lower() and "already exists" in error_msg.lower():
-            # Tank created, sensor failed - this shouldn't happen with our logic
+            # StorageFacility created, sensor failed - this shouldn't happen with our logic
             # but handle gracefully
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Tank created but sensor registration failed: {error_msg}"
+                detail=f"StorageFacility created but sensor registration failed: {error_msg}"
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

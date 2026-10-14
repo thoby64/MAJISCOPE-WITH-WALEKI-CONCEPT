@@ -3,8 +3,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { StorageFacilityFormUI } from '@/components/dashboard/storage-facility-form';
+import {
+  StorageFacilityFormUI,
+  storageFacilityFormSchema,
+  type StorageFacilityFormInput,
+  type StorageFacilityFormOutput,
+} from '@/components/dashboard/storage-facility-form';
 import { CustomAttributes } from '@/components/dashboard/custom-attributes';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
@@ -14,40 +18,6 @@ import { useDataStore } from '@/store/data-store';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 
-const formSchema = z.object({
-  name: z.string().min(1, { message: "Name is required" }),
-  latitude: z.number().min(-90).max(90).nullable(),
-  longitude: z.number().min(-180).max(180).nullable(),
-  material: z.string().optional(),
-  capacity: z.coerce.number().optional(),
-  depth_m: z.coerce.number().optional(),
-  elevation_m: z.coerce.number().optional(),
-  inner_diameter_m: z.coerce.number().optional(),
-  outer_diameter_m: z.coerce.number().optional(),
-  tank_shape: z.string().optional(),
-  status: z.string().optional(),
-  condition: z.string().optional(),
-  location: z.string().optional(),
-  zone_location: z.string().optional(),
-  asset_id: z.string().optional(),
-  installer: z.string().optional(),
-  service_area: z.string().optional(),
-  custom_attributes: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
-  register_sensor: z.boolean().default(false),
-  sensor_device_id: z.string().optional(),
-  sensor_h1_m: z.coerce.number().optional(),
-  sensor_depth_m: z.coerce.number().optional(),
-  sensor_activated: z.boolean().default(false),
-}).refine(data => {
-  if (data.register_sensor && !data.sensor_device_id) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Sensor Device ID is required when registering a sensor",
-  path: ["sensor_device_id"],
-});
-
 export default function StorageFacilityCreatePage() {
   const router = useRouter();
   const { currentUser } = useAuthStore();
@@ -55,12 +25,12 @@ export default function StorageFacilityCreatePage() {
   const [utilityId, setUtilityId] = useState<string>("");
   const [dmaId, setDmaId] = useState<string>("");
 
-  const form = useForm({
-    resolver: zodResolver(formSchema),
+  const form = useForm<StorageFacilityFormInput, unknown, StorageFacilityFormOutput>({
+    resolver: zodResolver(storageFacilityFormSchema),
     defaultValues: {
       name: '',
-      latitude: null as unknown as number,
-      longitude: null as unknown as number,
+      latitude: null,
+      longitude: null,
       custom_attributes: [],
       register_sensor: false,
       sensor_device_id: '',
@@ -97,7 +67,7 @@ export default function StorageFacilityCreatePage() {
   const selectedUtility = useMemo(() => utilities.find(u => u.id === utilityId) || null, [utilities, utilityId]);
   const selectedDMA = useMemo(() => dmas.find(d => d.id === dmaId) || null, [dmas, dmaId]);
 
-  async function onSubmit(values: any) {
+  async function onSubmit(values: StorageFacilityFormOutput) {
     setIsSubmitting(true);
     if (!utilityId) {
       toast.error('Please select a utility');
@@ -105,7 +75,7 @@ export default function StorageFacilityCreatePage() {
       return;
     }
     if (!values.latitude || !values.longitude) {
-      toast.error('Tank location (latitude and longitude) is required');
+      toast.error('Storage facility location (latitude and longitude) is required');
       setIsSubmitting(false);
       return;
     }
@@ -122,7 +92,7 @@ export default function StorageFacilityCreatePage() {
       };
 
       // Call backend API
-      const response = await apiClient.post<{ success: boolean; data: any }>(
+      const response = await apiClient.post<{ storage_facility_id: string }>(
         `/api/utilities/${utilityId}/storage-facilities/manual`,
         payload
       );
@@ -133,9 +103,8 @@ export default function StorageFacilityCreatePage() {
 
       toast.success('Storage facility created successfully');
       
-      // Navigate to the new tank's detail page or water-level page
-      if (response.data?.tank?.id) {
-        router.push(`/dashboard/sensor-data/${response.data.tank.id}`);
+      if (response.data?.storage_facility_id) {
+        router.push(`/dashboard/sensor-data/${response.data.storage_facility_id}`);
       } else {
         router.push('/dashboard/sensor-data');
         router.refresh();
@@ -166,7 +135,7 @@ export default function StorageFacilityCreatePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Add Storage Facility</h1>
             <p className="text-sm text-slate-500">
-              Register a new tank and optionally link a sensor.
+              Register a new storage facility and optionally link a sensor.
             </p>
           </div>
         </div>
@@ -192,7 +161,7 @@ export default function StorageFacilityCreatePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Add Storage Facility</h1>
             <p className="text-sm text-slate-500">
-              Register a new tank and optionally link a sensor.
+              Register a new storage facility and optionally link a sensor.
             </p>
           </div>
         </div>
@@ -222,8 +191,8 @@ export default function StorageFacilityCreatePage() {
               <StorageFacilityFormUI 
                 form={form}
                 isSubmitting={isSubmitting}
-                utilityCenter={selectedUtility ? { latitude: selectedUtility.centerLatitude, longitude: selectedUtility.centerLongitude } : null}
-                dmaCenter={selectedDMA ? { latitude: selectedDMA.centerLatitude, longitude: selectedDMA.centerLongitude } : null}
+                utilityCenter={selectedUtility ? { latitude: selectedUtility.centerLatitude ?? null, longitude: selectedUtility.centerLongitude ?? null } : null}
+                dmaCenter={selectedDMA ? { latitude: selectedDMA.centerLatitude ?? null, longitude: selectedDMA.centerLongitude ?? null } : null}
                 userRole={currentUser?.role}
                 onSubmit={onSubmit}
                 onReset={onReset}
@@ -236,11 +205,11 @@ export default function StorageFacilityCreatePage() {
                 <ul className="space-y-4 text-sm text-slate-600">
                   <li className="flex gap-3">
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold">1</div>
-                    <p>Enter the tank name and other physical attributes.</p>
+                    <p>Enter the storage facility name and other physical attributes.</p>
                   </li>
                   <li className="flex gap-3">
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold">2</div>
-                    <p>Pin the tank location on the map or type coordinates manually.</p>
+                    <p>Pin the storage facility location on the map or type coordinates manually.</p>
                   </li>
                   <li className="flex gap-3">
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold">3</div>

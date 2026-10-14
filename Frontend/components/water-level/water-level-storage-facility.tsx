@@ -26,10 +26,10 @@ const asNumber = (value: number | null | undefined, fallback = 0) => {
 }
 const formatMeter = (value: number | null | undefined) => `${asNumber(value).toFixed(2)}m`
 
-interface WaterLevelTankProps {
-  tankName: string
+interface WaterLevelStorageFacilityProps {
+  storageFacilityName: string
   waterHeightM: number
-  tankDepthM: number
+  storageFacilityDepthM: number
   sensorHangingM: number
   sensorDepthM: number
   status: string
@@ -37,17 +37,17 @@ interface WaterLevelTankProps {
   lastReadingLabel?: string
 }
 
-export function WaterLevelTank({
-  tankName,
+export function WaterLevelStorageFacility({
+  storageFacilityName,
   waterHeightM,
-  tankDepthM,
+  storageFacilityDepthM,
   sensorHangingM,
   sensorDepthM,
   status,
   readingCount,
   lastReadingLabel,
-}: WaterLevelTankProps) {
-  const depth = asNumber(tankDepthM)
+}: WaterLevelStorageFacilityProps) {
+  const depth = asNumber(storageFacilityDepthM)
   const height = asNumber(waterHeightM)
   const sensorHanging = asNumber(sensorHangingM)
   const sensorDepth = asNumber(sensorDepthM)
@@ -66,8 +66,8 @@ export function WaterLevelTank({
       <CardContent className="p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Live tank level</p>
-            <h4 className="mt-0.5 text-lg font-semibold text-slate-800">{tankName}</h4>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Live storage facility level</p>
+            <h4 className="mt-0.5 text-lg font-semibold text-slate-800">{storageFacilityName}</h4>
           </div>
           <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium", statusTextClass)}>
             <span className="h-1.5 w-1.5 rounded-full bg-current" />
@@ -76,7 +76,7 @@ export function WaterLevelTank({
         </div>
 
         <div className="mt-6 flex flex-col gap-6 sm:flex-row">
-          {/* Tank instrument */}
+          {/* StorageFacility instrument */}
           <div className="flex flex-1 items-stretch justify-center gap-3">
             {/* Scale */}
             <div className="relative w-14 shrink-0" aria-hidden="true">
@@ -88,7 +88,7 @@ export function WaterLevelTank({
               ))}
             </div>
 
-            {/* Tank body */}
+            {/* StorageFacility body */}
             <div
               className="relative h-64 w-28 overflow-hidden rounded-b-xl rounded-t-lg border-2 border-slate-300 bg-slate-100"
               role="img"
@@ -134,7 +134,7 @@ export function WaterLevelTank({
             <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <div>
                 <Ruler className="mb-0.5 h-3.5 w-3.5 text-slate-400" />
-                <p className="text-slate-500">Tank length</p>
+                <p className="text-slate-500">Storage facility length</p>
                 <strong className="text-slate-700">{formatMeter(depth)}</strong>
               </div>
               <div>

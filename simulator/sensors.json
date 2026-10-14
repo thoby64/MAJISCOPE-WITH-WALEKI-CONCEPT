@@ -1,10 +1,22 @@
 [
   {
     "device_id": "AU_NAM_9001",
-    "category": "water_level"
+    "category": "water_level",
+    "asset_type": "storage_facility"
   },
   {
     "device_id": "AU_NAM_9002",
-    "category": "water_quality"
+    "category": "water_quality",
+    "asset_type": "storage_facility"
+  },
+  {
+    "device_id": "AU_NAM_9003",
+    "category": "water_quality",
+    "asset_type": "water_source"
+  },
+  {
+    "device_id": "AU_NAM_9004",
+    "category": "water_level",
+    "asset_type": "water_source"
   }
 ]
