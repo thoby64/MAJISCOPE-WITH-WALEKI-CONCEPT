@@ -170,7 +170,7 @@ class TestWqIngest:
         _make_wq_sensor(sensor_db, storage_facility, device_id="AU_NAM_WQ_0001")
 
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={
                 "device_id": "AU_NAM_WQ_0001",
@@ -197,7 +197,7 @@ class TestWqIngest:
         storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         buffered = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "AU_NAM_WQ_0002", "ph": 6.8, "turbidity_ntu": 9.0,
                   "occurred_at": "2026-03-02T08:30:00Z"},
@@ -229,7 +229,7 @@ class TestWqIngest:
 
     def test_ingest_wq_unrecognized_payload_422(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "wq-nothing", "occurred_at": "2026-03-01T10:00:00Z"},
         )
@@ -241,8 +241,8 @@ class TestWqIngest:
         _make_wq_sensor(sensor_db, storage_facility, device_id="wq-dedup")
         payload = {"device_id": "wq-dedup", "ph": 7.0, "occurred_at": "2026-03-01T11:00:00Z"}
 
-        first = client.post("/api/sensors/ingest", headers=auth_headers, json=payload).json()
-        second = client.post("/api/sensors/ingest", headers=auth_headers, json=payload).json()
+        first = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers, json=payload).json()
+        second = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers, json=payload).json()
         assert first["is_duplicate"] is False
         assert second["is_duplicate"] is True
         assert first["reading_id"] == second["reading_id"]
@@ -362,7 +362,7 @@ class TestWqConfigThresholds:
             },
         )
         reading = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "AU_NAM_WQ_0011", "ph": 7.2,
                   "occurred_at": "2026-03-03T09:00:00Z"},
@@ -387,9 +387,9 @@ class TestWqReadingsHistory:
             json={"device_id": "AU_NAM_0008", "storage_facility_id": storage_facility.id,
                   "category": "water_quality", "activated": True},
         )
-        client.post("/api/sensors/ingest", headers=auth_headers,
+        client.post("/api/storage-facility-sensors/ingest", headers=auth_headers,
                     json={"device_id": "AU_NAM_0007", "depth_m": 2.0, "occurred_at": "2026-03-04T08:00:00Z"})
-        client.post("/api/sensors/ingest", headers=auth_headers,
+        client.post("/api/storage-facility-sensors/ingest", headers=auth_headers,
                     json={"device_id": "AU_NAM_0008", "ph": 7.0, "occurred_at": "2026-03-04T08:05:00Z"})
 
         wl_history = client.get(f"/api/storage-facilities/{storage_facility.id}/readings", headers=auth_headers)

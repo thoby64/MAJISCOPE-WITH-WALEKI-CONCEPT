@@ -74,10 +74,14 @@ The next sequence number is simply the next sensor in that DMA — regardless of
 ## Endpoint
 
 ```
-POST /api/sensors/ingest
+POST /api/storage-facility-sensors/ingest
+POST /api/water-source-sensors/ingest
 ```
 
-**This is the only endpoint firmware needs.** It works whether the sensor is registered in MajiScope or not, and for both categories.
+Use the storage-facility endpoint for sensors installed on tanks and reservoirs.
+Use the water-source endpoint for sensors installed on boreholes, wells, intakes,
+and other water sources. Both endpoints accept registered devices and buffer
+readings from unregistered devices for later association.
 
 ## Authentication
 
@@ -364,10 +368,10 @@ The parser scans `Key=Value` / `Key: Value` pairs and alias-matches keys. Flat J
 
 ## Firmware Alignment Checklist
 
-### Both categories
+### Both sensor categories
 
 - [ ] **Device ID follows the naming convention** — `{UTILITY}_{DMA}_{SEQ}` (e.g. `JKA_NHW_003`)
-- [ ] Send to **only** `POST /api/sensors/ingest` — works for registered and unregistered devices
+- [ ] Send to the endpoint for the sensor's parent asset: `/api/storage-facility-sensors/ingest` or `/api/water-source-sensors/ingest`
 - [ ] Always include `device_id` (non-empty)
 - [ ] Include `occurred_at` (ISO 8601 with `Z`) whenever the payload budget allows
 - [ ] Do **not** send `latitude` or `longitude` — sensor position is the tank's coordinates in MajiScope
@@ -422,8 +426,8 @@ Multi-parameter payloads may exceed a single LoRa frame's reliable size — if y
 ## Example: cURL
 
 ```bash
-# Water level
-curl -X POST https://majiscope.example.com/api/sensors/ingest \
+# Storage-facility water level
+curl -X POST https://majiscope.example.com/api/storage-facility-sensors/ingest \
   -H "Content-Type: application/json" \
   -H "X-Ingest-Key: your-secret-key" \
   -d '{
@@ -432,8 +436,8 @@ curl -X POST https://majiscope.example.com/api/sensors/ingest \
     "occurred_at": "2026-09-02T15:10:00Z"
   }'
 
-# Water quality
-curl -X POST https://majiscope.example.com/api/sensors/ingest \
+# Storage-facility water quality
+curl -X POST https://majiscope.example.com/api/storage-facility-sensors/ingest \
   -H "Content-Type: application/json" \
   -H "X-Ingest-Key: your-secret-key" \
   -d '{
@@ -446,6 +450,9 @@ curl -X POST https://majiscope.example.com/api/sensors/ingest \
     "occurred_at": "2026-09-02T15:10:00Z"
   }'
 ```
+
+For sensors installed on a water source, use
+`https://majiscope.example.com/api/water-source-sensors/ingest` instead.
 
 ---
 
@@ -472,15 +479,15 @@ Both are accepted. The `depth_m` flat field is preferred (simpler, smaller). `ra
 ## Lifecycle Summary
 
 ```
-Sensor installed physically (water level or water quality)
+Sensor installed physically (on a storage facility or water source)
     ↓
-Sensor sends data → POST /api/sensors/ingest   (same endpoint, both categories)
+Sensor sends data → asset-specific ingest endpoint
     ↓
 Not registered? → Stored as pending, verbatim (200, is_pending: true)
     ↓
-User registers sensor → POST /api/sensors       (category chosen here: water_level | water_quality)
+User registers sensor under its parent asset and category
     ↓
 Pending readings automatically parsed per category and promoted to real readings
     ↓
-Tank page shows the sensor under its category with full reading history
+The parent asset page shows the sensor under its category with full reading history
 ```

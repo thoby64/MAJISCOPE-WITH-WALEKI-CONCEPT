@@ -83,8 +83,8 @@ they are intentionally separate from the storage-facility sensor registry.
 
 - Register and manage source assets at `/api/water-sources`.
 - Register/list source sensors at `/api/water-source-sensors`.
-- Send source readings to `/api/water-source-sensors/ingest`; the existing
-  `/api/sensors/ingest` endpoint remains for storage-facility sensors.
+- Send source readings to `/api/water-source-sensors/ingest`.
+- Send storage-facility readings to `/api/storage-facility-sensors/ingest`.
 - Main migration revision: `0004_water_sources`.
 - Sensor-platform migration revision: `0003_water_source_sensors`.
 

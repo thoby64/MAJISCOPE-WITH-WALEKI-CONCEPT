@@ -70,7 +70,7 @@ def load_env() -> dict:
             if "=" in line:
                 key, _, val = line.partition("=")
                 cfg[key.strip()] = val.strip()
-    for key in ("MAJISCOPE_URL", "INGEST_KEY", "INTERVAL", "PORT"):
+    for key in ("MAJISCOPE_STORAGE_FACILITY_URL", "MAJISCOPE_WATER_SOURCE_URL", "INGEST_KEY", "INTERVAL", "PORT"):
         if os.environ.get(key):
             cfg[key] = os.environ[key]
     return cfg
@@ -81,7 +81,8 @@ def save_env(cfg: dict) -> None:
         "# MajiScope Sensor Simulator — Environment",
         "# Change these to match your MajiScope instance",
         "",
-        f"MAJISCOPE_URL={cfg.get('MAJISCOPE_URL', 'http://localhost:8000/api/sensors/ingest')}",
+        f"MAJISCOPE_STORAGE_FACILITY_URL={cfg.get('MAJISCOPE_STORAGE_FACILITY_URL', 'http://localhost:8000/api/storage-facility-sensors/ingest')}",
+        f"MAJISCOPE_WATER_SOURCE_URL={cfg.get('MAJISCOPE_WATER_SOURCE_URL', 'http://localhost:8000/api/water-source-sensors/ingest')}",
         f"INGEST_KEY={cfg.get('INGEST_KEY', 'your-secret-key-here')}",
         f"INTERVAL={cfg.get('INTERVAL', '30')}",
     ]
@@ -326,37 +327,27 @@ class Simulator:
         self._interval = int(self.cfg.get("INTERVAL", 30))
 
     def ensure_config(self):
-        url = self.cfg.get("MAJISCOPE_URL", "")
+        storage_facility_url = self.cfg.get("MAJISCOPE_STORAGE_FACILITY_URL", "").strip()
+        water_source_url = self.cfg.get("MAJISCOPE_WATER_SOURCE_URL", "").strip()
         key = self.cfg.get("INGEST_KEY", "")
-        if not url or key in ("", "your-secret-key-here"):
+        if (
+            not storage_facility_url
+            or not water_source_url
+            or key in ("", "your-secret-key-here")
+        ):
             return False
         return True
 
     def endpoint_for(self, asset_type: str) -> str:
-        base_url = self.cfg.get("MAJISCOPE_URL", "").strip()
-        parsed = urlparse(base_url)
-        path = parsed.path.rstrip("/")
-        facility_path = "/api/sensors/ingest"
-        source_path = "/api/water-source-sensors/ingest"
-        if asset_type == "water_source":
-            if path.endswith(facility_path):
-                path = path[:-len(facility_path)] + source_path
-            elif not path or path == "/":
-                path = source_path
-            elif path.endswith("/api"):
-                path += "/water-source-sensors/ingest"
-            elif not path.endswith(source_path):
-                raise ValueError("MAJISCOPE_URL must point to /api/sensors/ingest or end in /api")
+        if asset_type == "storage_facility":
+            url = self.cfg.get("MAJISCOPE_STORAGE_FACILITY_URL", "").strip()
+        elif asset_type == "water_source":
+            url = self.cfg.get("MAJISCOPE_WATER_SOURCE_URL", "").strip()
         else:
-            if path.endswith(source_path):
-                path = path[:-len(source_path)] + facility_path
-            elif not path or path == "/":
-                path = facility_path
-            elif path.endswith("/api"):
-                path += "/sensors/ingest"
-            elif not path.endswith(facility_path):
-                raise ValueError("MAJISCOPE_URL must point to /api/sensors/ingest or end in /api")
-        return urlunparse(parsed._replace(path=path))
+            raise ValueError("asset_type must be water_source or storage_facility")
+        if not url:
+            raise ValueError(f"MAJISCOPE_{asset_type.upper()}_URL must be configured")
+        return url
 
     def start_sensor(
         self,
@@ -629,7 +620,7 @@ header h1 .dot{width:10px;height:10px;border-radius:50%;background:var(--accent)
     <h1><span class="dot"></span> Sensor Simulator</h1>
     <div class="config-bar">
       <div class="conn-status"><span class="conn-dot" id="connDot"></span> <span id="connText">connecting…</span></div>
-      <div class="pill">Endpoint: <b id="cfgUrl">…</b></div>
+      <div class="pill">Storage facility endpoint: <b id="cfgUrl">…</b></div>
       <div class="pill">Water source endpoint: <b id="cfgWaterSourceUrl">…</b></div>
       <div class="pill">Interval: <b id="cfgInterval">…</b>s</div>
       <div class="pill">Key: <b id="cfgKey">…</b></div>

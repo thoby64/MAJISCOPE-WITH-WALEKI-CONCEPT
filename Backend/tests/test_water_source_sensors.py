@@ -115,7 +115,7 @@ def test_sensor_ingest_rejects_wrong_asset_endpoint(
     assert registered.status_code == 201, registered.text
 
     response = client.post(
-        "/api/sensors/ingest",
+        "/api/storage-facility-sensors/ingest",
         headers=auth_headers,
         json={
             "device_id": "source-level-wrong-route",

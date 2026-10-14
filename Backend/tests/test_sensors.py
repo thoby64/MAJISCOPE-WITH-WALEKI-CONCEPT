@@ -444,8 +444,15 @@ class TestIngest:
 
     def test_ingest_authenticated_user(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         sensor, storage_facility = self._register(client, db, sensor_db, auth_headers)
-        response = client.post(
+        legacy_response = client.post(
             "/api/sensors/ingest",
+            headers=auth_headers,
+            json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=3.5"},
+        )
+        assert legacy_response.status_code == 405
+
+        response = client.post(
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=3.5"},
         )
@@ -458,7 +465,7 @@ class TestIngest:
 
     def test_ingest_unknown_device_stored_pending(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "unknown-device", "depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
         )
@@ -476,7 +483,7 @@ class TestIngest:
 
     def test_ingest_unknown_device_missing_depth_rejected(self, client: TestClient, sensor_db: Session, auth_headers: dict):
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "no-depth-device", "occurred_at": "2026-01-01T10:00:00"},
         )
@@ -484,7 +491,7 @@ class TestIngest:
 
     def test_ingest_unknown_device_missing_device_id_rejected(self, client: TestClient, sensor_db: Session, auth_headers: dict):
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
         )
@@ -492,11 +499,11 @@ class TestIngest:
 
     def test_ingest_pending_idempotent(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         payload = {"device_id": "dup-device", "depth_m": 2.0, "occurred_at": "2026-01-01T10:00:00"}
-        r1 = client.post("/api/sensors/ingest", headers=auth_headers, json=payload)
+        r1 = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers, json=payload)
         assert r1.status_code == 200
         assert r1.json()["is_duplicate"] is False
 
-        r2 = client.post("/api/sensors/ingest", headers=auth_headers, json=payload)
+        r2 = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers, json=payload)
         assert r2.status_code == 200
         assert r2.json()["is_duplicate"] is True
 
@@ -508,15 +515,15 @@ class TestIngest:
     def test_ingest_status_tiers(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         # active: depth 2 -> water 10 >= warning 10
-        resp = client.post("/api/sensors/ingest", headers=auth_headers,
+        resp = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers,
                            json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=2"})
         assert resp.json()["status"] == "active"
         # warning: depth 4 -> water 8 < 10
-        resp = client.post("/api/sensors/ingest", headers=auth_headers,
+        resp = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers,
                            json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=4"})
         assert resp.json()["status"] == "warning"
         # critical: depth 12 -> water 0
-        resp = client.post("/api/sensors/ingest", headers=auth_headers,
+        resp = client.post("/api/storage-facility-sensors/ingest", headers=auth_headers,
                            json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=12"})
         assert resp.json()["status"] == "critical"
 
@@ -525,7 +532,7 @@ class TestIngest:
         sensor_db.query(SensorDevice).filter(SensorDevice.id == sensor.id).update({"activated": False})
         sensor_db.commit()
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=2"},
         )
@@ -536,7 +543,7 @@ class TestIngest:
         sensor, _storage_facility = self._register(client, db, sensor_db, auth_headers)
         monkeypatch.setattr(settings, "sensor_ingest_key", "test-secret")
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers={"X-Ingest-Key": "test-secret"},
             json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=2"},
         )
@@ -548,14 +555,14 @@ class TestIngest:
         monkeypatch.setattr(settings, "sensor_ingest_key", "test-secret")
         # wrong key, no auth
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers={"X-Ingest-Key": "wrong"},
             json={"device_id": sensor.device_id, "h1_m": 12.0},
         )
         assert response.status_code == 401
         # no key, no auth
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             json={"device_id": sensor.device_id, "h1_m": 12.0},
         )
         assert response.status_code == 401
@@ -568,7 +575,7 @@ class TestIngest:
         sensor.config = cfg
         sensor_db.commit()
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": sensor.device_id, "h1_m": 12.0},
         )
@@ -638,7 +645,7 @@ class TestScopedListsAndPatch:
         storage_facility = _make_storage_facility(db, utility, sensor_db)
         sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-persist", activated=True)
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": sensor.device_id, "h1_m": 12.0, "raw_data": "Depth=2"},
         )
@@ -759,7 +766,7 @@ class TestStorageFacilityReadings:
         depth_raw: str = "Depth=2",
     ):
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={
                 "device_id": device_id,
@@ -841,7 +848,7 @@ class TestSensorDelete:
         storage_facility = _make_storage_facility(db, utility, sensor_db, source_key="Delete StorageFacility")
         sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-del", activated=True)
         response = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dev-del", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": "2026-01-01T10:00:00"},
         )
@@ -944,7 +951,7 @@ class TestIdempotentIngest:
         ts = "2026-01-01T10:00:00"
 
         resp1 = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dev-dedup", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": ts},
         )
@@ -953,7 +960,7 @@ class TestIdempotentIngest:
         assert data1["is_duplicate"] is False
 
         resp2 = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dev-dedup", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": ts},
         )
@@ -971,12 +978,12 @@ class TestIdempotentIngest:
         sensor = _make_sensor(sensor_db, storage_facility, device_id="dev-multi", h1_m=12.0, activated=True)
 
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dev-multi", "h1_m": 12.0, "raw_data": "Depth=2", "occurred_at": "2026-01-01T10:00:00"},
         )
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dev-multi", "h1_m": 12.0, "raw_data": "Depth=3", "occurred_at": "2026-01-01T11:00:00"},
         )
@@ -993,12 +1000,12 @@ class TestPendingReadingsPromotion:
         storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "pending-01", "depth_m": 1.5, "occurred_at": "2026-01-01T10:00:00"},
         )
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "pending-01", "depth_m": 2.5, "occurred_at": "2026-01-01T11:00:00"},
         )
@@ -1056,7 +1063,7 @@ class TestPendingReadingsPromotion:
         storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "dedup-dev", "depth_m": 3.0, "occurred_at": "2026-01-01T10:00:00"},
         )
@@ -1167,7 +1174,7 @@ class TestDmaAutoAssignment:
         storage_facility = _make_storage_facility(db, utility, sensor_db)
 
         ingest = client.post(
-            "/api/sensors/ingest",
+            "/api/storage-facility-sensors/ingest",
             headers=auth_headers,
             json={"device_id": "AU_NAM_0904", "depth_m": 2.0, "occurred_at": "2026-02-01T08:00:00"},
         )

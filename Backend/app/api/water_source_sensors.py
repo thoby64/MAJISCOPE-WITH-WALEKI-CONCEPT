@@ -730,7 +730,7 @@ async def ingest_water_source_sensor_reading(
     ).first()
     if sensor is None:
         if sensor_db.query(SensorDevice.id).filter(SensorDevice.device_id == payload.device_id).first():
-            raise HTTPException(status_code=409, detail="This device is registered as a storage-facility sensor; use /api/sensors/ingest")
+            raise HTTPException(status_code=409, detail="This device is registered as a storage-facility sensor; use /api/storage-facility-sensors/ingest")
         flat = payload.model_dump()
         properties = flat.get("properties") or {}
         recognized = _water_level_payload_recognised(flat, properties) or bool(

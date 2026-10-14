@@ -82,6 +82,7 @@ from app.services.water_quality_services import (
 )
 
 sensors_router = APIRouter(prefix="/api/sensors", tags=["sensors"])
+storage_facility_sensors_router = APIRouter(prefix="/api/storage-facility-sensors", tags=["storage-facility-sensors"])
 storage_facilities_router = APIRouter(prefix="/api/storage-facilities", tags=["storage-facilities"])
 
 
@@ -235,7 +236,7 @@ async def _current_user_or_ingest_key(
     return await get_current_user(authorization=authorization, db=db)
 
 
-@sensors_router.post(
+@storage_facility_sensors_router.post(
     "/ingest",
     response_model=WaterLevelIngestResponse | WaterQualityIngestResponse | SensorPendingIngestResponse,
 )

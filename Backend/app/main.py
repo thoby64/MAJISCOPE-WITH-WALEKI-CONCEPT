@@ -31,6 +31,7 @@ from app.api import (
     hydraulic_model_router,
     dashboard_router,
     sensors_router,
+    storage_facility_sensors_router,
     storage_facilities_router,
     water_sources_router,
     water_source_sensors_router,
@@ -285,6 +286,7 @@ app.include_router(uploads_router)
 app.include_router(hydraulic_model_router)
 app.include_router(dashboard_router)
 app.include_router(sensors_router)
+app.include_router(storage_facility_sensors_router)
 app.include_router(storage_facilities_router)
 app.include_router(water_sources_router)
 app.include_router(water_source_sensors_router)

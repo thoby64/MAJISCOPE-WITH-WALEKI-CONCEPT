@@ -19,7 +19,7 @@ from app.api.health import health_router
 from app.api.uploads import uploads_router
 from app.api.hydraulic_model import hydraulic_model_router
 from app.api.dashboard import dashboard_router
-from app.api.sensors import sensors_router, storage_facilities_router
+from app.api.sensors import sensors_router, storage_facilities_router, storage_facility_sensors_router
 from app.api.water_source_sensors import water_sources_router, water_source_sensors_router
 from app.api.infrastructure_templates import infrastructure_templates_router
 
@@ -41,6 +41,7 @@ __all__ = [
     "hydraulic_model_router",
     "dashboard_router",
     "sensors_router",
+    "storage_facility_sensors_router",
     "storage_facilities_router",
     "water_sources_router",
     "water_source_sensors_router",
