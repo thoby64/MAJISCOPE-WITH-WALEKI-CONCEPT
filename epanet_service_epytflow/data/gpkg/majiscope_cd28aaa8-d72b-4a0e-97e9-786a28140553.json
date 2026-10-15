@@ -1,0 +1,40 @@
+{
+  "session_id": "cd28aaa8-d72b-4a0e-97e9-786a28140553",
+  "filename": "majiscope_cd28aaa8-d72b-4a0e-97e9-786a28140553.gpkg",
+  "utility_id": "d15ef11e-0aee-489d-95c7-67c3223aa90c",
+  "dma_id": "94dde829-6ace-4cca-a39b-69abbd94588d",
+  "dma_name": "Nzuguni DMA",
+  "launch_token_hash": "85908011e7e39dd18ec21b94558866d17264519c24affada66c567ff3bf1035a",
+  "expires_at": "2026-10-16T12:37:39.856305Z",
+  "layers": [
+    "dma",
+    "waterpipes",
+    "watersources",
+    "storagefacility",
+    "valves",
+    "bulk_meters",
+    "reported_leaks"
+  ],
+  "feature_counts": {
+    "dma": 1,
+    "waterpipes": 206,
+    "watersources": 6,
+    "storagefacility": 4,
+    "valves": 26,
+    "bulk_meters": 2,
+    "reported_leaks": 318
+  },
+  "inp_filename": "majiscope_cd28aaa8-d72b-4a0e-97e9-786a28140553.inp",
+  "inp_original_filename": "nzuguni_sample.inp",
+  "inp_sha256": "b0afb6307267006884342f620c9b5e2d57c24b4cc5fb0b8ffcb2d8cb6d55defb",
+  "inp_network": {
+    "node_count": 2,
+    "junction_count": 1,
+    "junction_ids": [
+      "J1"
+    ],
+    "link_count": 1,
+    "has_coordinates": true,
+    "coordinates_are_lonlat": true
+  }
+}

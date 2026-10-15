@@ -42,6 +42,8 @@ router = APIRouter(prefix="/simulate", tags=["simulation"])
 class ScenarioResponse(BaseModel):
     id:            int
     gpkg_filename: str
+    input_type:    str = "gpkg"
+    input_filename: Optional[str] = None
     name:          str
     status:        str
     base_demand:   float

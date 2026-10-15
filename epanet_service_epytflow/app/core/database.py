@@ -44,6 +44,7 @@ def ensure_storage_paths() -> None:
     """
     settings = get_settings()
     os.makedirs(settings.gpkg_dir, exist_ok=True)
+    os.makedirs(settings.inp_dir, exist_ok=True)
     os.makedirs(settings.reports_dir, exist_ok=True)
 
     db_url = make_url(settings.database_url)
@@ -97,6 +98,8 @@ async def _ensure_sim_scenarios_columns(conn) -> None:
         "majiscope_snapshot_attempts": "INTEGER DEFAULT 0",
         "majiscope_snapshot_last_error": "TEXT",
         "majiscope_snapshot_delivered_at": "DATETIME",
+        "input_type": "VARCHAR(8) DEFAULT 'gpkg'",
+        "input_filename": "VARCHAR(256)",
     }
     for column, coltype in additions.items():
         if column not in existing:

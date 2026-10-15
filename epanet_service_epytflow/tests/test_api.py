@@ -113,6 +113,12 @@ async def test_openapi_schema(client):
     assert "/dma/{filename}/simulate" in paths
     # Old generic POST /simulate must be gone
     assert "post" not in paths.get("/simulate", {})
+    prepare_model = paths["/majiscope/prepare-gpkg"]["post"]
+    request_schema_ref = prepare_model["requestBody"]["content"]["multipart/form-data"]["schema"]["$ref"]
+    request_schema_name = request_schema_ref.rsplit("/", 1)[-1]
+    request_schema = schema["components"]["schemas"][request_schema_name]
+    assert "inp_file" in request_schema["properties"]
+    assert "inp_file" not in request_schema.get("required", [])
 
 
 # ── /files/upload ─────────────────────────────────────────────────────────────

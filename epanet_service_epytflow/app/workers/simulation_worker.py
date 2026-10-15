@@ -107,6 +107,8 @@ def _hydraulic_report_artifacts(rpt) -> dict:
 def _snapshot_input_parameters(scenario: SimScenario) -> dict:
     return {
         "gpkg_filename": scenario.gpkg_filename,
+        "input_type": scenario.input_type,
+        "input_filename": scenario.input_filename,
         "scenario_type": scenario.scenario_type,
         "demand_model": scenario.demand_model,
         "base_demand": scenario.base_demand,
@@ -119,7 +121,7 @@ def _snapshot_input_parameters(scenario: SimScenario) -> dict:
         "extra_demands": {
             key: value
             for key, value in (scenario.extra_demands or {}).items()
-            if key != "_majiscope"
+            if key not in {"_majiscope", "_dma_inp_path"}
         },
     }
 
@@ -580,6 +582,25 @@ def _parse_inp_coordinates(inp_path: str) -> Dict[str, Tuple[float, float]]:
     return coords
 
 
+def _parse_inp_junction_ids(inp_path: str) -> set[str]:
+    """Read junction IDs from the model so coordinate reports avoid reservoirs and tanks."""
+    junction_ids: set[str] = set()
+    in_section = False
+    try:
+        with open(inp_path, encoding="ascii", errors="replace") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if stripped.startswith("["):
+                    in_section = stripped.upper() == "[JUNCTIONS]"
+                    continue
+                if not in_section or not stripped or stripped.startswith(";"):
+                    continue
+                junction_ids.add(stripped.split()[0])
+    except OSError:
+        logger.exception("Could not read junction IDs from .inp file %s", inp_path)
+    return junction_ids
+
+
 def _nearest_node(lat: float, lon: float,
                   coords: Dict[str, Tuple[float, float]]) -> Optional[str]:
     if not coords:
@@ -598,33 +619,54 @@ def _nearest_node(lat: float, lon: float,
 def _build_leak_events(extra_demands, inp_path: str, duration_sec: int) -> list:
     """
     Map lat/lon extra_demands list → EPyT-Flow leak event dicts.
-    DMA scenarios store a metadata dict (not a list) — detected and skipped.
+    DMA scenarios store metadata; resolved leak events are read from that dict.
     """
     if not extra_demands:
         return []
     if isinstance(extra_demands, dict):
-        return []       # DMA metadata dict, not leak events
+        pre_resolved = extra_demands.get("_leak_events")
+        if isinstance(pre_resolved, list):
+            return [
+                {
+                    "node_id": event["node_id"],
+                    "diameter": event["diameter"],
+                    "start_time": event["start_time"],
+                    "end_time": event["end_time"],
+                }
+                for event in pre_resolved
+            ]
+        return []
     if not isinstance(extra_demands, list):
         return []
 
     node_coords = _parse_inp_coordinates(inp_path)
-    if not node_coords:
-        logger.warning("No coordinates in .inp — leak events skipped")
+    junction_ids = _parse_inp_junction_ids(inp_path)
+    junction_coords = {
+        node_id: coordinates
+        for node_id, coordinates in node_coords.items()
+        if node_id in junction_ids
+    }
+    if not junction_coords:
+        logger.warning("No junction coordinates in .inp — leak events skipped")
         return []
 
     events = []
     for lr in extra_demands:
-        lat = lr.get("lat", 0.0)
-        lon = lr.get("lon", 0.0)
-        if lat == 0.0 and lon == 0.0:
-            continue
-        nid = _nearest_node(lat, lon, node_coords)
+        nid = lr.get("node_id")
+        if nid is None:
+            lat = lr.get("lat")
+            lon = lr.get("lon")
+            if lat is None or lon is None or (lat == 0.0 and lon == 0.0):
+                continue
+            nid = _nearest_node(lat, lon, junction_coords)
         if nid:
+            start_time = int(lr.get("start_time_s", 0))
+            end_time = min(int(lr.get("end_time_s", duration_sec)), duration_sec)
             events.append({
                 "node_id":    nid,
                 "diameter":   lr.get("diameter_m",     0.01),
-                "start_time": lr.get("start_time_s",   0),
-                "end_time":   lr.get("end_time_s",     duration_sec),
+                "start_time": start_time,
+                "end_time":   end_time,
             })
     return events
 
@@ -638,6 +680,7 @@ async def run_simulation_task(scenario_id: int) -> None:
     """
     logger.info("[%d] Starting DMA simulation task", scenario_id)
 
+    temporary_inp_dir = None
     async with get_session() as session:
         try:
             # ── mark RUNNING ──────────────────────────────────────────────────
@@ -651,7 +694,12 @@ async def run_simulation_task(scenario_id: int) -> None:
 
             # ── resolve .inp path ─────────────────────────────────────────────
             extra = scenario.extra_demands or {}
+            temporary_inp_dir = extra.get("_temporary_inp_dir") if isinstance(extra, dict) else None
             inp_path = extra.get("_dma_inp_path") if isinstance(extra, dict) else None
+            if not inp_path and scenario.input_type == "inp":
+                inp_path = os.path.join(
+                    get_settings().inp_dir, scenario.input_filename or ""
+                )
 
             if not inp_path or not os.path.isfile(inp_path):
                 raise FileNotFoundError(
@@ -663,8 +711,18 @@ async def run_simulation_task(scenario_id: int) -> None:
 
             # ── field leak reports (AbruptLeakage events) ─────────────────────
             duration_sec = scenario.duration_hrs * 3_600
-            raw_leaks    = extra.get("_leak_reports", []) if isinstance(extra, dict) else []
-            leak_events  = _build_leak_events(raw_leaks, inp_path, duration_sec)
+            raw_leaks = extra.get("_leak_reports", []) if isinstance(extra, dict) else []
+            leak_input = (
+                extra if isinstance(extra, dict) and "_leak_events" in extra
+                else raw_leaks
+            )
+            leak_events = _build_leak_events(leak_input, inp_path, duration_sec)
+            if scenario.scenario_type == "reported_leak":
+                if not raw_leaks or len(leak_events) != len(raw_leaks):
+                    raise ValueError(
+                        "Reported-leak scenario could not resolve every report to "
+                        "a network node with coordinates."
+                    )
             if leak_events:
                 logger.info("[%d] %d leak report(s) will be injected", scenario_id, len(leak_events))
 
@@ -728,8 +786,15 @@ async def run_simulation_task(scenario_id: int) -> None:
             # ── enrich summary with .rpt flow balance ─────────────────────────
             merged_summary = dict(output.summary)
             merged_summary["scenario_type"] = scenario.scenario_type
+            merged_summary["input_type"] = scenario.input_type
+            merged_summary["input_filename"] = (
+                extra.get("_input_original_filename") or scenario.input_filename
+            )
+            merged_summary["input_sha256"] = extra.get("_input_sha256")
             merged_summary["demand_model"] = scenario.demand_model
             merged_summary["time_step_min"] = scenario.time_step_min
+            if extra.get("_model_overrides"):
+                merged_summary["model_overrides"] = extra["_model_overrides"]
             rpt = parse_rpt(inp_path)
             if rpt:
                 report_artifacts = _hydraulic_report_artifacts(rpt)
@@ -784,3 +849,17 @@ async def run_simulation_task(scenario_id: int) -> None:
                     await _post_majiscope_failed_snapshot(scenario=scenario, error_message=str(exc), session=session)
             except Exception:
                 pass
+        finally:
+            if (
+                temporary_inp_dir
+                and os.path.basename(temporary_inp_dir).startswith("dma_inp_editor_")
+                and os.path.isdir(temporary_inp_dir)
+            ):
+                try:
+                    shutil.rmtree(temporary_inp_dir)
+                except OSError:
+                    logger.exception(
+                        "[%d] Failed to remove temporary EPANET edit directory %s",
+                        scenario_id,
+                        temporary_inp_dir,
+                    )

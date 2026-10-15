@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, CheckCircle2, Loader2, MapPin, ShieldCheck, XCircle } from "lucide-react"
 import { toast } from "sonner"
@@ -88,6 +88,8 @@ export default function HydraulicModelPage() {
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null)
   const [checkingReadiness, setCheckingReadiness] = useState(false)
   const [preparing, setPreparing] = useState(false)
+  const [inpFile, setInpFile] = useState<File | null>(null)
+  const inpFileRef = useRef<HTMLInputElement>(null)
 
   const role = currentUser?.role
   const utilityLocked = role === "utility_manager" || role === "dma_manager"
@@ -190,10 +192,21 @@ export default function HydraulicModelPage() {
     if (!readiness?.can_prepare) return
 
     setPreparing(true)
-    const response = await apiClient.post<PrepareResponse>("/hydraulic-model/prepare", {
-      utilityId: selectedUtilityId || undefined,
-      dmaId: selectedDmaId || undefined,
-    })
+    const response = inpFile
+      ? await (() => {
+          const formData = new FormData()
+          formData.append("utility_id", selectedUtilityId)
+          formData.append("dma_id", selectedDmaId)
+          formData.append("inp_file", inpFile)
+          return apiClient.post<PrepareResponse>("/hydraulic-model/prepare-with-inp", formData, {
+            timeout: 120_000,
+            retries: 0,
+          })
+        })()
+      : await apiClient.post<PrepareResponse>("/hydraulic-model/prepare", {
+          utilityId: selectedUtilityId || undefined,
+          dmaId: selectedDmaId || undefined,
+        })
     setPreparing(false)
 
     if (!response.success || !response.data) {
@@ -354,7 +367,7 @@ export default function HydraulicModelPage() {
                   <h2 className="text-lg font-semibold text-slate-950 dark:text-white">Model Requirements</h2>
                 </div>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  Required data must be present before the hydraulic model can open.
+                  Required data must be present before the hydraulic model can open. You may also provide a prepared EPANET model.
                 </p>
               </div>
               {checkingReadiness && hasSelectedDma ? <Loader2 className="h-5 w-5 animate-spin text-slate-400" /> : null}
@@ -383,6 +396,53 @@ export default function HydraulicModelPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-500/30 dark:bg-sky-500/10">
+              <label htmlFor="hydraulic-inp-file" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Optional EPANET model (.inp)
+              </label>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                Upload an existing model to simulate it as provided instead of generating the hydraulic network from GIS. Limit: 50 MB.
+              </p>
+              <input
+                ref={inpFileRef}
+                id="hydraulic-inp-file"
+                type="file"
+                accept=".inp"
+                className="mt-3 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-800 hover:file:bg-sky-200 dark:text-slate-200 dark:file:bg-sky-900 dark:file:text-sky-100"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null
+                  if (file && !file.name.toLowerCase().endsWith(".inp")) {
+                    toast.error("Choose an EPANET .inp file.")
+                    event.target.value = ""
+                    setInpFile(null)
+                    return
+                  }
+                  if (file && file.size > 50 * 1024 * 1024) {
+                    toast.error("The .inp file must be no larger than 50 MB.")
+                    event.target.value = ""
+                    setInpFile(null)
+                    return
+                  }
+                  setInpFile(file)
+                }}
+              />
+              {inpFile ? (
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm text-sky-900 dark:text-sky-100">
+                  <span className="truncate">{inpFile.name} · {(inpFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                  <button
+                    type="button"
+                    className="shrink-0 font-semibold underline"
+                    onClick={() => {
+                      setInpFile(null)
+                      if (inpFileRef.current) inpFileRef.current.value = ""
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             {missingRequired.length ? (

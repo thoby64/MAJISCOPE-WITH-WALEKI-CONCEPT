@@ -223,14 +223,17 @@ class ApiClient {
     const url = this.buildUrl(endpoint);
     const normalizedMethod = method.toUpperCase();
 
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...restOptions.headers,
-    };
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    const headers = new Headers(restOptions.headers);
+    if (isFormData) {
+      headers.delete('Content-Type');
+    } else if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     // Add auth header if not disabled
     if (!disableAuth) {
-      Object.assign(headers, this.getAuthHeader());
+      new Headers(this.getAuthHeader()).forEach((value, key) => headers.set(key, value));
     }
 
     const requestKey = this.getRequestKey(url, { method: normalizedMethod, body }, disableAuth);
@@ -252,14 +255,22 @@ class ApiClient {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
           // Transform request body from camelCase to snake_case
-          const transformedBody = body ? transformKeysToSnakeCase(body) : undefined;
+          const transformedBody = body
+            ? isFormData
+              ? body as FormData
+              : transformKeysToSnakeCase(body)
+            : undefined;
 
           const response = await this.fetchWithTimeout(
             url,
             {
               method: normalizedMethod,
               headers,
-              body: transformedBody ? JSON.stringify(transformedBody) : undefined,
+              body: transformedBody
+                ? isFormData
+                  ? transformedBody as FormData
+                  : JSON.stringify(transformedBody)
+                : undefined,
               ...restOptions,
             },
             timeout
