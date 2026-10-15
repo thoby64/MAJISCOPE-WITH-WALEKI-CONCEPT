@@ -222,6 +222,7 @@ class HydraulicSimulationSnapshot(Base):
     nrw_json = Column(JSON, nullable=True)
     leakage_json = Column(JSON, nullable=True)
     alerts_json = Column(JSON, nullable=True)
+    detailed_results_json = Column(JSON, nullable=True)
     nodes_geojson = Column(JSON, nullable=True)
     pipes_geojson = Column(JSON, nullable=True)
     hotspots_geojson = Column(JSON, nullable=True)

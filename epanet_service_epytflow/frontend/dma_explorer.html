@@ -98,6 +98,29 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--s
 .risk-bar-bg{background:var(--border);height:3px;border-radius:2px;margin-top:5px}
 .risk-bar{height:3px;border-radius:2px;transition:width .4s}
 #balance-chart{width:100%;height:130px;background:var(--bg);border:1px solid var(--border);border-radius:2px;margin:8px 0;display:block}
+.detail-modal-overlay{display:none;position:fixed;inset:0;z-index:3000;background:rgba(3,8,12,.78);align-items:center;justify-content:center;padding:20px}
+.detail-modal-overlay.open{display:flex}
+.detail-modal{width:min(1100px,96vw);max-height:92vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border2);border-radius:8px;box-shadow:0 24px 72px rgba(0,0,0,.6);overflow:hidden}
+.detail-modal-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;border-bottom:1px solid var(--border);flex:none}
+.detail-modal-head h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan)}
+.detail-modal-actions{display:flex;align-items:center;gap:8px}
+.detail-modal-close{border:1px solid var(--border2);background:var(--panel2);color:var(--dim);padding:5px 9px;border-radius:5px;cursor:pointer}
+.detail-modal-close:hover{border-color:var(--red);color:var(--red)}
+.detail-modal-body{overflow-y:auto;padding:16px 18px}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:8px 0 18px}
+.detail-section{margin-bottom:18px}
+.detail-section h3{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.detail-chart{width:100%;height:180px;display:block;background:var(--bg);border:1px solid var(--border);border-radius:4px}
+.detail-chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.detail-list{max-height:280px;overflow:auto}
+.detail-table-wrap{overflow:auto;max-height:340px;border:1px solid var(--border);border-radius:4px}
+.detail-table{width:100%;border-collapse:collapse;font:10px/1.4 var(--mono);white-space:nowrap}
+.detail-table th,.detail-table td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--border)}
+.detail-table th{position:sticky;top:0;background:var(--panel2);color:var(--dim);font-weight:600}
+.detail-table th:first-child,.detail-table td:first-child{text-align:left}
+.detail-report{white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:12px;font:10px/1.5 var(--mono);margin-top:8px}
+.detail-note{color:var(--dim);font-size:11px;padding:8px 0}
+@media(max-width:700px){.detail-modal-overlay{padding:0}.detail-modal{width:100vw;height:100vh;max-height:100vh;border-radius:0}.detail-modal-head{padding:12px}.detail-modal-body{padding:12px}.detail-chart-grid{grid-template-columns:1fr}}
 .leak-list-wrap{max-height:180px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px;margin-top:6px}
 .leak-list-wrap::-webkit-scrollbar{width:5px}
 .leak-list-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:999px}
@@ -252,6 +275,7 @@ body.integrated-mode #sidebar-header{background:var(--panel2)}
       <div id="res-content" style="display:none">
         <div class="section-hd">Simulation Summary</div>
         <div class="statgrid" id="res-summary"></div>
+        <button class="btn primary" id="btn-view-details" type="button">View detailed results →</button>
 
         <div class="section-hd">Non-Revenue Water</div>
         <div class="statgrid" id="nrw-grid"></div>
@@ -294,6 +318,88 @@ body.integrated-mode #sidebar-header{background:var(--panel2)}
   <div id="heat-legend"></div>
 </main>
 
+<div id="detail-modal-overlay" class="detail-modal-overlay" role="presentation" aria-hidden="true">
+  <section class="detail-modal" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title" tabindex="-1">
+    <header class="detail-modal-head">
+      <div>
+        <h2 id="detail-modal-title">Detailed simulation results</h2>
+        <div id="detail-modal-subtitle" class="detail-note"></div>
+      </div>
+      <div class="detail-modal-actions">
+        <button class="btn sm" id="btn-download-report" type="button" style="display:none">Download EPANET report</button>
+        <button class="detail-modal-close" id="btn-close-details" type="button" aria-label="Close results">✕</button>
+      </div>
+    </header>
+    <div id="detail-modal-body" class="detail-modal-body">
+      <div id="detail-load-status" class="detail-note">Loading detailed results…</div>
+
+      <section class="detail-section">
+        <h3>Simulation summary</h3>
+        <div class="detail-grid" id="detail-summary"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Non-revenue water and flow balance</h3>
+        <div class="detail-grid" id="detail-nrw"></div>
+        <canvas id="detail-balance-chart" class="detail-chart" height="180"></canvas>
+      </section>
+
+      <div class="detail-chart-grid">
+        <section class="detail-section">
+          <h3>Pressure by timestep (m)</h3>
+          <canvas id="detail-pressure-chart" class="detail-chart" height="180"></canvas>
+        </section>
+        <section class="detail-section">
+          <h3>Water age by timestep (hours)</h3>
+          <canvas id="detail-age-chart" class="detail-chart" height="180"></canvas>
+        </section>
+        <section class="detail-section">
+          <h3>Junction demand by timestep (m³/h)</h3>
+          <canvas id="detail-demand-chart" class="detail-chart" height="180"></canvas>
+        </section>
+        <section class="detail-section">
+          <h3>Pipe flow by timestep (m³/s)</h3>
+          <canvas id="detail-flow-chart" class="detail-chart" height="180"></canvas>
+        </section>
+      </div>
+
+      <section class="detail-section">
+        <h3>Pressure zones</h3>
+        <div id="detail-pressure-zones"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>High-risk pipes</h3>
+        <div id="detail-risks" class="detail-list"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Node measurements at selected timestep</h3>
+        <div id="detail-node-table"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Pipe measurements at selected timestep</h3>
+        <div id="detail-pipe-table"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Tank volumes</h3>
+        <div id="detail-tanks"></div>
+      </section>
+
+      <section class="detail-section">
+        <h3>Warnings and report status</h3>
+        <div id="detail-report-status"></div>
+        <div id="detail-warnings"></div>
+        <div id="detail-status-events"></div>
+        <button class="btn sm" id="btn-toggle-raw-report" type="button" style="display:none">View full EPANET report</button>
+        <pre id="detail-raw-report" class="detail-report" style="display:none"></pre>
+      </section>
+    </div>
+  </section>
+</div>
+
 </div>
 <script>
 (function(){"use strict";
@@ -305,6 +411,9 @@ const S={
   dmaName:"DMA",generatedScenarioNames:new Set(),
   theme:"dark",mapView:"normal",heatMode:"pressure",
   resultNodesGeojson:null,resultPipesGeojson:null,resultLeakage:null,supportedHeatModes:[],
+  lastSummary:null,detailTimeseries:null,detailTanks:null,detailReport:null,
+  detailScenarioId:null,detailLoading:false,detailTrigger:null,
+  detailTableStep:null,nodeTablePage:0,pipeTablePage:0,
 };
 
 // ── map ────────────────────────────────────────────────────────────────────
@@ -378,6 +487,22 @@ async function api(path,opts={}){
   const r=await fetch(S.base.replace(/\/$/,"")+path,{...opts,headers:h});
   if(!r.ok){let d=r.statusText;try{const j=await r.json();d=j.detail||JSON.stringify(j);}catch(e){}throw new Error(`${r.status}: ${d}`);}
   return r.json();
+}
+
+async function apiText(path){
+  const h={};
+  if(S.key) h["X-API-Key"]=S.key;
+  if(S.integrated && S.launchToken && S.sessionId){
+    h["X-MajiScope-Launch-Token"]=S.launchToken;
+    h["X-MajiScope-Session-Id"]=S.sessionId;
+  }
+  const r=await fetch(S.base.replace(/\/$/,"")+path,{headers:h});
+  if(!r.ok){
+    let detail=r.statusText;
+    try{const body=await r.json();detail=body.detail||JSON.stringify(body);}catch(e){}
+    throw new Error(`${r.status}: ${detail}`);
+  }
+  return r.text();
 }
 
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>tab(t.dataset.tab)));
@@ -988,6 +1113,15 @@ $("btn-run").addEventListener("click",async()=>{
     };
     const resp=await api(`/dma/${encodeURIComponent(S.file)}/simulate`,{method:"POST",body:JSON.stringify(body)});
     S.scenarioId=resp.id;
+    S.detailScenarioId=null;
+    S.detailTimeseries=null;
+    S.detailTanks=null;
+    S.detailReport=null;
+    S.detailTableStep=null;
+    S.nodeTablePage=0;
+    S.pipeTablePage=0;
+    S.resultLeakage=null;
+    $("btn-view-details").disabled=true;
     if(S.integrated) $("sim-name").value=generateIntegratedScenarioName();
     statusBar("sim-status","running","queued — scenario #"+resp.id);
 
@@ -1027,8 +1161,14 @@ async function poll(){
       statusBar("sim-status","done","complete — loading results…");
       renderSummary(d.summary||{});
       await loadResults(0);
-      const lr=await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
-      renderLeakage(lr);
+      $("btn-view-details").disabled=false;
+      try{
+        const lr=await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
+        renderLeakage(lr);
+      }catch(leakageError){
+        S.resultLeakage=null;
+        err("err-sim","Simulation completed, but leakage analysis could not be loaded.");
+      }
       tab("results");
     } else {
       clearInterval(S.pollTimer);
@@ -1043,6 +1183,7 @@ async function poll(){
 }
 
 function renderSummary(s){
+  S.lastSummary=s;
   const c=v=>v>45?"red":v<7?"green":"";
   $("res-summary").innerHTML=`
     <div class="stat"><div class="v ${c(s.pressure_avg_m)}">${s.pressure_avg_m??"-"}</div><div class="l">Avg Pres. m</div></div>
@@ -1058,6 +1199,9 @@ function renderSummary(s){
 
 async function loadResults(step){
   LG.sim_nodes.clearLayers();
+  S.resultNodesGeojson=null;
+  S.resultPipesGeojson=null;
+  if($("detail-modal-overlay").classList.contains("open")) renderElementTables();
   try{
     const [nj,pj]=await Promise.all([
       api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
@@ -1065,6 +1209,7 @@ async function loadResults(step){
     ]);
     S.resultNodesGeojson=nj;
     S.resultPipesGeojson=pj;
+    if($("detail-modal-overlay").classList.contains("open")) renderElementTables();
     nj.features.forEach(f=>{
       if(!f.geometry) return;
       const [lon,lat]=f.geometry.coordinates, p=f.properties;
@@ -1080,8 +1225,10 @@ async function loadResults(step){
 }
 
 $("time-slider").addEventListener("change",e=>{
-  $("time-val").textContent=e.target.value+"h";
-  if(S.scenarioId) loadResults(parseInt(e.target.value));
+  const step=parseInt(e.target.value);
+  const hour=step*(S.lastSummary?.time_step_min||60)/60;
+  $("time-val").textContent=`${hour.toFixed(hour%1?1:0)}h`;
+  if(S.scenarioId) loadResults(step);
 });
 
 function renderLeakage(d){
@@ -1154,13 +1301,285 @@ function renderLeakage(d){
   else map.addLayer(LG.hotspots);
 }
 
-function drawChart(balance){
-  const cv=$("balance-chart");
-  if(!cv||!balance.length) return;
+function escapeHtml(value){
+  return String(value??"").replace(/[&<>"']/g,char=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[char]);
+}
+
+function detailStat(label,value,unit=""){
+  const shown=value===null||value===undefined||value===""?"Unavailable":`${escapeHtml(value)}${unit}`;
+  return `<div class="stat"><div class="v">${shown}</div><div class="l">${escapeHtml(label)}</div></div>`;
+}
+
+function drawLineChart(canvasId,rows,lines){
+  const cv=$(canvasId);
+  if(!cv) return;
   const ctx=cv.getContext("2d");
-  cv.width=cv.offsetWidth||360; cv.height=130;
+  const W=cv.width=cv.offsetWidth||480,H=cv.height=180,pad={t:14,r:12,b:26,l:46};
+  ctx.fillStyle="#080e12";ctx.fillRect(0,0,W,H);
+  const chartValue=(row,key)=>{
+    if(row[key]===null||row[key]===undefined||row[key]==="") return null;
+    const value=Number(row[key]);
+    return Number.isFinite(value)?value:null;
+  };
+  const values=rows.flatMap(row=>lines.map(line=>chartValue(row,line.key))).filter(value=>value!==null);
+  if(!values.length){
+    ctx.fillStyle="#7591a0";ctx.font="11px monospace";ctx.fillText("No timestep data available",pad.l,H/2);
+    return;
+  }
+  let min=Math.min(...values),max=Math.max(...values);
+  if(min===max){const delta=Math.abs(min)*.05||1;min-=delta;max+=delta;}
+  const sx=i=>pad.l+(i/(rows.length-1||1))*(W-pad.l-pad.r);
+  const sy=value=>pad.t+(1-(value-min)/(max-min))*(H-pad.t-pad.b);
+  [.25,.5,.75,1].forEach(f=>{
+    const y=pad.t+(1-f)*(H-pad.t-pad.b);
+    ctx.strokeStyle="#1e2e36";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle="#7591a0";ctx.font="9px monospace";ctx.fillText((min+f*(max-min)).toPrecision(3),2,y+3);
+  });
+  lines.forEach(line=>{
+    ctx.beginPath();ctx.strokeStyle=line.color;ctx.lineWidth=1.8;
+    let started=false;
+    rows.forEach((row,index)=>{
+      const value=chartValue(row,line.key);
+      if(value===null){started=false;return;}
+      if(!started){ctx.moveTo(sx(index),sy(value));started=true;}
+      else ctx.lineTo(sx(index),sy(value));
+    });
+    ctx.stroke();
+  });
+  ctx.fillStyle="#7591a0";ctx.font="9px monospace";
+  const labelIndices=[...new Set([0,Math.floor((rows.length-1)/2),rows.length-1])];
+  labelIndices.forEach(index=>{
+    const hour=Number(rows[index].hour);
+    ctx.fillText(`${Number.isFinite(hour)?hour.toFixed(hour%1?1:0):rows[index].time_step}h`,sx(index)-10,H-7);
+  });
+  let legendX=pad.l;
+  lines.forEach(line=>{
+    ctx.fillStyle=line.color;ctx.fillRect(legendX,H-19,12,2);
+    ctx.fillStyle="#7591a0";ctx.fillText(line.label,legendX+16,H-16);
+    legendX+=ctx.measureText(line.label).width+30;
+  });
+}
+
+function renderDetailedResults(reportSummary){
+  const s=S.lastSummary||{};
+  const artifacts=s.hydraulic_report_artifacts||{};
+  const report=reportSummary||{};
+  const balance=report.flow_balance||artifacts.hydraulic_balance||artifacts.flow_balance;
+  const leakage=S.resultLeakage||{};
+  const nrw=leakage.nrw||{};
+
+  $("detail-summary").innerHTML=[
+    detailStat("Average pressure",s.pressure_avg_m," m"),
+    detailStat("Minimum pressure",s.pressure_min_m," m"),
+    detailStat("Maximum pressure",s.pressure_max_m," m"),
+    detailStat("Low-pressure node readings",s.low_pressure_nodes),
+    detailStat("Average water age",s.water_age_avg_hrs," h"),
+    detailStat("Maximum water age",s.water_age_max_hrs," h"),
+    detailStat("Mean pipe flow",s.flow_avg_m3s," m³/s"),
+    detailStat("Maximum pipe flow",s.flow_max_m3s," m³/s"),
+    detailStat("Average total demand",s.total_demand_m3h," m³/h"),
+    detailStat("Pipe count",s.total_pipes),
+    detailStat("Timestep count",s.time_steps),
+    detailStat("Demand model",s.demand_model),
+    detailStat("Scenario type",s.scenario_type),
+  ].join("");
+
+  $("detail-nrw").innerHTML=[
+    detailStat("NRW",balance?.nrw_pct??nrw.nrw_pct,"%"),
+    detailStat("NRW flow",balance?.nrw_m3h??nrw.nrw_m3h," m³/h"),
+    detailStat("Total inflow",balance?.total_inflow_m3h??nrw.system_input_m3h," m³/h"),
+    detailStat("Consumer demand",balance?.consumer_demand_m3h??nrw.authorised_m3h," m³/h"),
+    detailStat("Demand deficit",balance?.demand_deficit_m3h," m³/h"),
+    detailStat("Leakage flow",balance?.leakage_flow_m3h??nrw.real_loss_m3h," m³/h"),
+    detailStat("Storage flow",balance?.storage_flow_m3h," m³/h"),
+    detailStat("Flow ratio",balance?.flow_ratio),
+    detailStat("ILI",nrw.ili),
+  ].join("");
+
+  const zones=leakage.pressure_zones||[];
+  $("detail-pressure-zones").innerHTML=zones.length?zones.map(zone=>
+    `<div class="risk-item"><div class="risk-header"><span class="risk-badge ${escapeHtml(zone.zone)}">${escapeHtml(zone.zone)}</span><span>${escapeHtml(zone.count)} nodes</span><span>${escapeHtml(zone.pct)}%</span></div></div>`
+  ).join(""):'<div class="detail-note">Pressure-zone breakdown unavailable.</div>';
+
+  const risks=leakage.pipe_risks_top20||[];
+  $("detail-risks").innerHTML=risks.length?risks.map(risk=>
+    `<div class="risk-item"><div class="risk-header"><span class="risk-badge ${escapeHtml(risk.risk_level)}">${escapeHtml(risk.risk_level)}</span><span class="risk-pid">${escapeHtml(risk.pipe_id)}</span><span>${Number.isFinite(Number(risk.risk_score))?(Number(risk.risk_score)*100).toFixed(0)+"%":"—"}</span></div><div class="risk-drivers">${(risk.drivers||[]).map(escapeHtml).join(" · ")}</div></div>`
+  ).join(""):'<div class="detail-note">No pipe-risk results available.</div>';
+
+  const tanks=S.detailTanks?.tanks||[];
+  $("detail-tanks").innerHTML=tanks.length?tanks.map((tank,index)=>{
+    const series=tank.series||[];
+    const volumes=series.map(point=>Number(point.volume_m3)).filter(Number.isFinite);
+    const summary=volumes.length?`min ${Math.min(...volumes).toFixed(2)} · max ${Math.max(...volumes).toFixed(2)} m³`:"Volume values unavailable";
+    return `<div class="detail-section"><div class="detail-note"><b>${escapeHtml(tank.tank_id)}</b> — ${summary}</div><canvas id="detail-tank-${index}" class="detail-chart" height="180"></canvas></div>`;
+  }).join(""):'<div class="detail-note">No tank-volume readings were returned for this simulation.</div>';
+  tanks.forEach((tank,index)=>drawLineChart(`detail-tank-${index}`,tank.series||[],[
+    {key:"volume_m3",label:"Volume (m³)",color:"#3fc7d6"},
+  ]));
+
+  const warnings=[...(leakage.warnings||[]),...(report.warnings||artifacts.warnings||s.warnings||[])];
+  $("detail-warnings").innerHTML=warnings.length
+    ?warnings.map(w=>`<div class="alert-box warn" style="margin-top:6px">${escapeHtml(w)}</div>`).join("")
+    :'<div class="detail-note">No warnings were reported.</div>';
+
+  const events=report.status_events||artifacts.status_events||[];
+  $("detail-status-events").innerHTML=events.length
+    ?`<div class="detail-note">Hydraulic status events (${escapeHtml(events.length)})</div>`+events.map(event=>
+      `<div class="alert-box info" style="margin-top:5px">${escapeHtml(event.time||"")} ${escapeHtml(event.message||"")}</div>`
+    ).join("")
+    :'<div class="detail-note">No hydraulic status events were reported.</div>';
+
+  const reportAvailable=Boolean(s.report_available);
+  const balanceState=report.balanced??artifacts.balanced;
+  const massRatio=report.mass_ratio??artifacts.mass_ratio;
+  const statusEventCount=artifacts.status_event_count??(report.status_events||artifacts.status_events||[]).length;
+  $("detail-report-status").innerHTML=`<div class="detail-note">Report file: ${reportAvailable?"available for viewing and download":"not available for this simulation"}${balanceState===undefined?"":" · Hydraulic balance: "+(balanceState?"balanced":"unbalanced")}${massRatio==null?"":" · Mass ratio: "+escapeHtml(massRatio)} · Status events: ${escapeHtml(statusEventCount)}</div>`;
+  $("btn-download-report").style.display=reportAvailable?"inline-flex":"none";
+  $("btn-toggle-raw-report").style.display=reportAvailable?"inline-flex":"none";
+
+  const rows=S.detailTimeseries?.pressure||[];
+  drawLineChart("detail-pressure-chart",rows,[
+    {key:"pressure_min_m",label:"Min",color:"#e05248"},
+    {key:"pressure_avg_m",label:"Average",color:"#3fc7d6"},
+    {key:"pressure_max_m",label:"Max",color:"#e09c35"},
+  ]);
+  drawLineChart("detail-age-chart",rows,[
+    {key:"water_age_avg_hrs",label:"Average age",color:"#3fc7d6"},
+    {key:"water_age_max_hrs",label:"Maximum age",color:"#e09c35"},
+  ]);
+  drawLineChart("detail-demand-chart",rows,[
+    {key:"total_demand_m3h",label:"Demand",color:"#4dbf82"},
+  ]);
+  drawLineChart("detail-flow-chart",S.detailTimeseries?.pipe_flow||[],[
+    {key:"flow_avg_m3s",label:"Average",color:"#3fc7d6"},
+    {key:"flow_max_abs_m3s",label:"Maximum",color:"#e09c35"},
+  ]);
+  drawChart(leakage.timestep_balance||[],"detail-balance-chart");
+  renderElementTables();
+}
+
+function displayNumber(value,digits=3){
+  if(value===null||value===undefined||value==="") return "—";
+  const number=Number(value);
+  return Number.isFinite(number)?number.toFixed(digits):"—";
+}
+
+function renderElementTables(){
+  const step=Number($("time-slider").value||0);
+  if(S.detailTableStep!==step){
+    S.detailTableStep=step;
+    S.nodeTablePage=0;
+    S.pipeTablePage=0;
+  }
+  const hour=step*(S.lastSummary?.time_step_min||60)/60;
+  const label=`Selected timestep ${step} (${hour.toFixed(hour%1?1:0)} h).`;
+  const pageSize=100;
+  const pager=(kind,page,total)=>{
+    const pages=Math.ceil(total/pageSize);
+    return pages<2?"":`<div class="detail-modal-actions"><button class="btn sm" type="button" data-table-page="${kind}-prev" ${page===0?"disabled":""}>Previous</button><span class="detail-note">Page ${page+1} of ${pages}</span><button class="btn sm" type="button" data-table-page="${kind}-next" ${page+1>=pages?"disabled":""}>Next</button></div>`;
+  };
+  const nodes=S.resultNodesGeojson?.features||[];
+  const nodeStart=S.nodeTablePage*pageSize;
+  $("detail-node-table").innerHTML=nodes.length
+    ?`<div class="detail-note">${label} Showing ${nodeStart+1}–${Math.min(nodeStart+pageSize,nodes.length)} of ${nodes.length} node records.</div>${pager("nodes",S.nodeTablePage,nodes.length)}<div class="detail-table-wrap"><table class="detail-table"><thead><tr><th>Node</th><th>Pressure (m)</th><th>Head (m)</th><th>Demand (m³/s)</th><th>Water age (h)</th></tr></thead><tbody>${nodes.slice(nodeStart,nodeStart+pageSize).map(feature=>{
+      const p=feature.properties||{};
+      return `<tr><td>${escapeHtml(p.element_id)}</td><td>${displayNumber(p.pressure)}</td><td>${displayNumber(p.head)}</td><td>${displayNumber(p.demand,6)}</td><td>${displayNumber(p.water_age,2)}</td></tr>`;
+    }).join("")}</tbody></table></div>`
+    :'<div class="detail-note">Node records are not currently loaded.</div>';
+  const pipes=S.resultPipesGeojson?.features||[];
+  const pipeStart=S.pipeTablePage*pageSize;
+  $("detail-pipe-table").innerHTML=pipes.length
+    ?`<div class="detail-note">${label} Showing ${pipeStart+1}–${Math.min(pipeStart+pageSize,pipes.length)} of ${pipes.length} pipe records.</div>${pager("pipes",S.pipeTablePage,pipes.length)}<div class="detail-table-wrap"><table class="detail-table"><thead><tr><th>Pipe</th><th>Flow (m³/s)</th><th>Velocity (m/s)</th><th>Head loss (m)</th></tr></thead><tbody>${pipes.slice(pipeStart,pipeStart+pageSize).map(feature=>{
+      const p=feature.properties||{};
+      return `<tr><td>${escapeHtml(p.element_id)}</td><td>${displayNumber(p.flow_rate,6)}</td><td>${displayNumber(p.velocity)}</td><td>${displayNumber(p.headloss)}</td></tr>`;
+    }).join("")}</tbody></table></div>`
+    :'<div class="detail-note">Pipe records are not currently loaded.</div>';
+}
+
+async function openDetailedResults(){
+  if(!S.scenarioId) return;
+  S.detailTrigger=document.activeElement;
+  $("detail-modal-overlay").classList.add("open");
+  $("detail-modal-overlay").setAttribute("aria-hidden","false");
+  $("btn-close-details").focus();
+  $("detail-modal-subtitle").textContent=`Scenario #${S.scenarioId}`;
+  if(S.detailLoading) return;
+  $("detail-load-status").textContent="Loading detailed result data…";
+  $("detail-raw-report").style.display="none";
+  $("detail-raw-report").textContent="";
+  $("btn-toggle-raw-report").textContent="View full EPANET report";
+
+  if(S.detailScenarioId===S.scenarioId&&S.detailTimeseries&&S.detailTanks){
+    renderDetailedResults(S.detailReport);
+    $("detail-load-status").textContent="Detailed results loaded.";
+    return;
+  }
+  S.detailLoading=true;
+  const prefix=`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}`;
+  const [timeseries,tanks,report]=await Promise.allSettled([
+    api(`/simulate/${S.scenarioId}/timeseries`),
+    api(`${prefix}/tanks`),
+    api(`/simulate/${S.scenarioId}/report/summary`),
+  ]);
+  S.detailTimeseries=timeseries.status==="fulfilled"?timeseries.value:null;
+  S.detailTanks=tanks.status==="fulfilled"?tanks.value:{tanks:[]};
+  S.detailReport=report.status==="fulfilled"?report.value:null;
+  S.detailScenarioId=S.scenarioId;
+  renderDetailedResults(S.detailReport);
+  const failed=[timeseries,tanks,report].filter(result=>result.status==="rejected").length;
+  $("detail-load-status").textContent=failed
+    ?`Detailed results loaded with ${failed} unavailable data source${failed===1?"":"s"}; the sections below show available data.`
+    :"Detailed results loaded.";
+  S.detailLoading=false;
+}
+
+function closeDetailedResults(){
+  $("detail-modal-overlay").classList.remove("open");
+  $("detail-modal-overlay").setAttribute("aria-hidden","true");
+  if(S.detailTrigger&&typeof S.detailTrigger.focus==="function") S.detailTrigger.focus();
+}
+
+function downloadReport(){
+  apiText(`/simulate/${S.scenarioId}/report`).then(text=>{
+    const link=document.createElement("a");
+    const url=URL.createObjectURL(new Blob([text],{type:"text/plain"}));
+    link.href=url;link.download=`scenario_${S.scenarioId}.rpt`;
+    document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }).catch(error=>{
+    $("detail-load-status").textContent=`Could not download the report: ${error.message}`;
+  });
+}
+
+function toggleRawReport(){
+  const panel=$("detail-raw-report");
+  if(panel.style.display!=="none"){
+    panel.style.display="none";
+    $("btn-toggle-raw-report").textContent="View full EPANET report";
+    return;
+  }
+  $("btn-toggle-raw-report").disabled=true;
+  apiText(`/simulate/${S.scenarioId}/report`).then(text=>{
+    panel.textContent=text;
+    panel.style.display="block";
+    $("btn-toggle-raw-report").textContent="Hide full EPANET report";
+  }).catch(error=>{
+    $("detail-load-status").textContent=`Could not load the report: ${error.message}`;
+  }).finally(()=>{$("btn-toggle-raw-report").disabled=false;});
+}
+
+function drawChart(balance,canvasId="balance-chart"){
+  const cv=$(canvasId);
+  if(!cv) return;
+  const ctx=cv.getContext("2d");
+  cv.width=cv.offsetWidth||360; cv.height=canvasId==="balance-chart"?130:180;
   const W=cv.width,H=cv.height,pad={t:10,r:8,b:22,l:38};
   ctx.fillStyle="#080e12"; ctx.fillRect(0,0,W,H);
+  if(!balance.length){
+    ctx.fillStyle="#7591a0";ctx.font="11px monospace";ctx.fillText("No flow-balance time series available",pad.l,H/2);
+    return;
+  }
   const max=Math.max(...balance.map(b=>b.inflow_m3h),1);
   const sx=i=>pad.l+(i/(balance.length-1||1))*(W-pad.l-pad.r);
   const sy=v=>pad.t+(1-v/max)*(H-pad.t-pad.b);
@@ -1186,13 +1605,44 @@ function drawChart(balance){
   ctx.closePath(); ctx.fill();
   // X labels
   ctx.fillStyle="#3d5560"; ctx.font="9px monospace";
-  balance.filter((_,i)=>i%4===0).forEach(b=>ctx.fillText(b.hour+"h",sx(b.hour)-7,H-6));
+  balance.forEach((b,i)=>{if(i%Math.max(1,Math.ceil(balance.length/6))===0)ctx.fillText(b.hour+"h",sx(i)-7,H-6);});
   // Legend
-  ctx.fillStyle="#3fc7d6"; ctx.fillRect(W-70,H-20,14,2);
-  ctx.fillStyle="#7591a0"; ctx.font="9px monospace"; ctx.fillText("Inflow",W-52,H-17);
-  ctx.fillStyle="#4dbf82"; ctx.fillRect(W-70,H-10,14,2);
-  ctx.fillStyle="#7591a0"; ctx.fillText("Demand",W-52,H-7);
+  ctx.fillStyle="#3fc7d6"; ctx.fillRect(W-116,H-20,14,2);
+  ctx.fillStyle="#7591a0"; ctx.font="9px monospace"; ctx.fillText("Inflow",W-98,H-17);
+  ctx.fillStyle="#4dbf82"; ctx.fillRect(W-116,H-10,14,2);
+  ctx.fillStyle="#7591a0"; ctx.fillText("Demand",W-98,H-7);
 }
+
+$("btn-view-details").addEventListener("click",openDetailedResults);
+$("btn-close-details").addEventListener("click",closeDetailedResults);
+$("detail-modal-overlay").addEventListener("click",event=>{
+  if(event.target===$("detail-modal-overlay")) closeDetailedResults();
+});
+$("btn-download-report").addEventListener("click",downloadReport);
+$("btn-toggle-raw-report").addEventListener("click",toggleRawReport);
+$("detail-modal-body").addEventListener("click",event=>{
+  const button=event.target.closest("[data-table-page]");
+  if(!button||button.disabled) return;
+  const [kind,direction]=button.dataset.tablePage.split("-");
+  const pageKey=kind==="nodes"?"nodeTablePage":"pipeTablePage";
+  S[pageKey]=Math.max(0,S[pageKey]+(direction==="next"?1:-1));
+  renderElementTables();
+});
+document.addEventListener("keydown",event=>{
+  if(!$("detail-modal-overlay").classList.contains("open")) return;
+  if(event.key==="Escape"){
+    closeDetailedResults();
+  }else if(event.key==="Tab"){
+    const focusable=[...$("detail-modal-overlay").querySelectorAll("button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex='-1'])")];
+    if(!focusable.length) return;
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(event.shiftKey&&document.activeElement===first){
+      event.preventDefault();last.focus();
+    }else if(!event.shiftKey&&document.activeElement===last){
+      event.preventDefault();first.focus();
+    }
+  }
+});
 
 })();
 </script>

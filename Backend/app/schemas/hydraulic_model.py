@@ -67,6 +67,7 @@ class HydraulicSimulationSnapshotCreate(BaseModel):
     nrw_json: Optional[dict[str, Any]] = None
     leakage_json: Optional[dict[str, Any]] = None
     alerts_json: Optional[dict[str, Any]] = None
+    detailed_results_json: Optional[dict[str, Any]] = None
     nodes_geojson: Optional[dict[str, Any]] = None
     pipes_geojson: Optional[dict[str, Any]] = None
     hotspots_geojson: Optional[dict[str, Any]] = None
@@ -124,6 +125,7 @@ class HydraulicSimulationSnapshotDetail(HydraulicSimulationSnapshotResponse):
     nrw_json: Optional[dict[str, Any]] = None
     leakage_json: Optional[dict[str, Any]] = None
     alerts_json: Optional[dict[str, Any]] = None
+    detailed_results_json: Optional[dict[str, Any]] = None
     nodes_geojson: Optional[dict[str, Any]] = None
     pipes_geojson: Optional[dict[str, Any]] = None
     hotspots_geojson: Optional[dict[str, Any]] = None
@@ -149,6 +151,8 @@ class HydraulicScenarioComparisonItem(BaseModel):
     pressure: dict[str, Any] = Field(default_factory=dict)
     pressure_zones: list[dict[str, Any]] = Field(default_factory=list)
     pressure_time_series: list[dict[str, Any]] = Field(default_factory=list)
+    detailed_time_series: list[dict[str, Any]] = Field(default_factory=list)
+    report_available: bool = False
     water_balance: dict[str, Any] = Field(default_factory=dict)
     risk_distribution: dict[str, int] = Field(default_factory=dict)
 

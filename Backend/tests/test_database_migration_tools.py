@@ -5,7 +5,10 @@ import pytest
 from sqlalchemy import Boolean, Column, DateTime, Float, MetaData, String, Table, Text, create_engine, insert, inspect
 
 from app.models import Base
-from app.services.database_migrations import _migrate_water_source_schema
+from app.services.database_migrations import (
+    _migrate_hydraulic_snapshot_report_columns,
+    _migrate_water_source_schema,
+)
 from app.services.startup_schema_sync import sync_startup_database_schemas
 from app.models import WaterSource, WaterSourceSensorMirrorOutbox
 from app.models.sensor_platform import (
@@ -90,6 +93,33 @@ def test_main_preflight_covers_current_tables_and_binary_bytes():
     assert _table_stats(target, target_meta)["image_upload"] == {"rows": 1, "binary_bytes": 11}
     source.dispose()
     target.dispose()
+
+
+def test_hydraulic_snapshot_migration_adds_detailed_results_column_idempotently():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE TABLE utility (id VARCHAR(36) PRIMARY KEY, name VARCHAR(255))")
+        connection.exec_driver_sql("CREATE TABLE dma (id VARCHAR(36) PRIMARY KEY, name VARCHAR(255))")
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE hydraulic_simulation_snapshot (
+                id VARCHAR(36) PRIMARY KEY,
+                launch_session_id VARCHAR(36),
+                utility_id VARCHAR(36),
+                dma_id VARCHAR(36),
+                hydraulic_scenario_id VARCHAR(100),
+                scenario_status VARCHAR(32),
+                created_at DATETIME
+            )
+            """
+        )
+
+    _migrate_hydraulic_snapshot_report_columns(engine)
+    _migrate_hydraulic_snapshot_report_columns(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("hydraulic_simulation_snapshot")}
+    assert "detailed_results_json" in columns
+    engine.dispose()
 
 
 def test_sensor_mapper_preserves_quality_and_pending_payloads():

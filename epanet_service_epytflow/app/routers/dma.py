@@ -377,6 +377,45 @@ async def simulate_dma(
     }
 
 
+@router.get("/{filename}/simulate/{scenario_id}/tanks")
+async def get_tank_volumes(
+    filename:    str,
+    scenario_id: int,
+    db:          AsyncSession = Depends(get_db),
+    _:           str          = Depends(require_api_key),
+):
+    """Return the tank-volume time series for a completed DMA simulation."""
+    scenario = await db.get(SimScenario, scenario_id)
+    if not scenario or scenario.gpkg_filename != filename:
+        raise HTTPException(status_code=404, detail="Scenario not found.")
+    if scenario.status != "DONE":
+        raise HTTPException(status_code=409, detail=f"Simulation is {scenario.status}, not DONE.")
+
+    rows = (await db.execute(
+        select(SimResult).where(
+            SimResult.scenario_id == scenario_id,
+            SimResult.element_type == "tank",
+        ).order_by(SimResult.element_id, SimResult.time_step)
+    )).scalars().all()
+
+    by_tank: dict[str, list[dict]] = {}
+    for row in rows:
+        by_tank.setdefault(row.element_id, []).append({
+            "time_step": row.time_step,
+            "hour": row.time_step * scenario.time_step_min / 60,
+            "volume_m3": row.volume_m3,
+        })
+
+    return {
+        "scenario_id": scenario_id,
+        "dma_name": (scenario.extra_demands or {}).get("_dma_name"),
+        "tanks": [
+            {"tank_id": tank_id, "series": series}
+            for tank_id, series in sorted(by_tank.items())
+        ],
+    }
+
+
 # ── GET NRW ───────────────────────────────────────────────────────────────────
 
 @router.get("/{filename}/simulate/{scenario_id}/nrw")

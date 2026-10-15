@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, CalendarClock, ChevronDown, Droplets, FileChartColumn, Gauge, Network, ShieldAlert, UserRound } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarClock, ChevronDown, Download, Droplets, FileChartColumn, Gauge, Network, ShieldAlert, UserRound } from "lucide-react"
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { apiClient } from "@/lib/api-client"
 import { PALETTE } from "@/lib/palette"
@@ -13,13 +13,14 @@ import { getAvailableHydraulicHeatModes, HYDRAULIC_HEAT_MODE_LABELS, type Hydrau
 
 type Json = Record<string, any>
 type FlowBalanceView = "all" | "inflow" | "demand" | "nrw"
+type ResultKind = "nodes" | "pipes" | "tanks"
 type Snapshot = {
   id: string; report_reference?: string | null; scenario_name?: string | null; scenario_status?: string | null
   utility_name?: string | null; dma_name?: string | null; created_by_name?: string | null; created_by_email?: string | null
   created_by_role?: string | null; completed_at?: string | null; created_at: string; execution_duration_seconds?: number | null
   result_quality?: string | null; snapshot_version: number; error_message?: string | null
   input_parameters_json?: Json | null; summary_json?: Json | null; nrw_json?: Json | null; leakage_json?: Json | null
-  alerts_json?: Json | null; hotspots_geojson?: Json | null; nodes_geojson?: Json | null; pipes_geojson?: Json | null
+  alerts_json?: Json | null; detailed_results_json?: Json | null; hotspots_geojson?: Json | null; nodes_geojson?: Json | null; pipes_geojson?: Json | null
 }
 
 const number = (value: unknown, unit = "", digits = 2) => typeof value === "number" ? `${value.toLocaleString(undefined, { maximumFractionDigits: digits })}${unit}` : "Not available"
@@ -107,10 +108,13 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
   const [error, setError] = useState<string | null>(null)
   const [selectedHeatMode, setSelectedHeatMode] = useState<HydraulicHeatMode | null>(null)
   const [flowBalanceView, setFlowBalanceView] = useState<FlowBalanceView>("all")
+  const [resultKind, setResultKind] = useState<ResultKind>("nodes")
+  const [resultTimeStep, setResultTimeStep] = useState("0")
+  const [resultPage, setResultPage] = useState(0)
 
   useEffect(() => {
     let active = true
-    apiClient.get<Snapshot>(`/hydraulic-model/snapshots/${encodeURIComponent(snapshotId)}`, { timeout: 20_000, retries: 0 }).then((response) => {
+    apiClient.get<Snapshot>(`/hydraulic-model/snapshots/${encodeURIComponent(snapshotId)}`, { timeout: 60_000, retries: 0 }).then((response) => {
       if (!active) return
       if (response.success && response.data) setReport(response.data)
       else setError(response.error || "Hydraulic report could not be loaded.")
@@ -126,6 +130,30 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
   const artifactBalance = hydraulicArtifacts.hydraulic_balance || hydraulicArtifacts.flow_balance || {}
   const artifactStatusEvents: Json[] = hydraulicArtifacts.status_events || []
   const artifactWarnings: string[] = hydraulicArtifacts.warnings || []
+  const detailedResults = report?.detailed_results_json || {}
+  const detailedSeries: Json[] = detailedResults.time_series || []
+  const resultSteps = useMemo(() => [...new Set([
+    ...(detailedResults.nodes || []).map((row: Json) => Number(row.time_step)),
+    ...(detailedResults.pipes || []).map((row: Json) => Number(row.time_step)),
+    ...(detailedResults.tanks || []).map((row: Json) => Number(row.time_step)),
+  ].filter(Number.isFinite))].sort((a, b) => a - b), [detailedResults])
+  const allElementRows: Json[] = detailedResults[resultKind] || []
+  const selectedElementRows = allElementRows.filter((row) => String(row.time_step) === resultTimeStep)
+  const visibleElementRows = selectedElementRows.slice(resultPage * 100, (resultPage + 1) * 100)
+  const elementColumns: Record<ResultKind, Array<[string, string]>> = {
+    nodes: [["element_id", "Node"], ["pressure_m", "Pressure (m)"], ["head_m", "Head (m)"], ["demand_m3s", "Demand (m³/s)"], ["water_age_hrs", "Water age (h)"], ["is_low_pressure", "Low pressure"]],
+    pipes: [["element_id", "Pipe"], ["flow_m3s", "Flow (m³/s)"], ["velocity_mps", "Velocity (m/s)"], ["headloss_m", "Head loss (m)"], ["is_high_velocity", "High velocity"]],
+    tanks: [["element_id", "Tank"], ["volume_m3", "Volume (m³)"]],
+  }
+  const chartSeries = detailedSeries.map((point) => ({
+    ...point,
+    ...Object.fromEntries(Object.entries(point.tank_volumes_m3 || {}).map(([id, volume]) => [`tank_${id}`, volume])),
+  }))
+  const tankIds = [...new Set(detailedSeries.flatMap((point) => Object.keys(point.tank_volumes_m3 || {})))]
+
+  useEffect(() => {
+    setResultPage(0)
+  }, [resultKind, resultTimeStep])
   const warnings: string[] = useMemo(() => [...new Set([...(report?.alerts_json?.warnings || []), ...(leakage.warnings || []), ...(report?.error_message ? [report.error_message] : [])])], [leakage, report])
   const iliValue = useMemo(() => {
     if (typeof nrw.ili === "number") return nrw.ili
@@ -134,6 +162,16 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
   const zones: Json[] = leakage.pressure_zones || []
   const risks: Json[] = leakage.pipe_risks_top20 || []
   const balance: Json[] = leakage.timestep_balance || []
+  const downloadReport = () => {
+    const reportText = detailedResults.report_text
+    if (!report || typeof reportText !== "string" || !reportText) return
+    const url = URL.createObjectURL(new Blob([reportText], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `${report.report_reference || report.id}-hydraulic-report.rpt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
   const heatModes = useMemo(
     () => getAvailableHydraulicHeatModes({ nodesGeojson: report?.nodes_geojson, pipesGeojson: report?.pipes_geojson, hotspotsGeojson: report?.hotspots_geojson }),
     [report?.hotspots_geojson, report?.nodes_geojson, report?.pipes_geojson]
@@ -203,6 +241,50 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
       ) : null}
 
       {balance.length ? <Section title="Hourly flow balance"><div className="mb-4 flex flex-wrap justify-end gap-2">{([['all', 'All'], ['inflow', 'Inflow'], ['demand', 'Demand'], ['nrw', 'NRW']] as Array<[FlowBalanceView, string]>).map(([view, viewLabel]) => <Button key={view} type="button" size="sm" variant={flowBalanceView === view ? "default" : "outline"} onClick={() => setFlowBalanceView(view)} aria-pressed={flowBalanceView === view}>{viewLabel}</Button>)}</div><div className="h-80"><ResponsiveContainer width="100%" height="100%"><LineChart data={balance}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" /><YAxis /><Tooltip /><Legend />{flowBalanceView === "all" || flowBalanceView === "inflow" ? <Line type="monotone" dataKey="inflow_m3h" name="Inflow m³/h" stroke={PALETTE.chart.chart1} strokeWidth={2} dot={false} /> : null}{flowBalanceView === "all" || flowBalanceView === "demand" ? <Line type="monotone" dataKey="demand_m3h" name="Demand m³/h" stroke={PALETTE.chart.chart2} strokeWidth={2} dot={false} /> : null}{flowBalanceView === "all" || flowBalanceView === "nrw" ? <Line type="monotone" dataKey="nrw_m3h" name="NRW m³/h" stroke={PALETTE.chart.chart4} strokeWidth={2} dot={false} /> : null}</LineChart></ResponsiveContainer></div></Section> : null}
+
+      {!detailedResults.version ? <Section title="Detailed model results"><p className="text-sm text-slate-600 dark:text-slate-300">This saved scenario predates full-result snapshots, so its per-element timestep readings and original report text are not available in MajiScope. New simulations will include them.</p></Section> : null}
+
+      {detailedResults.version ? (
+        <>
+          <Section title="Complete model results by timestep">
+            <p className="mb-4 text-sm text-slate-500">Per-node, per-pipe, and per-tank values from the model run. Time is shown in elapsed hours.</p>
+            {chartSeries.length ? (
+              <div className="grid gap-5 xl:grid-cols-2">
+                <div className="h-80"><p className="mb-2 font-semibold">Pressure (m)</p><ResponsiveContainer width="100%" height="90%"><LineChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit=" h" /><YAxis /><Tooltip /><Legend /><Line dataKey="pressure_min_m" name="Minimum" stroke={PALETTE.chart.chart4} dot={false} /><Line dataKey="pressure_avg_m" name="Average" stroke={PALETTE.chart.chart1} dot={false} /><Line dataKey="pressure_max_m" name="Maximum" stroke={PALETTE.chart.chart2} dot={false} /></LineChart></ResponsiveContainer></div>
+                <div className="h-80"><p className="mb-2 font-semibold">Water age (h)</p><ResponsiveContainer width="100%" height="90%"><LineChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit=" h" /><YAxis /><Tooltip /><Legend /><Line dataKey="water_age_avg_hrs" name="Average" stroke={PALETTE.chart.chart1} dot={false} /><Line dataKey="water_age_max_hrs" name="Maximum" stroke={PALETTE.chart.chart4} dot={false} /></LineChart></ResponsiveContainer></div>
+                <div className="h-80"><p className="mb-2 font-semibold">Demand and pipe flow</p><ResponsiveContainer width="100%" height="90%"><LineChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit=" h" /><YAxis yAxisId="demand" /><YAxis yAxisId="flow" orientation="right" /><Tooltip /><Legend /><Line yAxisId="demand" dataKey="total_demand_m3h" name="Demand (m³/h)" stroke={PALETTE.chart.chart2} dot={false} /><Line yAxisId="flow" dataKey="flow_avg_abs_m3s" name="Mean pipe flow (m³/s)" stroke={PALETTE.chart.chart3} dot={false} /><Line yAxisId="flow" dataKey="flow_max_abs_m3s" name="Max pipe flow (m³/s)" stroke={PALETTE.chart.chart4} dot={false} /></LineChart></ResponsiveContainer></div>
+                {tankIds.length ? <div className="h-80"><p className="mb-2 font-semibold">Tank volume (m³)</p><ResponsiveContainer width="100%" height="90%"><LineChart data={chartSeries}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit=" h" /><YAxis /><Tooltip /><Legend />{tankIds.map((id, index) => <Line key={id} dataKey={`tank_${id}`} name={id} stroke={PALETTE.chartSeries[index % PALETTE.chartSeries.length]} dot={false} connectNulls />)}</LineChart></ResponsiveContainer></div> : null}
+              </div>
+            ) : <p className="text-sm text-slate-500">No timestep aggregates were included in this snapshot.</p>}
+
+            <div className="mt-6 flex flex-wrap items-center gap-2">
+              {(["nodes", "pipes", "tanks"] as ResultKind[]).map((kind) => <Button key={kind} size="sm" variant={resultKind === kind ? "default" : "outline"} onClick={() => setResultKind(kind)}>{kind === "nodes" ? "Node readings" : kind === "pipes" ? "Pipe readings" : "Tank volumes"} ({(detailedResults[kind] || []).length})</Button>)}
+              <label className="ml-auto flex items-center gap-2 text-sm">Timestep
+                <select value={resultTimeStep} onChange={(event) => setResultTimeStep(event.target.value)} className="h-9 rounded-md border border-input bg-background px-2">
+                  {resultSteps.map((step) => <option key={step} value={step}>{step} · {(step * (Number(detailedResults.time_step_min) || 60) / 60).toFixed(2)} h</option>)}
+                </select>
+              </label>
+            </div>
+            {selectedElementRows.length ? (
+              <div className="mt-3 overflow-x-auto rounded-md border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-left text-sm"><thead className="bg-slate-100 dark:bg-slate-800"><tr>{elementColumns[resultKind].map(([, title]) => <th key={title} className="whitespace-nowrap px-3 py-2">{title}</th>)}</tr></thead><tbody>{visibleElementRows.map((row) => <tr key={`${row.element_id}-${row.time_step}`} className="border-t border-slate-200 dark:border-slate-700">{elementColumns[resultKind].map(([key]) => <td key={key} className="whitespace-nowrap px-3 py-2">{row[key] == null ? "—" : typeof row[key] === "number" ? Number(row[key]).toLocaleString(undefined, { maximumFractionDigits: 5 }) : String(row[key])}</td>)}</tr>)}</tbody></table>
+                <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
+                  <span>Showing {resultPage * 100 + 1}–{Math.min((resultPage + 1) * 100, selectedElementRows.length)} of {selectedElementRows.length}</span>
+                  <div className="flex gap-2"><Button size="sm" variant="outline" disabled={resultPage === 0} onClick={() => setResultPage((page) => page - 1)}>Previous</Button><Button size="sm" variant="outline" disabled={(resultPage + 1) * 100 >= selectedElementRows.length} onClick={() => setResultPage((page) => page + 1)}>Next</Button></div>
+                </div>
+              </div>
+            ) : <p className="mt-3 text-sm text-slate-500">No {resultKind} readings were recorded at this timestep.</p>}
+          </Section>
+          <Section title="Full hydraulic report">
+            {typeof detailedResults.report_text === "string" && detailedResults.report_text ? (
+              <>
+                <div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm text-slate-500">Original report text from the completed model run.</p><Button size="sm" onClick={downloadReport}><Download className="h-4 w-4" />Download report</Button></div>
+                <details className="rounded-md border border-slate-200 dark:border-slate-700"><summary className="cursor-pointer px-4 py-3 font-medium">View complete report text</summary><pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-700 dark:bg-slate-950">{detailedResults.report_text}</pre></details>
+              </>
+            ) : <p className="text-sm text-slate-500">The raw report file was not included in this snapshot.</p>}
+          </Section>
+        </>
+      ) : null}
 
       {selectedHeatMode ? (
         <Section title="Hydraulic heat map">

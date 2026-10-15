@@ -55,6 +55,15 @@ type PressurePoint = {
   low_pressure_nodes?: number | null
   critical_pressure_nodes?: number | null
 }
+type DetailedTimePoint = {
+  hour: number
+  water_age_avg_hrs?: number | null
+  water_age_max_hrs?: number | null
+  total_demand_m3h?: number | null
+  flow_avg_abs_m3s?: number | null
+  flow_max_abs_m3s?: number | null
+  velocity_max_abs_mps?: number | null
+}
 type ComparisonScenario = {
   id: string
   report_reference?: string | null
@@ -68,6 +77,8 @@ type ComparisonScenario = {
   pressure: NumberMap
   pressure_zones: Array<{ zone?: string; count?: number; pct?: number }>
   pressure_time_series: PressurePoint[]
+  detailed_time_series: DetailedTimePoint[]
+  report_available: boolean
   water_balance: NumberMap
   risk_distribution: Record<string, number>
 }
@@ -85,6 +96,15 @@ const pressureMetricLabels = {
   pressure_max_m: "Maximum pressure",
 } as const
 type PressureSeriesMetric = keyof typeof pressureMetricLabels
+const detailedMetricLabels = {
+  water_age_avg_hrs: "Average water age",
+  water_age_max_hrs: "Maximum water age",
+  total_demand_m3h: "Total demand",
+  flow_avg_abs_m3s: "Mean absolute pipe flow",
+  flow_max_abs_m3s: "Maximum absolute pipe flow",
+  velocity_max_abs_mps: "Maximum pipe velocity",
+} as const
+type DetailedSeriesMetric = keyof typeof detailedMetricLabels
 
 const number = (value: unknown, digits = 1) =>
   typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "N/A"
@@ -121,6 +141,7 @@ export default function HydraulicScenarioComparisonPage() {
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ComparisonResponse | null>(null)
   const [pressureSeriesMetric, setPressureSeriesMetric] = useState<PressureSeriesMetric>("pressure_avg_m")
+  const [detailedSeriesMetric, setDetailedSeriesMetric] = useState<DetailedSeriesMetric>("water_age_avg_hrs")
 
   const visibleUtilities = useMemo(
     () => currentUser?.role === "admin" ? utilities : utilities.filter((utility) => utility.id === currentUser?.utilityId),
@@ -222,6 +243,20 @@ export default function HydraulicScenarioComparisonPage() {
     return [...rows.values()].sort((a, b) => a.hour - b.hour)
   }, [pressureSeriesMetric, result])
 
+  const detailedTimeline = useMemo(() => {
+    if (!result) return []
+    const rows = new Map<number, Record<string, number>>()
+    result.scenarios.forEach((scenario) => {
+      scenario.detailed_time_series.forEach((point) => {
+        const row = rows.get(point.hour) || { hour: point.hour }
+        const value = point[detailedSeriesMetric]
+        if (typeof value === "number") row[scenario.id] = value
+        rows.set(point.hour, row)
+      })
+    })
+    return [...rows.values()].sort((a, b) => a.hour - b.hour)
+  }, [detailedSeriesMetric, result])
+
   const pressureZones = useMemo(() => result?.scenarios.map((scenario) => {
     const row: Record<string, string | number> = { scenario: chartNames[scenario.id] }
     scenario.pressure_zones.forEach((zone) => { row[String(zone.zone || "unknown").toLowerCase()] = Number(zone.pct ?? zone.count ?? 0) })
@@ -304,6 +339,8 @@ export default function HydraulicScenarioComparisonPage() {
 
           {pressureTimeline.length ? <ChartSection title="Pressure over time" description="Reduced timestep series saved by version 3 hydraulic snapshots."><div className="mb-4 flex flex-wrap gap-2">{Object.entries(pressureMetricLabels).map(([key, label]) => <Button key={key} size="sm" variant={pressureSeriesMetric === key ? "default" : "outline"} onClick={() => setPressureSeriesMetric(key as PressureSeriesMetric)}>{label}</Button>)}</div>{scenariosWithoutTimeline.length ? <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">Time-series data is unavailable for: {scenariosWithoutTimeline.map((scenario) => scenario.report_reference || scenarioLabel(scenario)).join(", ")}. Their summary values remain included elsewhere.</div> : null}<div className="h-96"><ResponsiveContainer width="100%" height="100%"><LineChart data={pressureTimeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit="h" /><YAxis unit=" m" /><Tooltip /><Legend />{result.scenarios.map((scenario, index) => <Line key={scenario.id} type="monotone" dataKey={scenario.id} name={chartNames[scenario.id]} stroke={COLORS[index]} strokeWidth={2.5} connectNulls dot={false} />)}</LineChart></ResponsiveContainer></div></ChartSection> : null}
 
+          {detailedTimeline.length ? <ChartSection title="Water age, demand, flow and velocity over time" description="Compare the additional per-timestep output captured from each run."><div className="mb-4 flex flex-wrap gap-2">{Object.entries(detailedMetricLabels).map(([key, label]) => <Button key={key} size="sm" variant={detailedSeriesMetric === key ? "default" : "outline"} onClick={() => setDetailedSeriesMetric(key as DetailedSeriesMetric)}>{label}</Button>)}</div><div className="h-96"><ResponsiveContainer width="100%" height="100%"><LineChart data={detailedTimeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hour" unit=" h" /><YAxis /><Tooltip /><Legend />{result.scenarios.map((scenario, index) => <Line key={scenario.id} type="monotone" dataKey={scenario.id} name={chartNames[scenario.id]} stroke={COLORS[index]} strokeWidth={2.5} connectNulls dot={false} />)}</LineChart></ResponsiveContainer></div></ChartSection> : <section className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">Detailed timestep data is not available for the selected saved scenarios. Open a scenario report for its saved data, if present.</section>}
+
           <div className="grid gap-5 xl:grid-cols-2">
             <ChartSection title="Leakage risk" description="Recorded elevated, high and critical risk locations."><div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={riskData} layout="vertical"><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" allowDecimals={false} /><YAxis type="category" dataKey="scenario" width={130} /><Tooltip /><Legend /><Bar dataKey="elevated" stackId="risk" fill={PALETTE.chart.chart1} name="Elevated" /><Bar dataKey="high" stackId="risk" fill={PALETTE.chart.chart3} name="High" /><Bar dataKey="critical" stackId="risk" fill={PALETTE.chart.chart4} name="Critical" /></BarChart></ResponsiveContainer></div></ChartSection>
             <ChartSection title="Non-revenue water" description="NRW percentage for each scenario."><div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={nrwData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="scenario" /><YAxis unit="%" /><Tooltip /><Bar dataKey="nrw" name="NRW" fill={PALETTE.chart.chart4} /></BarChart></ResponsiveContainer></div></ChartSection>
@@ -311,12 +348,12 @@ export default function HydraulicScenarioComparisonPage() {
 
           <ChartSection title="Water balance" description="Hourly flow quantities in cubic metres per hour."><div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={flowData}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="scenario" /><YAxis unit=" m³/h" /><Tooltip /><Legend /><Bar dataKey="inflow" fill={PALETTE.chart.chart1} name="Inflow" /><Bar dataKey="demand" fill={PALETTE.chart.chart2} name="Demand" /><Bar dataKey="losses" fill={PALETTE.chart.chart4} name="Real losses" /></BarChart></ResponsiveContainer></div></ChartSection>
 
-          <ChartSection title="Exact values and baseline differences" description="Positive and negative changes are calculated against the selected baseline."><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-sm"><thead><tr className="border-b text-left"><th className="py-3">Scenario</th><th>Min pressure</th><th>Average pressure</th><th>Low-pressure nodes</th><th>NRW</th><th>Change from baseline</th></tr></thead><tbody>{result.scenarios.map((scenario) => {
+          <ChartSection title="Exact values and baseline differences" description="Positive and negative changes are calculated against the selected baseline."><div className="overflow-x-auto"><table className="w-full min-w-[1000px] text-sm"><thead><tr className="border-b text-left"><th className="py-3">Scenario</th><th>Min pressure</th><th>Average pressure</th><th>Low-pressure nodes</th><th>NRW</th><th>Detailed report</th><th>Change from baseline</th></tr></thead><tbody>{result.scenarios.map((scenario) => {
             const avg = scenario.pressure.average_m
             const baseAvg = baseline?.pressure.average_m
             const nrw = scenario.water_balance.nrw_pct
             const baseNrw = baseline?.water_balance.nrw_pct
-            return <tr key={scenario.id} className="border-b border-slate-200 dark:border-slate-700"><td className="py-3"><p className="font-semibold">{scenarioLabel(scenario)}</p>{scenario.id === result.baseline_snapshot_id ? <span className="text-xs text-sky-600">Baseline</span> : null}</td><td>{number(scenario.pressure.minimum_m)} m</td><td>{number(avg)} m</td><td>{number(scenario.pressure.low_pressure_nodes, 0)}</td><td>{number(nrw)}%</td><td>{scenario.id === result.baseline_snapshot_id ? "Baseline" : `Avg pressure ${typeof avg === "number" && typeof baseAvg === "number" ? `${avg - baseAvg >= 0 ? "+" : ""}${(avg - baseAvg).toFixed(1)} m` : "N/A"}; NRW ${typeof nrw === "number" && typeof baseNrw === "number" ? `${nrw - baseNrw >= 0 ? "+" : ""}${(nrw - baseNrw).toFixed(1)}%` : "N/A"}`}</td></tr>
+            return <tr key={scenario.id} className="border-b border-slate-200 dark:border-slate-700"><td className="py-3"><p className="font-semibold">{scenarioLabel(scenario)}</p>{scenario.id === result.baseline_snapshot_id ? <span className="text-xs text-sky-600">Baseline</span> : null}</td><td>{number(scenario.pressure.minimum_m)} m</td><td>{number(avg)} m</td><td>{number(scenario.pressure.low_pressure_nodes, 0)}</td><td>{number(nrw)}%</td><td><Link className="font-medium text-sky-700 underline dark:text-sky-300" href={`/dashboard/hydraulic-reports/${scenario.report_reference || scenario.id}`}>{scenario.report_available ? "Full report" : "View scenario"}</Link></td><td>{scenario.id === result.baseline_snapshot_id ? "Baseline" : `Avg pressure ${typeof avg === "number" && typeof baseAvg === "number" ? `${avg - baseAvg >= 0 ? "+" : ""}${(avg - baseAvg).toFixed(1)} m` : "N/A"}; NRW ${typeof nrw === "number" && typeof baseNrw === "number" ? `${nrw - baseNrw >= 0 ? "+" : ""}${(nrw - baseNrw).toFixed(1)}%` : "N/A"}`}</td></tr>
           })}</tbody></table></div></ChartSection>
 
           <ChartSection title="Simulation inputs" description="Parameters used to reproduce each selected model run."><div className="overflow-x-auto"><table className="w-full min-w-[800px] text-sm"><thead><tr className="border-b text-left"><th className="py-3">Scenario</th><th>Base demand</th><th>Leakage fraction</th><th>Duration</th><th>Timestep</th></tr></thead><tbody>{result.scenarios.map((scenario) => <tr key={scenario.id} className="border-b border-slate-200 dark:border-slate-700"><td className="py-3 font-semibold">{scenarioLabel(scenario)}</td><td>{number(scenario.inputs.base_demand, 3)} m³/h</td><td>{number(scenario.inputs.leakage_frac, 2)}</td><td>{number(scenario.inputs.duration_hrs, 0)} hours</td><td>{number(scenario.inputs.time_step_min, 0)} min</td></tr>)}</tbody></table></div></ChartSection>

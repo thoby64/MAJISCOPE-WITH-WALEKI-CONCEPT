@@ -1257,6 +1257,7 @@ def _migrate_hydraulic_model_tables(engine: Engine) -> None:
                 nrw_json JSON,
                 leakage_json JSON,
                 alerts_json JSON,
+                detailed_results_json JSON,
                 nodes_geojson JSON,
                 pipes_geojson JSON,
                 hotspots_geojson JSON,
@@ -1280,6 +1281,7 @@ def _migrate_hydraulic_model_tables(engine: Engine) -> None:
                 nrw_json JSON,
                 leakage_json JSON,
                 alerts_json JSON,
+                detailed_results_json JSON,
                 nodes_geojson JSON,
                 pipes_geojson JSON,
                 hotspots_geojson JSON,
@@ -1331,6 +1333,7 @@ def _migrate_hydraulic_snapshot_report_columns(engine: Engine) -> None:
         "snapshot_version": "INTEGER DEFAULT 1 NOT NULL",
         "result_quality": "VARCHAR(32)",
         "error_message": "TEXT",
+        "detailed_results_json": "JSON",
     }
     with engine.begin() as connection:
         for column, definition in definitions.items():

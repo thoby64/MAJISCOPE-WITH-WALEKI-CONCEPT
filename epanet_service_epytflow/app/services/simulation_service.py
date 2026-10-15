@@ -68,7 +68,17 @@ class PipeResult:
 class SimulationOutput:
     node_results: List[NodeResult] = field(default_factory=list)
     pipe_results: List[PipeResult] = field(default_factory=list)
+    tank_results: List["TankResult"] = field(default_factory=list)
     summary:      dict             = field(default_factory=dict)
+
+
+@dataclass
+class TankResult:
+    element_id: str
+    time_step:  int
+    volume_m3:  Optional[float] = None
+    lat:        Optional[float] = None
+    lon:        Optional[float] = None
 
 
 # ── coordinate extractor ───────────────────────────────────────────────────────
@@ -168,11 +178,14 @@ def run_simulation(
         # separate junction IDs from reservoir IDs
         junction_ids: List[str] = []
         reservoir_ids: List[str] = []
+        tank_ids: List[str] = []
         for nid in all_node_ids:
             idx  = api.get_node_idx(nid)
             ntype = api.get_node_type(idx)   # returns int; 0=Junction,1=Reservoir,2=Tank
             if ntype == 1:
                 reservoir_ids.append(nid)
+            elif ntype == 2:
+                tank_ids.append(nid)
             else:
                 junction_ids.append(nid)
 
@@ -227,7 +240,11 @@ def run_simulation(
         sim.set_pressure_sensors(sensor_locations=junction_ids)
         sim.set_flow_sensors(sensor_locations=pipe_ids)
         if junction_ids:
+            sim.place_demand_sensors_everywhere()
+        if junction_ids:
             sim.set_node_quality_sensors(sensor_locations=junction_ids)
+        if tank_ids:
+            sim.place_tank_sensors_everywhere()
 
         # inject leakage events
         for leak in system_events:
@@ -241,11 +258,19 @@ def run_simulation(
         pressure_arr = scada.get_data_pressures()     # m
         flow_arr     = scada.get_data_flows()         # m³/h (CMH)
         quality_arr  = scada.get_data_nodes_quality()  # seconds (water age)
+        demand_arr   = scada.get_data_demands()       # m³/h (CMH)
+        tank_volume_arr = (
+            scada.get_data_tanks_water_volume() if tank_ids else None
+        )
 
         # sensor ordering matches the lists we passed in
         pressure_node_ids = junction_ids
         flow_pipe_ids     = pipe_ids
-        quality_node_ids  = junction_ids
+        demand_node_ids   = list(getattr(scada.sensor_config, "demand_sensors", []) or [])
+        tank_sensor_ids   = list(
+            getattr(scada.sensor_config, "tank_volume_sensors", []) or []
+        )
+        demand_index = {node_id: index for index, node_id in enumerate(demand_node_ids)}
 
         n_steps = pressure_arr.shape[0] if pressure_arr is not None else 0
         logger.info("Result time steps: %d", n_steps)
@@ -264,6 +289,13 @@ def run_simulation(
                 if quality_arr is not None and quality_arr.shape[1] > j
                 else None
             )
+            demand_index_for_node = demand_index.get(nid)
+            demand_cmh = (
+                float(demand_arr[t, demand_index_for_node])
+                if demand_arr is not None and demand_index_for_node is not None
+                and demand_arr.shape[1] > demand_index_for_node
+                else None
+            )
             coords = node_coords.get(nid, (None, None))
             output.node_results.append(NodeResult(
                 element_id      = nid,
@@ -271,7 +303,8 @@ def run_simulation(
                 lon             = coords[0],
                 lat             = coords[1],
                 pressure        = round(pressure, 3) if pressure is not None else None,
-                water_age       = round(age_s / 3600.0, 2) if age_s else None,
+                demand          = round(demand_cmh / 3600.0, 6) if demand_cmh is not None else None,
+                water_age       = round(age_s / 3600.0, 2) if age_s is not None else None,
                 is_low_pressure = (
                     pressure is not None and pressure < settings.min_pressure_m
                 ),
@@ -296,22 +329,42 @@ def run_simulation(
                 flow_rate  = round(flow_m3s, 6) if flow_m3s is not None else None,
             ))
 
+        for tank_index, tank_id in enumerate(tank_sensor_ids):
+            volume = (
+                float(tank_volume_arr[t, tank_index])
+                if tank_volume_arr is not None and tank_volume_arr.shape[1] > tank_index
+                else None
+            )
+            coords = node_coords.get(tank_id, (None, None))
+            output.tank_results.append(TankResult(
+                element_id=tank_id,
+                time_step=t_hr,
+                volume_m3=round(volume, 2) if volume is not None else None,
+                lon=coords[0],
+                lat=coords[1],
+            ))
+
     # ── summary ────────────────────────────────────────────────────────────────
     pressures = [n.pressure  for n in output.node_results if n.pressure  is not None]
     flows     = [abs(p.flow_rate) for p in output.pipe_results if p.flow_rate is not None]
     ages      = [n.water_age for n in output.node_results if n.water_age is not None]
+    demands   = [n.demand for n in output.node_results if n.demand is not None]
 
     output.summary = {
         "pressure_min_m":       round(min(pressures),               2) if pressures else None,
         "pressure_max_m":       round(max(pressures),               2) if pressures else None,
         "pressure_avg_m":       round(sum(pressures)/len(pressures), 2) if pressures else None,
         "flow_max_m3s":         round(max(flows),                   6) if flows     else None,
+        "flow_avg_m3s":         round(sum(flows) / len(flows),       6) if flows     else None,
         "water_age_max_hrs":    round(max(ages),                    2) if ages      else None,
+        "water_age_avg_hrs":    round(sum(ages) / len(ages),         2) if ages      else None,
+        "total_demand_m3h":     round(sum(demands) * 3600.0 / n_steps, 3) if demands and n_steps else None,
         "low_pressure_nodes":   sum(1 for n in output.node_results if n.is_low_pressure),
         "high_velocity_pipes":  0,
         "leak_events_injected": len(system_events),
         "total_nodes":          len(junction_ids),
         "total_pipes":          len(pipe_ids),
+        "total_tanks":          len(tank_sensor_ids),
         "duration_hrs":         duration_hrs,
         "time_steps":           n_steps,
         "demand_model":         demand_model,
@@ -322,7 +375,7 @@ def run_simulation(
     }
 
     logger.info(
-        "Parsed %d node records, %d pipe records",
-        len(output.node_results), len(output.pipe_results),
+        "Parsed %d node records, %d pipe records, %d tank records",
+        len(output.node_results), len(output.pipe_results), len(output.tank_results),
     )
     return output

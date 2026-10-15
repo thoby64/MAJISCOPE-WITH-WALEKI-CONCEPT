@@ -93,5 +93,6 @@ class SimResult(Base):
     velocity:         Mapped[Optional[float]] = mapped_column(Float,   nullable=True)
     headloss:         Mapped[Optional[float]] = mapped_column(Float,   nullable=True)
     is_high_velocity: Mapped[bool]            = mapped_column(Boolean, default=False)
+    volume_m3:        Mapped[Optional[float]] = mapped_column(Float,   nullable=True)
 
     scenario: Mapped["SimScenario"] = relationship("SimScenario", back_populates="results")

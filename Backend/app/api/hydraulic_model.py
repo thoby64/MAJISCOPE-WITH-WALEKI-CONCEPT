@@ -783,13 +783,16 @@ def _snapshot_common(snapshot: HydraulicSimulationSnapshot, db: Session) -> dict
 def _snapshot_list_item(snapshot: HydraulicSimulationSnapshot, db: Session) -> HydraulicSimulationSnapshotListItem:
     summary = snapshot.summary_json or {}
     nrw = snapshot.nrw_json or ((snapshot.leakage_json or {}).get("nrw") or {})
-    warnings = (snapshot.alerts_json or {}).get("warnings") or []
+    warnings = list((snapshot.alerts_json or {}).get("warnings") or [])
+    warnings.extend((snapshot.leakage_json or {}).get("warnings") or [])
+    if snapshot.error_message:
+        warnings.append(snapshot.error_message)
     return HydraulicSimulationSnapshotListItem(
         **_snapshot_common(snapshot, db),
         pressure_min_m=summary.get("pressure_min_m"),
         pressure_avg_m=summary.get("pressure_avg_m"),
         nrw_pct=nrw.get("nrw_pct"),
-        alert_count=len(warnings),
+        alert_count=len(set(warnings)),
     )
 
 
@@ -824,6 +827,7 @@ def _snapshot_comparison_item(snapshot: HydraulicSimulationSnapshot, db: Session
     leakage = snapshot.leakage_json or {}
     leakage_nrw = leakage.get("nrw") or {}
     water_balance = {**leakage_nrw, **(snapshot.nrw_json or {})}
+    detailed_results = snapshot.detailed_results_json or {}
     return HydraulicScenarioComparisonItem(
         id=snapshot.id,
         report_reference=snapshot.report_reference,
@@ -845,6 +849,8 @@ def _snapshot_comparison_item(snapshot: HydraulicSimulationSnapshot, db: Session
         },
         pressure_zones=leakage.get("pressure_zones") or [],
         pressure_time_series=summary.get("pressure_time_series") or [],
+        detailed_time_series=detailed_results.get("time_series") or [],
+        report_available=bool(detailed_results.get("report_text")),
         water_balance=water_balance,
         risk_distribution=_snapshot_risk_distribution(snapshot),
     )
@@ -919,6 +925,7 @@ def create_hydraulic_simulation_snapshot(
     snapshot.nrw_json = payload.nrw_json
     snapshot.leakage_json = payload.leakage_json
     snapshot.alerts_json = payload.alerts_json
+    snapshot.detailed_results_json = payload.detailed_results_json
     snapshot.nodes_geojson = payload.nodes_geojson
     snapshot.pipes_geojson = payload.pipes_geojson
     snapshot.hotspots_geojson = payload.hotspots_geojson
@@ -1086,6 +1093,7 @@ def get_hydraulic_simulation_snapshot(
         nrw_json=snapshot.nrw_json,
         leakage_json=snapshot.leakage_json,
         alerts_json=snapshot.alerts_json,
+        detailed_results_json=snapshot.detailed_results_json,
         nodes_geojson=snapshot.nodes_geojson,
         pipes_geojson=snapshot.pipes_geojson,
         hotspots_geojson=snapshot.hotspots_geojson,
