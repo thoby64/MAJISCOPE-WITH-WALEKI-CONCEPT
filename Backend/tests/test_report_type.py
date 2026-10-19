@@ -1,6 +1,26 @@
 from app.api.reports import _report_classification, _report_type_value
-from app.models.business import ReportTypeEnum
+from datetime import datetime, timedelta
+
+from app.models.business import Report, ReportTypeEnum
 from app.schemas.business import AnonymousReportCreate
+
+
+def test_non_leakage_report_persists_null_leakage_type(db) -> None:
+    report = Report(
+        tracking_id="ANON-NON-LEAKAGE-TEST",
+        description="Test report",
+        latitude=0,
+        longitude=0,
+        report_type=ReportTypeEnum.NON_LEAKAGE.value,
+        leakage_type=None,
+        reporter_name="Test reporter",
+        reporter_phone="N/A",
+        sla_deadline=datetime.utcnow() + timedelta(days=7),
+    )
+    db.add(report)
+    db.flush()
+
+    assert report.leakage_type is None
 
 
 def test_legacy_report_defaults_to_leakage_unknown() -> None:

@@ -94,7 +94,7 @@ class Report(Base):
     photos = Column(JSON, default=list)  # Array of image URLs
     priority = Column(SQLEnum(ReportPriorityEnum), default=ReportPriorityEnum.MEDIUM)
     report_type = Column(String(32), default=ReportTypeEnum.LEAKAGE.value, nullable=False, index=True)
-    leakage_type = Column(String(50), default=LeakageTypeEnum.UNKNOWN.value, nullable=True, index=True)
+    leakage_type = Column(String(50), nullable=True, index=True)
     status = Column(SQLEnum(ReportStatusEnum), default=ReportStatusEnum.NEW, index=True)
     utility_id = Column(String(36), ForeignKey("utility.id"), nullable=True, index=True)
     dma_id = Column(String(36), ForeignKey("dma.id", ondelete="CASCADE"), nullable=True, index=True)
