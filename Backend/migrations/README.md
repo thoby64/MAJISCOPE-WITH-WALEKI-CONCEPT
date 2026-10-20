@@ -2,6 +2,19 @@
 
 The main and sensor databases have independent Alembic configurations and version tables. Run commands from `Backend/` with `DATABASE_URL` and `SENSOR_DATABASE_URL` set for the intended environment. Never run a production migration from every API replica; use one controlled deployment job.
 
+## Render deployments
+
+Configure the Render backend service's **Pre-Deploy Command** as
+`bash scripts/render_predeploy.sh`. The command exits without changing either
+database unless the Render environment variable `RUN_PREDEPLOY_MIGRATIONS` is
+set to `true`. Enable it for a deployment that needs reviewed Alembic changes;
+the script verifies/stamps eligible existing schemas and upgrades both
+histories once before the web service starts. Set it back to `false` afterward.
+
+This flag gates the pre-deploy command; it does not launch a script by itself,
+and it does not enable schema changes on web replicas. Keep
+`RUN_STARTUP_MIGRATIONS` and `RUN_STARTUP_SCHEMA_SYNC` disabled in production.
+
 ## Fresh databases
 
 For a new database pair, create the current schemas and record their baselines:

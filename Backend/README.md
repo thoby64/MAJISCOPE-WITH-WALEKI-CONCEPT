@@ -180,10 +180,12 @@ synchronously after preparing the media schema.
 
 The existing Alembic revision `0002_media_object_storage` adds nullable media
 payloads, S3 object references, SHA-256 checksums, and the deletion retry queue.
-Production startup keeps schema DDL disabled on web replicas. The Render
-pre-deploy script applies both Alembic histories once before the backend
-process starts; normal sensor and storage-facility reconciliation remain enabled at
-application startup.
+Production startup keeps schema DDL disabled on web replicas. Configure the
+Render Pre-Deploy Command as `bash scripts/render_predeploy.sh`; it applies both
+Alembic histories once before the backend process starts only when
+`RUN_PREDEPLOY_MIGRATIONS=true`. Set the flag back to `false` after that
+deployment. Normal sensor and storage-facility reconciliation remains enabled
+at application startup.
 
 ## Historical DUWASA import on deploy
 

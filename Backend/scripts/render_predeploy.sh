@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+case "${RUN_PREDEPLOY_MIGRATIONS:-false}" in
+  true|TRUE|1|yes|YES)
+    ;;
+  false|FALSE|0|no|NO|'')
+    echo "Skipping Alembic migrations: RUN_PREDEPLOY_MIGRATIONS is not enabled."
+    exit 0
+    ;;
+  *)
+    echo "RUN_PREDEPLOY_MIGRATIONS must be set to true or false." >&2
+    exit 2
+    ;;
+esac
+
 BACKEND_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BACKEND_DIR"
 
