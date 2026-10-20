@@ -1,5 +1,7 @@
 import hashlib
 import json
+from io import BytesIO
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 from botocore.exceptions import ClientError, ResponseStreamingError
@@ -58,6 +60,66 @@ def test_http_request_escapes_object_key_and_sends_service_token(monkeypatch):
     request = open_url.call_args.args[0]
     assert request.full_url == "http://storage.local:8082/internal/objects/reports/a%20b%23c"
     assert request.get_header("Authorization") == "Bearer private-token"
+
+
+def test_http_put_retries_rate_limit_and_honors_retry_after(monkeypatch):
+    monkeypatch.setattr(settings, "media_storage_api_url", "http://storage.local:8082")
+    monkeypatch.setattr(settings, "media_storage_api_key", "private-token")
+    rate_limited = HTTPError(
+        "http://storage.local:8082/internal/objects/reports/test",
+        429,
+        "Too Many Requests",
+        {"Retry-After": "2"},
+        BytesIO(),
+    )
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self):
+            return b"stored"
+
+    with (
+        patch.object(media_storage, "urlopen", side_effect=[rate_limited, Response()]) as open_url,
+        patch.object(media_storage.time, "sleep") as sleep,
+    ):
+        assert media_storage._http_request("reports/test", "PUT", b"payload", "image/jpeg") == b"stored"
+
+    assert open_url.call_count == 2
+    sleep.assert_called_once_with(2.0)
+
+
+def test_http_put_rate_limit_retries_are_bounded(monkeypatch):
+    monkeypatch.setattr(settings, "media_storage_api_url", "http://storage.local:8082")
+    monkeypatch.setattr(settings, "media_storage_api_key", "private-token")
+    rate_limits = [
+        HTTPError(
+            "http://storage.local:8082/internal/objects/reports/test",
+            429,
+            "Too Many Requests",
+            {},
+            BytesIO(),
+        )
+        for _ in range(media_storage.HTTP_PUT_MAX_ATTEMPTS)
+    ]
+
+    with (
+        patch.object(media_storage, "urlopen", side_effect=rate_limits) as open_url,
+        patch.object(media_storage.time, "sleep") as sleep,
+    ):
+        try:
+            media_storage._http_request("reports/test", "PUT", b"payload", "image/jpeg")
+        except RuntimeError as exc:
+            assert str(exc) == "HTTP media storage returned status 429"
+        else:
+            raise AssertionError("Expected the final HTTP 429 to surface after bounded retries")
+
+    assert open_url.call_count == media_storage.HTTP_PUT_MAX_ATTEMPTS
+    assert [call.args[0] for call in sleep.call_args_list] == [0.5, 1.0, 2.0]
 
 
 def test_media_backfill_without_purging_finishes_and_can_be_rerun(db, monkeypatch):

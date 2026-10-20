@@ -139,8 +139,10 @@ make db-main-upgrade
 ```
 
 Configure the Python storage API before accepting uploads. New uploads use the
-HTTP API; old database-backed and S3-backed uploads remain readable during
-migration. First run the backfill without purging database bytes:
+HTTP API; HTTP 429 responses on object writes are retried up to three times
+with bounded backoff, honoring `Retry-After` when provided. Old database-backed
+and S3-backed uploads remain readable during migration. First run the backfill
+without purging database bytes:
 
 ```bash
 python scripts/backfill_media_object_storage.py

@@ -6,7 +6,10 @@ import hashlib
 import json
 import logging
 import os
+import time
 import uuid
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import BinaryIO
 from urllib.error import HTTPError, URLError
@@ -16,6 +19,10 @@ from urllib.request import Request, urlopen
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+HTTP_PUT_MAX_ATTEMPTS = 4
+HTTP_PUT_BASE_DELAY_SECONDS = 0.5
+HTTP_PUT_MAX_DELAY_SECONDS = 5.0
 
 
 def _s3_client():
@@ -47,6 +54,25 @@ def new_storage_key() -> str:
     return f"reports/{uuid.uuid4().hex}"
 
 
+def _http_put_retry_delay(retry_after: str | None, retry_index: int) -> float:
+    delay = None
+    if retry_after:
+        try:
+            delay = float(retry_after)
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                delay = (retry_at - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, OverflowError):
+                pass
+
+    if delay is None:
+        delay = HTTP_PUT_BASE_DELAY_SECONDS * (2**retry_index)
+    return min(max(delay, 0.0), HTTP_PUT_MAX_DELAY_SECONDS)
+
+
 def _http_request(key: str, method: str, data: bytes | None = None, content_type: str | None = None) -> bytes:
     endpoint = settings.media_storage_api_url.rstrip("/")
     token = settings.media_storage_api_key
@@ -65,14 +91,29 @@ def _http_request(key: str, method: str, data: bytes | None = None, content_type
     headers = {"Authorization": f"Bearer {token}"}
     if content_type:
         headers["Content-Type"] = content_type
-    request = Request(url, data=data, headers=headers, method=method)
-    try:
-        with urlopen(request, timeout=120) as response:
-            return response.read()
-    except HTTPError as exc:
-        raise RuntimeError(f"HTTP media storage returned status {exc.code}") from exc
-    except URLError as exc:
-        raise RuntimeError("Could not reach the HTTP media storage service") from exc
+    max_attempts = HTTP_PUT_MAX_ATTEMPTS if method == "PUT" else 1
+    for attempt in range(max_attempts):
+        request = Request(url, data=data, headers=headers, method=method)
+        try:
+            with urlopen(request, timeout=120) as response:
+                return response.read()
+        except HTTPError as exc:
+            if method == "PUT" and exc.code == 429 and attempt + 1 < max_attempts:
+                delay = _http_put_retry_delay(exc.headers.get("Retry-After"), attempt)
+                logger.warning(
+                    "HTTP media storage rate-limited an upload; retrying attempt %d/%d in %.1f seconds",
+                    attempt + 2,
+                    max_attempts,
+                    delay,
+                )
+                exc.close()
+                time.sleep(delay)
+                continue
+            raise RuntimeError(f"HTTP media storage returned status {exc.code}") from exc
+        except URLError as exc:
+            raise RuntimeError("Could not reach the HTTP media storage service") from exc
+
+    raise RuntimeError("HTTP media storage upload retry loop ended unexpectedly")
 
 
 def put_object(key: str, data: bytes, content_type: str) -> None:
