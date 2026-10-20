@@ -190,6 +190,9 @@ def _ensure_engineer_read_access(current_user: CurrentUser, engineer: Engineer, 
     if current_user.user_type == "user":
         return
 
+    if current_user.user_type == "engineer" and str(current_user.id) == str(engineer.id):
+        return
+
     if current_user.user_type == "dma_manager" and current_user.dma_id == engineer.dma_id:
         return
 
