@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
+from app.main import app, fastapi_app
 from app.database.session import get_db
 from app.database.sensor_session import get_sensor_db
 from app.models.sensor_platform import SensorBase
@@ -23,7 +23,7 @@ from app.middleware import RateLimitMiddleware
 # whole suite (every TestClient request arrives as "testclient"). The
 # production cap of 100 req/min would spuriously 429 tail-of-suite tests,
 # so lift the cap for the test session.
-for _mw in app.user_middleware:
+for _mw in fastapi_app.user_middleware:
     if _mw.cls is RateLimitMiddleware:
         _mw.options["requests_per_minute"] = 1_000_000
 
@@ -105,10 +105,10 @@ def sensor_db():
 @pytest.fixture(scope="function")
 def client(db: Session, sensor_db: Session):
     """Create test client with overridden databases"""
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_sensor_db] = override_get_sensor_db
+    fastapi_app.dependency_overrides[get_db] = override_get_db
+    fastapi_app.dependency_overrides[get_sensor_db] = override_get_sensor_db
     yield TestClient(app)
-    app.dependency_overrides.clear()
+    fastapi_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")
