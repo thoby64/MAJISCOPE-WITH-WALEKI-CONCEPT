@@ -114,12 +114,43 @@ def test_http_put_rate_limit_retries_are_bounded(monkeypatch):
         try:
             media_storage._http_request("reports/test", "PUT", b"payload", "image/jpeg")
         except RuntimeError as exc:
-            assert str(exc) == "HTTP media storage returned status 429"
+            assert "returned status 429" in str(exc)
         else:
             raise AssertionError("Expected the final HTTP 429 to surface after bounded retries")
 
     assert open_url.call_count == media_storage.HTTP_PUT_MAX_ATTEMPTS
     assert [call.args[0] for call in sleep.call_args_list] == [0.5, 1.0, 2.0]
+
+
+def test_http_storage_error_includes_bounded_upstream_diagnostics(monkeypatch):
+    monkeypatch.setattr(settings, "media_storage_api_url", "http://storage.local:8082")
+    monkeypatch.setattr(settings, "media_storage_api_key", "private-token")
+    monkeypatch.setattr(media_storage, "HTTP_PUT_MAX_ATTEMPTS", 1)
+    upstream_error = HTTPError(
+        "http://storage.local:8082/internal/objects/reports/test",
+        403,
+        "Forbidden",
+        {
+            "Content-Type": "application/json",
+            "X-Request-ID": "cs3-request-123",
+            "Authorization": "Bearer must-not-be-logged",
+        },
+        BytesIO(b'{"error":"storage write permission denied"}'),
+    )
+
+    with patch.object(media_storage, "urlopen", side_effect=upstream_error):
+        try:
+            media_storage._http_request("reports/test", "PUT", b"payload", "image/jpeg")
+        except media_storage.MediaStorageHTTPError as exc:
+            assert exc.status_code == 403
+            assert exc.response_body == '{"error":"storage write permission denied"}'
+            assert exc.response_headers == {
+                "Content-Type": "application/json",
+                "X-Request-ID": "cs3-request-123",
+            }
+            assert "must-not-be-logged" not in str(exc)
+        else:
+            raise AssertionError("Expected upstream HTTP error diagnostics")
 
 
 def test_media_backfill_without_purging_finishes_and_can_be_rerun(db, monkeypatch):

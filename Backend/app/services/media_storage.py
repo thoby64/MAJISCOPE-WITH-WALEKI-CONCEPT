@@ -23,6 +23,68 @@ logger = logging.getLogger(__name__)
 HTTP_PUT_MAX_ATTEMPTS = 4
 HTTP_PUT_BASE_DELAY_SECONDS = 0.5
 HTTP_PUT_MAX_DELAY_SECONDS = 5.0
+HTTP_ERROR_BODY_LOG_LIMIT = 1000
+
+
+class MediaStorageHTTPError(RuntimeError):
+    """An upstream HTTP failure with bounded, non-secret diagnostics."""
+
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        method: str,
+        attempts: int,
+        endpoint_host: str,
+        response_body: str,
+        response_headers: dict[str, str],
+    ) -> None:
+        self.status_code = status_code
+        self.method = method
+        self.attempts = attempts
+        self.endpoint_host = endpoint_host
+        self.response_body = response_body
+        self.response_headers = response_headers
+
+        message = (
+            f"HTTP media storage at {endpoint_host} returned status {status_code} "
+            f"after {attempts} {method} attempt(s)"
+        )
+        if response_body:
+            message += f"; upstream response body: {response_body}"
+        if response_headers:
+            header_details = ", ".join(f"{name}={value}" for name, value in response_headers.items())
+            message += f"; upstream headers: {header_details}"
+        super().__init__(message)
+
+
+def _safe_http_error_details(exc: HTTPError) -> tuple[str, dict[str, str]]:
+    try:
+        body = exc.read(HTTP_ERROR_BODY_LOG_LIMIT + 1).decode("utf-8", errors="replace")
+    finally:
+        exc.close()
+    body = " ".join("".join(char for char in body if char.isprintable() or char in "\t\n\r").split())
+    if len(body) > HTTP_ERROR_BODY_LOG_LIMIT:
+        body = f"{body[:HTTP_ERROR_BODY_LOG_LIMIT]}…[truncated]"
+
+    diagnostic_header_names = (
+        "Content-Type",
+        "Retry-After",
+        "Server",
+        "Via",
+        "X-Request-ID",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    )
+    headers = {}
+    for name in diagnostic_header_names:
+        value = exc.headers.get(name) if exc.headers else None
+        if value is not None:
+            headers[name] = " ".join(
+                "".join(char for char in str(value) if char.isprintable()).split()
+            )[:200]
+    return body, headers
 
 
 def _s3_client():
@@ -109,7 +171,15 @@ def _http_request(key: str, method: str, data: bytes | None = None, content_type
                 exc.close()
                 time.sleep(delay)
                 continue
-            raise RuntimeError(f"HTTP media storage returned status {exc.code}") from exc
+            response_body, response_headers = _safe_http_error_details(exc)
+            raise MediaStorageHTTPError(
+                status_code=exc.code,
+                method=method,
+                attempts=attempt + 1,
+                endpoint_host=endpoint_parts.hostname,
+                response_body=response_body,
+                response_headers=response_headers,
+            ) from exc
         except URLError as exc:
             raise RuntimeError("Could not reach the HTTP media storage service") from exc
 

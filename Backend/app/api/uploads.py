@@ -287,7 +287,7 @@ async def upload_public_image(
 
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         db.rollback()
         if "image_upload" in locals() and image_upload.storage_key:
             row_exists = db.query(ImageUpload.id).filter(ImageUpload.id == image_upload.id).first()
@@ -296,7 +296,10 @@ async def upload_public_image(
                     delete_object(image_upload.storage_key, image_upload.storage_backend)
                 except Exception:
                     logger.exception("Failed to clean up object after public upload transaction failed")
-        logger.error("Public media upload error: %s", str(exc))
+        logger.exception(
+            "Public media upload error (request_id=%s)",
+            getattr(request.state, "request_id", "unknown"),
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Public media upload failed",
