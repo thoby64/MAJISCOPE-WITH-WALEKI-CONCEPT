@@ -1,7 +1,11 @@
 import sqlite3
 import tempfile
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+from fastapi import HTTPException
 from pyproj import Transformer
 from shapely import wkb
 from shapely.geometry import Point
@@ -242,3 +246,43 @@ def test_local_readiness_counts_using_layer_crs_and_dma_boundary_tolerance():
     counts = count_hydraulic_features_in_dma(dma, {"pipe_network": layer})
 
     assert counts["waterpipes"] == 2
+
+
+def test_prepare_preserves_hydraulic_service_rate_limit_and_retry_after(monkeypatch):
+    class FakeResponse:
+        status_code = 429
+        headers = {"Retry-After": "30"}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def post(self, *_args, **_kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: FakeClient())
+
+    with pytest.raises(HTTPException) as error:
+        hydraulic_model._call_hydraulic_gpkg_builder(
+            session=SimpleNamespace(
+                id="session-id",
+                expires_at=datetime(2026, 1, 1),
+                utility_id="utility-id",
+                dma_id="dma-id",
+            ),
+            launch_token="launch-token",
+            dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
+            layers={},
+            reported_leaks_geojson={},
+        )
+
+    assert error.value.status_code == 429
+    assert error.value.detail == (
+        "The hydraulic model service is temporarily busy. Please try again shortly."
+    )
+    assert error.value.headers == {"Retry-After": "30"}

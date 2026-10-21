@@ -35,20 +35,20 @@ DEBUG=false
 
 ## MajiScope Backend Variables
 
-For service-to-service calls, use the hydraulic model service's **Internal Address**
-from Render Dashboard → hydraulic model service → Connect → Internal, for example
-`http://<internal-hostname>:10000`. This requires both services to be in the same
-Render workspace and region. It keeps validator traffic on Render's private network
-instead of routing it through the public service URL.
-
-Set the service root (without an `/api` suffix) in the MajiScope backend Render service:
+The MajiScope backend uses this URL when preparing a model with `/majiscope/prepare-gpkg`.
+Readiness checks count uploaded GeoPackage features locally in the backend and do not
+call this service's validation endpoint. Since public requests to the hydraulic service
+may be rate-limited, use its **Internal Address** from Render Dashboard → hydraulic
+service → Connect → Internal when both services share a Render workspace and region.
+Copy the exact address shown there (the example below is only a placeholder):
 
 ```env
-HYDRAULIC_MODEL_BASE_URL=http://<internal-hostname>:10000
+HYDRAULIC_MODEL_BASE_URL=http://<epanet-model-internal-hostname>:10000
 ```
 
-If private networking is unavailable, use the public URL instead:
-`https://epanet-model.onrender.com`.
+Do not keep the angle-bracket placeholder literally. If the services cannot use Render
+private networking, the public service root can be used instead, but may encounter
+platform-side rate limiting.
 
 The following backend variables must match the hydraulic model service:
 
@@ -66,10 +66,9 @@ HYDRAULIC_MODEL_CALLBACK_SECRET=<same as MAJISCOPE_CALLBACK_SECRET>
 4. Add the persistent disk mounted at `/data`.
 5. Add the environment variables above.
 6. Deploy and verify `https://<service-url>/health`.
-7. Update the MajiScope backend `HYDRAULIC_MODEL_BASE_URL` to the service URL.
-8. In the MajiScope backend Render service, set `HYDRAULIC_MODEL_BASE_URL` to the
-   hydraulic service's Internal Address when available; keep the API key configured.
-9. Redeploy the MajiScope backend.
-10. Open MajiScope and test `/dashboard/hydraulic-model`.
+7. In the MajiScope backend Render service, set `HYDRAULIC_MODEL_BASE_URL` to the
+   hydraulic service's exact Internal Address when available; keep the API key configured.
+8. Redeploy the MajiScope backend.
+9. Open MajiScope and test `/dashboard/hydraulic-model`.
 
 The service stores temporary GPKG files and its SQLite data under `/data`, so they survive Render restarts.

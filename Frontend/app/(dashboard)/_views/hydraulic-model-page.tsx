@@ -59,6 +59,9 @@ function readinessFailureMessage(role?: string) {
     : "An error occurred. Please reselect the utility and DMA later."
 }
 
+const hydraulicModelBusyMessage =
+  "The hydraulic model service is temporarily busy. Please try again shortly."
+
 function RequirementRow({ item }: { item: Requirement }) {
   const unavailable = item.check_status === "unavailable"
   const Icon = unavailable
@@ -233,7 +236,11 @@ export default function HydraulicModelPage() {
     setPreparing(false)
 
     if (!response.success || !response.data) {
-      toast.error(readinessFailureMessage(role))
+      toast.error(
+        response.error === hydraulicModelBusyMessage
+          ? hydraulicModelBusyMessage
+          : readinessFailureMessage(role)
+      )
       return
     }
 

@@ -575,12 +575,25 @@ def _call_hydraulic_gpkg_builder(
         ) from exc
 
     if response.status_code >= 400:
+        if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+            retry_after = response.headers.get("Retry-After")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="The hydraulic model service is temporarily busy. Please try again shortly.",
+                headers={"Retry-After": retry_after} if retry_after else None,
+            )
+        if response.status_code >= 500 or response.status_code in (401, 403):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="The hydraulic model service could not prepare the model.",
+            )
+
         try:
             payload = response.json()
         except ValueError:
             payload = {}
         detail = payload.get("detail") or payload.get("message") or response.text or "Hydraulic model file preparation failed."
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
+        raise HTTPException(status_code=response.status_code, detail=detail)
 
     return response.json()
 
