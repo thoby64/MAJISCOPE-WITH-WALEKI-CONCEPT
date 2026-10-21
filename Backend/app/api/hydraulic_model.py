@@ -474,12 +474,16 @@ def _call_hydraulic_gpkg_validator(
 
     if response.status_code == 429:
         retry_after = response.headers.get("Retry-After")
-        retry_message = f" Retry-After: {retry_after}." if retry_after else " Please retry later."
+        retry_message = f" Retry-After: {retry_after}." if retry_after else ""
         logger.warning(
             "Hydraulic model validator rate-limited a readiness check (HTTP 429; Retry-After=%s)",
             retry_after or "not provided",
         )
-        return {}, f"Hydraulic model service is rate-limiting validation requests (HTTP 429).{retry_message}"
+        return {}, (
+            "Hydraulic model service returned HTTP 429. Configure HYDRAULIC_MODEL_BASE_URL "
+            "with the service's Render Internal Address when both services share a workspace "
+            f"and region.{retry_message}"
+        )
 
     if response.status_code >= 400:
         if response.status_code == 404:

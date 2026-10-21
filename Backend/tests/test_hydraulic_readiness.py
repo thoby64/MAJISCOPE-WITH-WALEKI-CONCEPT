@@ -144,7 +144,8 @@ def test_validator_429_reports_retry_after(monkeypatch):
         layers={},
     )
 
-    assert error == (
-        "Hydraulic model service is rate-limiting validation requests (HTTP 429). "
-        "Retry-After: 30."
-    )
+    assert error is not None
+    assert "HTTP 429" in error
+    assert "HYDRAULIC_MODEL_BASE_URL" in error
+    assert "Internal Address" in error
+    assert "Retry-After: 30" in error
