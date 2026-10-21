@@ -8,7 +8,6 @@ keeping user access decisions inside MajiScope.
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
-import logging
 import os
 import secrets
 from urllib.parse import urlencode
@@ -50,11 +49,11 @@ from app.schemas.hydraulic_model import (
 from app.security.dependencies import CurrentUser, get_current_user
 from app.models.user import DMAManager, UtilityManager, User
 from app.services.activity_logs import audit_log
+from app.services.hydraulic_readiness import count_hydraulic_features_in_dma
 from app.schemas.utc_datetime import utc_datetime_isoformat
 
 
 hydraulic_model_router = APIRouter(prefix="/api/hydraulic-model", tags=["hydraulic-model"])
-logger = logging.getLogger(__name__)
 
 REQUIRED_ASSET_TYPES = {"pipe_network"}
 SOURCE_ASSET_TYPES = {"water_sources", "storage_facilities"}
@@ -253,7 +252,10 @@ def _build_readiness(
         or "valves" in layers
         or "bulk_meters" in layers
     ):
-        scoped_counts, validation_error = _call_hydraulic_gpkg_validator(dma=dma, layers=layers)
+        try:
+            scoped_counts = count_hydraulic_features_in_dma(dma, layers)
+        except ValueError:
+            validation_error = "Local GeoPackage readiness validation failed."
 
     pipe_count = scoped_counts.get("waterpipes", 0)
     water_source_count = scoped_counts.get("watersources", 0)
@@ -445,78 +447,6 @@ def _layer_upload_files(layers: dict[str, UtilityInfrastructureLayer]) -> dict[s
             layer.mime_type or "application/octet-stream",
         )
     return files
-
-
-def _call_hydraulic_gpkg_validator(
-    *,
-    dma: DMA,
-    layers: dict[str, UtilityInfrastructureLayer],
-) -> tuple[dict[str, int], Optional[str]]:
-    if not settings.hydraulic_model_base_url:
-        return {}, "Hydraulic model service URL is not configured."
-    if not settings.hydraulic_model_api_key:
-        return {}, "Hydraulic model service API key is not configured."
-    if not dma.boundary_geojson:
-        return {}, None
-
-    files = _layer_upload_files(layers)
-    data = {
-        "dma_id": dma.id,
-        "dma_name": dma.name,
-        "dma_geojson": dma.boundary_geojson,
-    }
-
-    try:
-        with httpx.Client(timeout=60.0) as client:
-            response = client.post(
-                f"{settings.hydraulic_model_base_url}/majiscope/validate-gpkg",
-                data=data,
-                files=files,
-                headers={"X-API-Key": settings.hydraulic_model_api_key},
-            )
-    except httpx.HTTPError as exc:
-        return {}, f"Hydraulic model service is not reachable: {exc}"
-
-    if response.status_code == 429:
-        retry_after = response.headers.get("Retry-After")
-        retry_message = f" Retry-After: {retry_after}." if retry_after else ""
-        logger.warning(
-            "Hydraulic model validator rate-limited a readiness check (HTTP 429; Retry-After=%s)",
-            retry_after or "not provided",
-        )
-        return {}, (
-            "Hydraulic model service returned HTTP 429. Configure HYDRAULIC_MODEL_BASE_URL "
-            "with the service's Render Internal Address when both services share a workspace "
-            f"and region.{retry_message}"
-        )
-
-    if response.status_code >= 400:
-        if response.status_code == 404:
-            return {}, (
-                "Hydraulic model validator endpoint returned HTTP 404. "
-                "Check that HYDRAULIC_MODEL_BASE_URL points to the deployed hydraulic service root "
-                "(https://epanet-model.onrender.com), without an /api suffix."
-            )
-        try:
-            payload = response.json()
-        except ValueError:
-            payload = {}
-        detail = payload.get("detail") or payload.get("message") or response.text or "Hydraulic model asset validation failed."
-        return {}, str(detail)
-
-    try:
-        payload = response.json()
-    except ValueError:
-        return {}, "Hydraulic model asset validation returned invalid data."
-
-    raw_counts = payload.get("feature_counts") or {}
-    counts: dict[str, int] = {}
-    for key, value in raw_counts.items():
-        try:
-            counts[str(key)] = int(value)
-        except (TypeError, ValueError):
-            counts[str(key)] = 0
-    return counts, None
 
 
 def _build_reported_leaks_geojson(
