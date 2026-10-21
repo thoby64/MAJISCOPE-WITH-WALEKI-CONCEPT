@@ -77,3 +77,40 @@ def test_readiness_reports_uploaded_features_after_successful_validation(db, mon
     assert readiness.can_prepare is True
     assert requirements["pipe_network"].check_status == "available"
     assert requirements["water_supply_point"].check_status == "available"
+
+
+def test_validator_404_identifies_misconfigured_service_url(monkeypatch):
+    class NotFoundResponse:
+        status_code = 404
+        text = "Not Found"
+
+        def json(self):
+            raise ValueError("Response body is not JSON")
+
+    class NotFoundClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def post(self, *_args, **_kwargs):
+            return NotFoundResponse()
+
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://wrong-service.onrender.com")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-api-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: NotFoundClient())
+
+    _, error = hydraulic_model._call_hydraulic_gpkg_validator(
+        dma=DMA(
+            id="test-dma",
+            name="Test DMA",
+            boundary_geojson='{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}',
+        ),
+        layers={},
+    )
+
+    assert error is not None
+    assert "HTTP 404" in error
+    assert "HYDRAULIC_MODEL_BASE_URL" in error
+    assert "without an /api suffix" in error

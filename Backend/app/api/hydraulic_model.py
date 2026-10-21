@@ -471,6 +471,12 @@ def _call_hydraulic_gpkg_validator(
         return {}, f"Hydraulic model service is not reachable: {exc}"
 
     if response.status_code >= 400:
+        if response.status_code == 404:
+            return {}, (
+                "Hydraulic model validator endpoint returned HTTP 404. "
+                "Check that HYDRAULIC_MODEL_BASE_URL points to the deployed hydraulic service root "
+                "(https://epanet-model.onrender.com), without an /api suffix."
+            )
         try:
             payload = response.json()
         except ValueError:
