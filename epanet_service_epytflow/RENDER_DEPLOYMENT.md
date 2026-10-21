@@ -35,11 +35,20 @@ DEBUG=false
 
 ## MajiScope Backend Variables
 
-After the hydraulic model Render URL is live, set this in the MajiScope backend Render service:
+For service-to-service calls, use the hydraulic model service's **Internal Address**
+from Render Dashboard → hydraulic model service → Connect → Internal, for example
+`http://<internal-hostname>:10000`. This requires both services to be in the same
+Render workspace and region. It keeps validator traffic on Render's private network
+instead of routing it through the public service URL.
+
+Set the service root (without an `/api` suffix) in the MajiScope backend Render service:
 
 ```env
-HYDRAULIC_MODEL_BASE_URL=https://epanet-model.onrender.com
+HYDRAULIC_MODEL_BASE_URL=http://<internal-hostname>:10000
 ```
+
+If private networking is unavailable, use the public URL instead:
+`https://epanet-model.onrender.com`.
 
 The following backend variables must match the hydraulic model service:
 
@@ -58,7 +67,9 @@ HYDRAULIC_MODEL_CALLBACK_SECRET=<same as MAJISCOPE_CALLBACK_SECRET>
 5. Add the environment variables above.
 6. Deploy and verify `https://<service-url>/health`.
 7. Update the MajiScope backend `HYDRAULIC_MODEL_BASE_URL` to the service URL.
-8. Redeploy the MajiScope backend.
-9. Open MajiScope and test `/dashboard/hydraulic-model`.
+8. In the MajiScope backend Render service, set `HYDRAULIC_MODEL_BASE_URL` to the
+   hydraulic service's Internal Address when available; keep the API key configured.
+9. Redeploy the MajiScope backend.
+10. Open MajiScope and test `/dashboard/hydraulic-model`.
 
 The service stores temporary GPKG files and its SQLite data under `/data`, so they survive Render restarts.
