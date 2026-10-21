@@ -8,6 +8,7 @@ keeping user access decisions inside MajiScope.
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import logging
 import os
 import secrets
 from urllib.parse import urlencode
@@ -53,6 +54,7 @@ from app.schemas.utc_datetime import utc_datetime_isoformat
 
 
 hydraulic_model_router = APIRouter(prefix="/api/hydraulic-model", tags=["hydraulic-model"])
+logger = logging.getLogger(__name__)
 
 REQUIRED_ASSET_TYPES = {"pipe_network"}
 SOURCE_ASSET_TYPES = {"water_sources", "storage_facilities"}
@@ -469,6 +471,15 @@ def _call_hydraulic_gpkg_validator(
             )
     except httpx.HTTPError as exc:
         return {}, f"Hydraulic model service is not reachable: {exc}"
+
+    if response.status_code == 429:
+        retry_after = response.headers.get("Retry-After")
+        retry_message = f" Retry-After: {retry_after}." if retry_after else " Please retry later."
+        logger.warning(
+            "Hydraulic model validator rate-limited a readiness check (HTTP 429; Retry-After=%s)",
+            retry_after or "not provided",
+        )
+        return {}, f"Hydraulic model service is rate-limiting validation requests (HTTP 429).{retry_message}"
 
     if response.status_code >= 400:
         if response.status_code == 404:

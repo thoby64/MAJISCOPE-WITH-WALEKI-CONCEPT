@@ -114,3 +114,37 @@ def test_validator_404_identifies_misconfigured_service_url(monkeypatch):
     assert "HTTP 404" in error
     assert "HYDRAULIC_MODEL_BASE_URL" in error
     assert "without an /api suffix" in error
+
+
+def test_validator_429_reports_retry_after(monkeypatch):
+    class RateLimitedResponse:
+        status_code = 429
+        headers = {"Retry-After": "30"}
+
+    class RateLimitedClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def post(self, *_args, **_kwargs):
+            return RateLimitedResponse()
+
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://hydraulic.example.com")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-api-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: RateLimitedClient())
+
+    _, error = hydraulic_model._call_hydraulic_gpkg_validator(
+        dma=DMA(
+            id="test-dma",
+            name="Test DMA",
+            boundary_geojson='{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}',
+        ),
+        layers={},
+    )
+
+    assert error == (
+        "Hydraulic model service is rate-limiting validation requests (HTTP 429). "
+        "Retry-After: 30."
+    )
