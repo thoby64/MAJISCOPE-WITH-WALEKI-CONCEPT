@@ -8,8 +8,10 @@ keeping user access decisions inside MajiScope.
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import logging
 import os
 import secrets
+import time
 from urllib.parse import urlencode
 from typing import Optional
 
@@ -54,6 +56,7 @@ from app.schemas.utc_datetime import utc_datetime_isoformat
 
 
 hydraulic_model_router = APIRouter(prefix="/api/hydraulic-model", tags=["hydraulic-model"])
+logger = logging.getLogger(__name__)
 
 REQUIRED_ASSET_TYPES = {"pipe_network"}
 SOURCE_ASSET_TYPES = {"water_sources", "storage_facilities"}
@@ -562,12 +565,30 @@ def _call_hydraulic_gpkg_builder(
 
     try:
         with httpx.Client(timeout=120.0) as client:
-            response = client.post(
-                f"{settings.hydraulic_model_base_url}/majiscope/prepare-gpkg",
-                data=data,
-                files=files,
-                headers={"X-API-Key": settings.hydraulic_model_api_key},
-            )
+            for attempt in range(3):
+                response = client.post(
+                    f"{settings.hydraulic_model_base_url}/majiscope/prepare-gpkg",
+                    data=data,
+                    files=files,
+                    headers={"X-API-Key": settings.hydraulic_model_api_key},
+                )
+                if response.status_code != status.HTTP_429_TOO_MANY_REQUESTS or attempt == 2:
+                    break
+
+                retry_after = response.headers.get("Retry-After")
+                try:
+                    delay = float(retry_after) if retry_after else 1.0 * (attempt + 1)
+                except ValueError:
+                    # HTTP-date Retry-After values are left to the caller to honor.
+                    break
+                if delay < 0 or delay > 5:
+                    break
+                logger.warning(
+                    "Hydraulic model service rate-limited preparation (attempt %d/3); retrying in %.1f seconds",
+                    attempt + 1,
+                    delay,
+                )
+                time.sleep(delay)
     except httpx.HTTPError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -577,6 +598,14 @@ def _call_hydraulic_gpkg_builder(
     if response.status_code >= 400:
         if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
             retry_after = response.headers.get("Retry-After")
+            logger.warning(
+                "Hydraulic model preparation was rate-limited: status=%d server=%s retry_after=%s request_id=%s response=%r",
+                response.status_code,
+                response.headers.get("server", ""),
+                retry_after,
+                response.headers.get("x-request-id") or response.headers.get("cf-ray") or "",
+                getattr(response, "text", "")[:500],
+            )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="The hydraulic model service is temporarily busy. Please try again shortly.",
