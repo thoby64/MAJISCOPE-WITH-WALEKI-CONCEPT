@@ -300,6 +300,7 @@ def _build_readiness(
             present=has_boundary,
             required=True,
             message=None if has_boundary else "Set this DMA boundary before preparing model data.",
+            check_status="available" if has_boundary else "missing",
         ),
         HydraulicModelRequirementStatus(
             key="pipe_network",
@@ -307,6 +308,15 @@ def _build_readiness(
             present=has_pipe_network,
             required=True,
             message=pipe_message,
+            check_status=(
+                "missing"
+                if not has_boundary or not has_pipe_upload
+                else "unavailable"
+                if validation_error
+                else "available"
+                if has_pipe_network
+                else "missing"
+            ),
         ),
         HydraulicModelRequirementStatus(
             key="water_supply_point",
@@ -314,6 +324,15 @@ def _build_readiness(
             present=has_source_or_storage,
             required=True,
             message=supply_message,
+            check_status=(
+                "missing"
+                if not has_boundary or not has_source_or_storage_upload
+                else "unavailable"
+                if validation_error
+                else "available"
+                if has_source_or_storage
+                else "missing"
+            ),
         ),
     ]
     optional = [
@@ -322,12 +341,23 @@ def _build_readiness(
             label="Valves",
             present=has_boundary and "valves" in layers and not validation_error and valve_count > 0,
             required=False,
+            check_status=(
+                "missing"
+                if not has_boundary or "valves" not in layers
+                else "unavailable"
+                if validation_error
+                else "available"
+                if valve_count > 0
+                else "missing"
+            ),
             message=(
                 "Set the DMA boundary first so valves can be checked against this DMA."
                 if not has_boundary
                 else
                 "Optional: upload valves for richer model context."
                 if "valves" not in layers
+                else validation_error
+                if validation_error
                 else "Uploaded valves have no features inside or on this DMA boundary."
                 if valve_count <= 0
                 else f"{valve_count} valve feature{'s' if valve_count != 1 else ''} found inside or on this DMA boundary."
@@ -338,12 +368,23 @@ def _build_readiness(
             label="Bulk meters",
             present=has_boundary and "bulk_meters" in layers and not validation_error and bulk_meter_count > 0,
             required=False,
+            check_status=(
+                "missing"
+                if not has_boundary or "bulk_meters" not in layers
+                else "unavailable"
+                if validation_error
+                else "available"
+                if bulk_meter_count > 0
+                else "missing"
+            ),
             message=(
                 "Set the DMA boundary first so bulk meters can be checked against this DMA."
                 if not has_boundary
                 else
                 "Optional: upload bulk meters for richer model context."
                 if "bulk_meters" not in layers
+                else validation_error
+                if validation_error
                 else "Uploaded bulk meters have no features inside or on this DMA boundary."
                 if bulk_meter_count <= 0
                 else f"{bulk_meter_count} bulk meter feature{'s' if bulk_meter_count != 1 else ''} found inside or on this DMA boundary."
@@ -355,6 +396,9 @@ def _build_readiness(
     if ready:
         message = "Hydraulic model data is ready to prepare for this DMA."
         action_hint = None
+    elif validation_error:
+        message = "Uploaded infrastructure could not be verified by the hydraulic model service."
+        action_hint = validation_error
     elif role == "dma_manager":
         message = "Hydraulic model cannot run yet because required DMA or utility data is missing."
         action_hint = "Ask your utility manager to upload the missing infrastructure or update the DMA boundary."

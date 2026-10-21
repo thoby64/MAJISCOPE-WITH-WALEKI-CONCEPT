@@ -27,6 +27,7 @@ type Requirement = {
   present: boolean
   required: boolean
   message?: string | null
+  check_status?: "available" | "missing" | "unavailable"
 }
 
 type ReadinessResponse = {
@@ -53,13 +54,22 @@ type PrepareResponse = {
 }
 
 function RequirementRow({ item }: { item: Requirement }) {
-  const Icon = item.present ? CheckCircle2 : item.required ? XCircle : AlertTriangle
+  const unavailable = item.check_status === "unavailable"
+  const Icon = unavailable
+    ? AlertTriangle
+    : item.present
+      ? CheckCircle2
+      : item.required
+        ? XCircle
+        : AlertTriangle
 
   return (
     <div
       className={cn(
         "flex items-start gap-3 rounded-lg border px-4 py-3",
-        item.present
+        unavailable
+          ? "border-amber-200 bg-amber-50/80 text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+          : item.present
           ? "border-emerald-200 bg-emerald-50/70 text-emerald-950 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100"
           : item.required
             ? "border-rose-200 bg-rose-50/80 text-rose-950 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100"
@@ -184,7 +194,7 @@ export default function HydraulicModelPage() {
   const requiredItems = readiness?.required || []
   const optionalItems = readiness?.optional || []
   const missingRequired = useMemo(
-    () => requiredItems.filter((item) => !item.present),
+    () => requiredItems.filter((item) => !item.present && item.check_status !== "unavailable"),
     [requiredItems]
   )
 

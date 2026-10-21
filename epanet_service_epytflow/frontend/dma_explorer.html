@@ -482,9 +482,8 @@ function applyTheme(value){
   document.documentElement.dataset.theme=theme;
   try{localStorage.setItem("hydraulic-workspace-theme",theme);}catch(e){}
   if(baseMapLayer) map.removeLayer(baseMapLayer);
-  const tileStyle=theme==="light"?"light_all":"dark_all";
-  baseMapLayer=L.tileLayer(`https://{s}.basemaps.cartocdn.com/${tileStyle}/{z}/{x}/{y}{r}.png`,{
-    attribution:"&copy; OSM &copy; CARTO",maxZoom:20,subdomains:"abcd"}).addTo(map);
+  baseMapLayer=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
   baseMapLayer.bringToBack();
   map.getPane("heat-pane").style.mixBlendMode=theme==="dark"?"screen":"multiply";
   const toggle=document.getElementById("theme-toggle");

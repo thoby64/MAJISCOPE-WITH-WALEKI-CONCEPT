@@ -4,7 +4,7 @@ Schemas for the hydraulic model launch and snapshot integration.
 
 from datetime import datetime
 from app.schemas.utc_datetime import UTCDateTime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,7 @@ class HydraulicModelRequirementStatus(BaseModel):
     present: bool
     required: bool = True
     message: Optional[str] = None
+    check_status: Literal["available", "missing", "unavailable"] = "missing"
 
 
 class HydraulicModelReadinessRequest(BaseModel):
