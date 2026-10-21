@@ -53,6 +53,12 @@ type PrepareResponse = {
   message: string
 }
 
+function readinessFailureMessage(role?: string) {
+  return role === "dma_manager"
+    ? "An error occurred. Please try again later."
+    : "An error occurred. Please reselect the utility and DMA later."
+}
+
 function RequirementRow({ item }: { item: Requirement }) {
   const unavailable = item.check_status === "unavailable"
   const Icon = unavailable
@@ -96,6 +102,7 @@ export default function HydraulicModelPage() {
   const [selectedUtilityId, setSelectedUtilityId] = useState("")
   const [selectedDmaId, setSelectedDmaId] = useState("")
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null)
+  const [readinessError, setReadinessError] = useState("")
   const [checkingReadiness, setCheckingReadiness] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [inpFile, setInpFile] = useState<File | null>(null)
@@ -166,10 +173,12 @@ export default function HydraulicModelPage() {
     async function loadReadiness() {
       if (!selectedDmaId) {
         setReadiness(null)
+        setReadinessError("")
         return
       }
 
       setCheckingReadiness(true)
+      setReadinessError("")
       const response = await apiClient.post<ReadinessResponse>("/hydraulic-model/readiness", {
         utilityId: selectedUtilityId || undefined,
         dmaId: selectedDmaId || undefined,
@@ -178,10 +187,14 @@ export default function HydraulicModelPage() {
 
       setCheckingReadiness(false)
       if (!response.success || !response.data) {
-        toast.error(response.error || "Failed to check hydraulic model readiness.")
+        setReadiness(null)
+        const message = readinessFailureMessage(role)
+        setReadinessError(message)
+        toast.error(message)
         return
       }
 
+      setReadinessError("")
       setReadiness(response.data)
     }
 
@@ -189,7 +202,7 @@ export default function HydraulicModelPage() {
     return () => {
       cancelled = true
     }
-  }, [selectedDmaId, selectedUtilityId])
+  }, [role, selectedDmaId, selectedUtilityId])
 
   const requiredItems = readiness?.required || []
   const optionalItems = readiness?.optional || []
@@ -220,7 +233,7 @@ export default function HydraulicModelPage() {
     setPreparing(false)
 
     if (!response.success || !response.data) {
-      toast.error(response.error || "Failed to prepare the hydraulic model.")
+      toast.error(readinessFailureMessage(role))
       return
     }
 
@@ -355,13 +368,15 @@ export default function HydraulicModelPage() {
                   ? "Checking readiness..."
                   : scopeLoading
                     ? "Loading available choices..."
-                    : !utilityOptions.length
-                      ? "No utilities are available for your account."
-                      : selectedUtilityId && !dmaOptions.length
-                        ? "No DMAs are available for the selected utility."
-                        : readiness?.message || "Select a utility and DMA to continue."}
+                    : readinessError
+                      ? readinessError
+                      : !utilityOptions.length
+                        ? "No utilities are available for your account."
+                        : selectedUtilityId && !dmaOptions.length
+                          ? "No DMAs are available for the selected utility."
+                          : readiness?.message || "Select a utility and DMA to continue."}
               </p>
-              {readiness?.action_hint ? (
+              {!readinessError && readiness?.action_hint ? (
                 <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{readiness.action_hint}</p>
               ) : null}
             </div>
@@ -386,6 +401,10 @@ export default function HydraulicModelPage() {
             <div className="grid gap-3 md:grid-cols-3">
               {hasSelectedDma && requiredItems.length ? (
                 requiredItems.map((item) => <RequirementRow key={item.key} item={item} />)
+              ) : readinessError ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 md:col-span-3">
+                  {readinessError}
+                </div>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
                   Select a DMA to check model requirements.
@@ -400,6 +419,10 @@ export default function HydraulicModelPage() {
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 {hasSelectedDma && optionalItems.length ? (
                   optionalItems.map((item) => <RequirementRow key={item.key} item={item} />)
+                ) : readinessError ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 md:col-span-2">
+                    {readinessError}
+                  </div>
                 ) : (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
                     Optional infrastructure checks appear after selecting a DMA.

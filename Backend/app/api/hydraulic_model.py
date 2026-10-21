@@ -269,6 +269,11 @@ def _build_readiness(
         and not validation_error
         and (water_source_count > 0 or storage_count > 0)
     )
+    validation_failure_message = (
+        "An error occurred. Please try again later."
+        if role == "dma_manager"
+        else "An error occurred. Please reselect the utility and DMA later."
+    )
 
     pipe_message = None
     if not has_boundary:
@@ -276,7 +281,7 @@ def _build_readiness(
     elif not has_pipe_upload:
         pipe_message = "Upload the utility pipe network in Infrastructure Upload."
     elif validation_error:
-        pipe_message = validation_error
+        pipe_message = validation_failure_message
     elif pipe_count <= 0:
         pipe_message = "The uploaded pipe network has no features inside or on this DMA boundary."
     else:
@@ -288,7 +293,7 @@ def _build_readiness(
     elif not has_source_or_storage_upload:
         supply_message = "Upload at least one water source or storage facility layer."
     elif validation_error:
-        supply_message = validation_error
+        supply_message = validation_failure_message
     elif water_source_count <= 0 and storage_count <= 0:
         supply_message = "Uploaded water source and storage layers have no features inside or on this DMA boundary."
     else:
@@ -358,7 +363,7 @@ def _build_readiness(
                 else
                 "Optional: upload valves for richer model context."
                 if "valves" not in layers
-                else validation_error
+                else validation_failure_message
                 if validation_error
                 else "Uploaded valves have no features inside or on this DMA boundary."
                 if valve_count <= 0
@@ -385,7 +390,7 @@ def _build_readiness(
                 else
                 "Optional: upload bulk meters for richer model context."
                 if "bulk_meters" not in layers
-                else validation_error
+                else validation_failure_message
                 if validation_error
                 else "Uploaded bulk meters have no features inside or on this DMA boundary."
                 if bulk_meter_count <= 0
@@ -399,8 +404,8 @@ def _build_readiness(
         message = "Hydraulic model data is ready to prepare for this DMA."
         action_hint = None
     elif validation_error:
-        message = "Uploaded infrastructure could not be verified by the hydraulic model service."
-        action_hint = validation_error
+        message = validation_failure_message
+        action_hint = None
     elif role == "dma_manager":
         message = "Hydraulic model cannot run yet because required DMA or utility data is missing."
         action_hint = "Ask your utility manager to upload the missing infrastructure or update the DMA boundary."

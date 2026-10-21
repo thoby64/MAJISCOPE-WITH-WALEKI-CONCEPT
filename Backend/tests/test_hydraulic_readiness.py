@@ -58,7 +58,33 @@ def test_readiness_marks_uploaded_infrastructure_unavailable_when_validator_is_d
     assert requirements["pipe_network"].check_status == "unavailable"
     assert requirements["water_supply_point"].present is False
     assert requirements["water_supply_point"].check_status == "unavailable"
-    assert "could not be verified" in readiness.message
+    assert readiness.message == "An error occurred. Please reselect the utility and DMA later."
+    assert readiness.action_hint is None
+    assert error not in readiness.message
+    assert all(error not in (item.message or "") for item in readiness.required + readiness.optional)
+
+
+def test_readiness_hides_validator_error_from_dma_manager(db, monkeypatch):
+    utility, dma = _create_utility_with_infrastructure(db)
+    error = "Hydraulic model service returned HTTP 429 with internal details"
+    monkeypatch.setattr(
+        hydraulic_model,
+        "_call_hydraulic_gpkg_validator",
+        lambda **_kwargs: ({}, error),
+    )
+    manager = CurrentUser(
+        id="dma-manager-1",
+        email="manager@example.com",
+        user_type="dma_manager",
+        utility_id=utility.id,
+        dma_id=dma.id,
+    )
+
+    readiness = hydraulic_model._build_readiness(db, manager, utility.id, dma.id)
+
+    assert readiness.message == "An error occurred. Please try again later."
+    assert readiness.action_hint is None
+    assert all(error not in (item.message or "") for item in readiness.required + readiness.optional)
 
 
 def test_readiness_reports_uploaded_features_after_successful_validation(db, monkeypatch):
@@ -77,6 +103,29 @@ def test_readiness_reports_uploaded_features_after_successful_validation(db, mon
     assert readiness.can_prepare is True
     assert requirements["pipe_network"].check_status == "available"
     assert requirements["water_supply_point"].check_status == "available"
+
+
+def test_readiness_reports_real_missing_features_when_validation_succeeds(db, monkeypatch):
+    utility, dma = _create_utility_with_infrastructure(db)
+    monkeypatch.setattr(
+        hydraulic_model,
+        "_call_hydraulic_gpkg_validator",
+        lambda **_kwargs: ({"waterpipes": 0, "storagefacility": 0}, None),
+    )
+    admin = CurrentUser(id="admin-1", email="admin@example.com", user_type="user")
+
+    readiness = hydraulic_model._build_readiness(db, admin, utility.id, dma.id)
+
+    requirements = {item.key: item for item in readiness.required}
+    assert readiness.ready is False
+    assert requirements["pipe_network"].check_status == "missing"
+    assert requirements["pipe_network"].message == (
+        "The uploaded pipe network has no features inside or on this DMA boundary."
+    )
+    assert requirements["water_supply_point"].check_status == "missing"
+    assert requirements["water_supply_point"].message == (
+        "Uploaded water source and storage layers have no features inside or on this DMA boundary."
+    )
 
 
 def test_validator_404_identifies_misconfigured_service_url(monkeypatch):
