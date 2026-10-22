@@ -95,6 +95,9 @@ HYDRAULIC_MODEL_WARMUP_TIMEOUT_SECONDS = 90.0
 HYDRAULIC_MODEL_RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
 HYDRAULIC_MODEL_BUSY_DETAIL = "The hydraulic model service is temporarily busy. Please try again shortly."
 HYDRAULIC_MODEL_UNAVAILABLE_DETAIL = "The hydraulic model service is unavailable. Please try again shortly."
+# Which prepared data the simulation should run on.
+HYDRAULIC_MODEL_SOURCE_GPKG = "gpkg"   # the DMA rebuilt from the uploaded GIS layers
+HYDRAULIC_MODEL_SOURCE_INP = "inp"     # the EPANET model the user uploaded
 
 
 def _choice(entity: Utility | DMA) -> HydraulicModelChoice:
@@ -691,6 +694,7 @@ def _call_hydraulic_gpkg_builder(
     layers: dict[str, UtilityInfrastructureLayer],
     reported_leaks_geojson: dict,
     inp_upload: tuple[str, bytes, str] | None = None,
+    model_source: str = HYDRAULIC_MODEL_SOURCE_GPKG,
 ) -> dict:
     base_urls = _hydraulic_model_base_urls()
     if not base_urls:
@@ -722,6 +726,7 @@ def _call_hydraulic_gpkg_builder(
         "dma_name": dma.name,
         "dma_geojson": dma.boundary_geojson,
         "reported_leaks_geojson": json.dumps(reported_leaks_geojson or {"type": "FeatureCollection", "features": []}),
+        "model_source": model_source,
     }
 
     response = None
@@ -826,6 +831,7 @@ def prepare_hydraulic_model_with_inp(
         current_user,
         db,
         inp_upload=(os.path.basename(filename), content, "application/octet-stream"),
+        model_source=HYDRAULIC_MODEL_SOURCE_INP,
     )
 
 
@@ -835,9 +841,24 @@ def _prepare_hydraulic_model(
     current_user: CurrentUser,
     db: Session,
     inp_upload: tuple[str, bytes, str] | None = None,
+    model_source: str = HYDRAULIC_MODEL_SOURCE_GPKG,
 ):
     readiness = _build_readiness(db, current_user, payload.utility_id, payload.dma_id)
-    if not readiness.ready or not readiness.selected_utility_id or not readiness.selected_dma_id:
+    if not readiness.selected_utility_id or not readiness.selected_dma_id:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=readiness.message)
+
+    if model_source == HYDRAULIC_MODEL_SOURCE_INP:
+        # The uploaded EPANET model replaces the GIS data, so the DMA only has
+        # to exist and be scannable — it does not have to qualify for a
+        # GIS rebuild.
+        if not readiness.ready:
+            logger.info(
+                "Preparing hydraulic model from an uploaded .inp for DMA %s "
+                "even though the GIS data does not qualify: %s",
+                readiness.selected_dma_id,
+                readiness.message,
+            )
+    elif not readiness.ready:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=readiness.message)
 
     dma = db.query(DMA).filter(DMA.id == readiness.selected_dma_id).first()
@@ -877,6 +898,7 @@ def _prepare_hydraulic_model(
             layers=layers,
             reported_leaks_geojson=reported_leaks_geojson,
             inp_upload=inp_upload,
+            model_source=model_source,
         )
     except HTTPException as exc:
         session.status = "failed"
@@ -891,6 +913,7 @@ def _prepare_hydraulic_model(
         **readiness.model_dump(),
         "prepared_file": prepared,
         "reported_leak_count": reported_leak_count,
+        "model_source": model_source,
         "inp_filename": prepared.get("inp_filename"),
         "inp_network": prepared.get("inp_network"),
     }
@@ -919,6 +942,7 @@ def _prepare_hydraulic_model(
                 "inp_coordinates_geojson": str(
                     bool((prepared.get("inp_network") or {}).get("coordinates_are_lonlat"))
                 ).lower(),
+                "model_source": model_source,
             }
         )
         launch_url = f"{base_url}/app?{query}"

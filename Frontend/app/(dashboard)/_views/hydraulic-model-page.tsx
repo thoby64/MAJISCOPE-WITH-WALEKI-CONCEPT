@@ -44,6 +44,8 @@ type ReadinessResponse = {
   action_hint?: string | null
 }
 
+type ModelSource = "gpkg" | "inp"
+
 type PrepareResponse = {
   session_id: string
   ready: boolean
@@ -112,6 +114,7 @@ export default function HydraulicModelPage() {
   const [checkingReadiness, setCheckingReadiness] = useState(false)
   const [preparing, setPreparing] = useState(false)
   const [inpFile, setInpFile] = useState<File | null>(null)
+  const [modelSource, setModelSource] = useState<ModelSource>("gpkg")
   const inpFileRef = useRef<HTMLInputElement>(null)
 
   const role = currentUser?.role
@@ -160,6 +163,11 @@ export default function HydraulicModelPage() {
       setSelectedDmaId(currentUser.dmaId)
     }
   }, [currentUser?.dmaId, effectiveUserUtilityId, initialized, role])
+
+  useEffect(() => {
+    // Without an uploaded model the run always uses the prepared DMA data.
+    if (!inpFile) setModelSource("gpkg")
+  }, [inpFile])
 
   useEffect(() => {
     if (!selectedDmaId) {
@@ -217,16 +225,30 @@ export default function HydraulicModelPage() {
     [requiredItems]
   )
 
+  // The run can go ahead when the DMA qualifies on its own, or when the
+  // operator supplies an EPANET model to simulate instead of the GIS data.
+  const dmaQualifies = Boolean(readiness?.can_prepare)
+  const hasInp = Boolean(inpFile)
+  const canPrepare = dmaQualifies || hasInp
+  // The choice is only offered when both options are actually available:
+  // the DMA qualifies AND an .inp file was uploaded. Otherwise the run
+  // continues the usual way.
+  const showSourceChoice = dmaQualifies && hasInp
+  // Without an uploaded model the prepared DMA data is used. Without a
+  // qualifying DMA the uploaded model is the only option left.
+  const effectiveSource: ModelSource = !hasInp ? "gpkg" : dmaQualifies ? modelSource : "inp"
+
   async function handlePrepare() {
-    if (!readiness?.can_prepare) return
+    if (!canPrepare) return
 
     setPreparing(true)
-    const response = inpFile
+    const useInp = effectiveSource === "inp" && Boolean(inpFile)
+    const response = useInp
       ? await (() => {
           const formData = new FormData()
           formData.append("utility_id", selectedUtilityId)
           formData.append("dma_id", selectedDmaId)
-          formData.append("inp_file", inpFile)
+          formData.append("inp_file", inpFile as File)
           return apiClient.post<PrepareResponse>("/hydraulic-model/prepare-with-inp", formData, {
             timeout: 120_000,
             retries: 0,
@@ -278,7 +300,7 @@ export default function HydraulicModelPage() {
         <Button
           type="button"
           onClick={handlePrepare}
-          disabled={!readiness?.can_prepare || preparing || checkingReadiness}
+          disabled={!canPrepare || preparing || checkingReadiness}
           className="min-w-56 bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/20 hover:from-sky-600 hover:to-blue-700"
         >
           {preparing ? (
@@ -489,6 +511,63 @@ export default function HydraulicModelPage() {
                 </div>
               ) : null}
             </div>
+
+            {/* Which prepared data the simulation should run on. */}
+            <fieldset className="rounded-xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-900/80">
+              <legend className="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Model data to simulate
+              </legend>
+
+              {showSourceChoice ? (
+                <div className="mt-2 space-y-3">
+                  <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="radio"
+                      name="hydraulic-model-source"
+                      value="gpkg"
+                      checked={modelSource === "gpkg"}
+                      onChange={() => setModelSource("gpkg")}
+                      className="mt-0.5 h-4 w-4 accent-sky-600"
+                    />
+                    <span>
+                      <span className="font-semibold">Use the prepared DMA data</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                        The hydraulic network is rebuilt from the utility&apos;s uploaded GIS layers for this DMA.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-700 dark:text-slate-200">
+                    <input
+                      type="radio"
+                      name="hydraulic-model-source"
+                      value="inp"
+                      checked={modelSource === "inp"}
+                      onChange={() => setModelSource("inp")}
+                      className="mt-0.5 h-4 w-4 accent-sky-600"
+                    />
+                    <span>
+                      <span className="font-semibold">Use my uploaded .inp model</span>
+                      <span className="block text-xs text-slate-500 dark:text-slate-400">
+                        The uploaded EPANET model is simulated exactly as provided.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  {effectiveSource === "inp"
+                    ? "The uploaded EPANET model will be simulated as provided. The DMA\u2019s GIS data is not used."
+                    : "The hydraulic network is rebuilt from the utility\u2019s uploaded GIS layers for this DMA."}
+                </p>
+              )}
+
+              {!dmaQualifies && !hasInp ? (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  This DMA does not qualify for a GIS rebuild. Upload an EPANET model (.inp) above to run the
+                  simulation on your own model instead.
+                </p>
+              ) : null}
+            </fieldset>
 
             {missingRequired.length ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
