@@ -1,6 +1,7 @@
 import sqlite3
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -248,33 +249,71 @@ def test_local_readiness_counts_using_layer_crs_and_dma_boundary_tolerance():
     assert counts["waterpipes"] == 2
 
 
+class _FakeHydraulicResponse:
+    def __init__(self, status_code, payload=None, headers=None, text=""):
+        self.status_code = status_code
+        self.payload = payload or {}
+        self.headers = headers or {}
+        self.text = text
+
+    def json(self):
+        return self.payload
+
+
+class _FakeHydraulicClient:
+    """Minimal stand-in for `httpx.Client` used by the hydraulic model client."""
+
+    def __init__(self, responses=None, post_error=None):
+        self.responses = list(responses or [])
+        self.post_error = post_error
+        self.posts = []
+        self.gets = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def get(self, url, **_kwargs):
+        self.gets.append(url)
+        return _FakeHydraulicResponse(200)
+
+    def post(self, url, **kwargs):
+        self.posts.append((url, kwargs))
+        if self.post_error is not None:
+            error = self.post_error
+            self.post_error = None
+            raise error
+        return self.responses.pop(0)
+
+
+def _prepare(session_id="session-id"):
+    return SimpleNamespace(
+        id=session_id,
+        expires_at=datetime(2026, 1, 1),
+        utility_id="utility-id",
+        dma_id="dma-id",
+    )
+
+
 def test_prepare_preserves_hydraulic_service_rate_limit_and_retry_after(monkeypatch):
-    class FakeResponse:
-        status_code = 429
-        headers = {"Retry-After": "30"}
-
-    class FakeClient:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return False
-
-        def post(self, *_args, **_kwargs):
-            return FakeResponse()
-
+    client = _FakeHydraulicClient(
+        responses=[
+            _FakeHydraulicResponse(429, headers={"Retry-After": "30"}),
+            _FakeHydraulicResponse(429, headers={"Retry-After": "30"}),
+            _FakeHydraulicResponse(429, headers={"Retry-After": "30"}),
+        ]
+    )
+    sleeps = []
     monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test")
     monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
-    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: FakeClient())
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: client)
+    monkeypatch.setattr(hydraulic_model.time, "sleep", sleeps.append)
 
     with pytest.raises(HTTPException) as error:
         hydraulic_model._call_hydraulic_gpkg_builder(
-            session=SimpleNamespace(
-                id="session-id",
-                expires_at=datetime(2026, 1, 1),
-                utility_id="utility-id",
-                dma_id="dma-id",
-            ),
+            session=_prepare(),
             launch_token="launch-token",
             dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
             layers={},
@@ -286,6 +325,134 @@ def test_prepare_preserves_hydraulic_service_rate_limit_and_retry_after(monkeypa
         "The hydraulic model service is temporarily busy. Please try again shortly."
     )
     assert error.value.headers == {"Retry-After": "30"}
+    # The platform asked for a 30 second pause, so the request is retried that
+    # long instead of being abandoned straight away.
+    assert sleeps == [30.0, 30.0]
+    assert len(client.posts) == hydraulic_model.HYDRAULIC_MODEL_PREPARE_ATTEMPTS
+
+
+def test_prepare_honours_http_date_retry_after(monkeypatch):
+    retry_at = datetime.now(timezone.utc) + timedelta(seconds=10)
+    client = _FakeHydraulicClient(
+        responses=[
+            _FakeHydraulicResponse(429, headers={"Retry-After": format_datetime(retry_at)}),
+            _FakeHydraulicResponse(201, {"filename": "prepared.gpkg"}),
+        ]
+    )
+    sleeps = []
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: client)
+    monkeypatch.setattr(hydraulic_model.time, "sleep", sleeps.append)
+
+    prepared = hydraulic_model._call_hydraulic_gpkg_builder(
+        session=_prepare(),
+        launch_token="launch-token",
+        dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
+        layers={},
+        reported_leaks_geojson={},
+    )
+
+    assert prepared == {"filename": "prepared.gpkg"}
+    assert len(sleeps) == 1
+    assert 8.0 <= sleeps[0] <= 10.0
+
+
+def test_prepare_warms_up_cold_hydraulic_service_before_upload(monkeypatch):
+    client = _FakeHydraulicClient(
+        responses=[_FakeHydraulicResponse(201, {"filename": "prepared.gpkg"})]
+    )
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: client)
+
+    hydraulic_model._call_hydraulic_gpkg_builder(
+        session=_prepare(),
+        launch_token="launch-token",
+        dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
+        layers={},
+        reported_leaks_geojson={},
+    )
+
+    assert client.gets == ["https://model.test/health"]
+    assert client.posts[0][0] == "https://model.test/majiscope/prepare-gpkg"
+
+
+def test_prepare_falls_back_to_next_base_url_when_first_is_unreachable(monkeypatch):
+    client = _FakeHydraulicClient(
+        responses=[_FakeHydraulicResponse(201, {"filename": "prepared.gpkg"})],
+        post_error=hydraulic_model.httpx.ConnectError("connection refused"),
+    )
+    monkeypatch.setattr(
+        hydraulic_model.settings,
+        "hydraulic_model_base_url",
+        "http://epanet-model:10000,https://epanet-model.onrender.com",
+    )
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: client)
+
+    prepared = hydraulic_model._call_hydraulic_gpkg_builder(
+        session=_prepare(),
+        launch_token="launch-token",
+        dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
+        layers={},
+        reported_leaks_geojson={},
+    )
+
+    assert prepared == {"filename": "prepared.gpkg"}
+    assert [url for url, _ in client.posts] == [
+        "http://epanet-model:10000/majiscope/prepare-gpkg",
+        "https://epanet-model.onrender.com/majiscope/prepare-gpkg",
+    ]
+
+
+def test_prepare_reports_unavailable_service_after_retries(monkeypatch):
+    client = _FakeHydraulicClient(
+        responses=[
+            _FakeHydraulicResponse(502, text="Bad Gateway"),
+            _FakeHydraulicResponse(502, text="Bad Gateway"),
+            _FakeHydraulicResponse(502, text="Bad Gateway"),
+        ]
+    )
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_api_key", "test-key")
+    monkeypatch.setattr(hydraulic_model.httpx, "Client", lambda **_kwargs: client)
+    monkeypatch.setattr(hydraulic_model.time, "sleep", lambda _delay: None)
+
+    with pytest.raises(HTTPException) as error:
+        hydraulic_model._call_hydraulic_gpkg_builder(
+            session=_prepare(),
+            launch_token="launch-token",
+            dma=SimpleNamespace(id="dma-id", name="DMA", boundary_geojson="{}"),
+            layers={},
+            reported_leaks_geojson={},
+        )
+
+    assert error.value.status_code == 502
+    assert error.value.detail == hydraulic_model.HYDRAULIC_MODEL_UNAVAILABLE_DETAIL
+    assert len(client.posts) == hydraulic_model.HYDRAULIC_MODEL_PREPARE_ATTEMPTS
+
+
+def test_hydraulic_model_public_url_falls_back_to_base_url(monkeypatch):
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_base_url", "https://model.test/")
+    monkeypatch.setattr(hydraulic_model.settings, "hydraulic_model_public_url", "")
+    assert hydraulic_model._hydraulic_model_public_url() == "https://model.test"
+
+    monkeypatch.setattr(
+        hydraulic_model.settings,
+        "hydraulic_model_base_url",
+        "http://epanet-model:10000,https://model.test",
+    )
+    monkeypatch.setattr(
+        hydraulic_model.settings,
+        "hydraulic_model_public_url",
+        "https://epanet-model.onrender.com/",
+    )
+    assert hydraulic_model._hydraulic_model_public_url() == "https://epanet-model.onrender.com"
+    assert hydraulic_model._hydraulic_model_base_urls() == [
+        "http://epanet-model:10000",
+        "https://model.test",
+    ]
 
 
 def test_prepare_retries_brief_hydraulic_service_rate_limit(monkeypatch):
@@ -309,6 +476,9 @@ def test_prepare_retries_brief_hydraulic_service_rate_limit(monkeypatch):
 
         def __exit__(self, *_args):
             return False
+
+        def get(self, *_args, **_kwargs):
+            return FakeResponse(200)
 
         def post(self, *_args, **_kwargs):
             return self.responses.pop(0)

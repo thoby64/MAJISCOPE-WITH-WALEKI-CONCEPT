@@ -62,6 +62,9 @@ function readinessFailureMessage(role?: string) {
 const hydraulicModelBusyMessage =
   "The hydraulic model service is temporarily busy. Please try again shortly."
 
+const hydraulicModelUnavailableMessage =
+  "The hydraulic model service is unavailable. Please try again shortly."
+
 function RequirementRow({ item }: { item: Requirement }) {
   const unavailable = item.check_status === "unavailable"
   const Icon = unavailable
@@ -239,7 +242,9 @@ export default function HydraulicModelPage() {
       toast.error(
         response.error === hydraulicModelBusyMessage
           ? hydraulicModelBusyMessage
-          : readinessFailureMessage(role)
+          : response.error === hydraulicModelUnavailableMessage
+            ? hydraulicModelUnavailableMessage
+            : readinessFailureMessage(role)
       )
       return
     }

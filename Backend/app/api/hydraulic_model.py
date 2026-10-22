@@ -6,10 +6,12 @@ keeping user access decisions inside MajiScope.
 """
 
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 import hashlib
 import json
 import logging
 import os
+import random
 import secrets
 import time
 from urllib.parse import urlencode
@@ -74,6 +76,25 @@ ACTIVE_HYDRAULIC_REPORT_STATUSES = (
     ReportStatusEnum.IN_PROGRESS,
     ReportStatusEnum.PENDING_APPROVAL,
 )
+
+# ── Hydraulic model service client tuning ────────────────────────────────
+# The model service is hosted as a separate Render service. Public edge
+# requests to it can be rejected with 429 (rate limited) or 502 while the
+# instance is cold, so preparation is retried with a bounded budget.
+HYDRAULIC_MODEL_PREPARE_ATTEMPTS = 3
+HYDRAULIC_MODEL_PREPARE_BACKOFF_SECONDS = 2.0
+HYDRAULIC_MODEL_PREPARE_BACKOFF_MAX_SECONDS = 15.0
+HYDRAULIC_MODEL_RETRY_AFTER_MAX_SECONDS = 60.0
+HYDRAULIC_MODEL_REQUEST_TIMEOUT_SECONDS = 120.0
+# Total budget for one preparation call (warm-up + retries + failover). It stays
+# below the hosting platform's request timeout so the browser always receives
+# a structured API error instead of a gateway timeout.
+HYDRAULIC_MODEL_PREPARE_BUDGET_SECONDS = 90.0
+HYDRAULIC_MODEL_WARMUP_ATTEMPTS = 2
+HYDRAULIC_MODEL_WARMUP_TIMEOUT_SECONDS = 90.0
+HYDRAULIC_MODEL_RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
+HYDRAULIC_MODEL_BUSY_DETAIL = "The hydraulic model service is temporarily busy. Please try again shortly."
+HYDRAULIC_MODEL_UNAVAILABLE_DETAIL = "The hydraulic model service is unavailable. Please try again shortly."
 
 
 def _choice(entity: Utility | DMA) -> HydraulicModelChoice:
@@ -523,6 +544,145 @@ def _build_reported_leaks_geojson(
     return feature_collection, len(features)
 
 
+def _hydraulic_model_base_urls() -> list[str]:
+    """Service-to-service base URLs for the hydraulic model service, in order.
+
+    `HYDRAULIC_MODEL_BASE_URL` may hold a comma separated list so a Render
+    private-network (internal) address can be tried before the public edge URL.
+    """
+    raw = settings.hydraulic_model_base_url or ""
+    return [part.strip().rstrip("/") for part in raw.split(",") if part.strip()]
+
+
+def _hydraulic_model_public_url() -> str:
+    """Browser-facing base URL of the hydraulic model service.
+
+    The launch link is opened by the user's browser, so it must stay on the
+    public URL even when the backend calls the service over a private address.
+    """
+    public_url = (settings.hydraulic_model_public_url or "").strip().rstrip("/")
+    if public_url:
+        return public_url
+    base_urls = _hydraulic_model_base_urls()
+    return base_urls[0] if base_urls else ""
+
+
+def _parse_retry_after(value: Optional[str]) -> Optional[float]:
+    """Return the number of seconds to wait for a `Retry-After` header."""
+    if not value:
+        return None
+    try:
+        return max(0.0, float(value))
+    except (TypeError, ValueError):
+        pass
+    try:
+        target = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if target is None:
+        return None
+    if target.tzinfo is None:
+        target = target.replace(tzinfo=timezone.utc)
+    return max(0.0, (target - datetime.now(timezone.utc)).total_seconds())
+
+
+def _hydraulic_retry_delay(response, attempt: int) -> float:
+    """Delay before retrying a throttled or temporarily unavailable service."""
+    retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+    if retry_after is not None:
+        return min(retry_after, HYDRAULIC_MODEL_RETRY_AFTER_MAX_SECONDS)
+    delay = HYDRAULIC_MODEL_PREPARE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+    delay = min(delay, HYDRAULIC_MODEL_PREPARE_BACKOFF_MAX_SECONDS)
+    return delay + random.uniform(0.0, 0.5)
+
+
+def _warm_up_hydraulic_model(client, base_url: str, *, deadline: float) -> None:
+    """Wake the hydraulic model service before the multi-megabyte upload.
+
+    The model service is a separate Render service that is stopped after an
+    idle period. Requests that arrive while the instance is still booting are
+    rejected by the platform edge (429) or dropped (502) before the FastAPI
+    application ever sees them. A cheap health probe absorbs that cold start.
+    """
+    for attempt in range(1, HYDRAULIC_MODEL_WARMUP_ATTEMPTS + 1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        try:
+            response = client.get(
+                f"{base_url}/health",
+                timeout=min(HYDRAULIC_MODEL_WARMUP_TIMEOUT_SECONDS, remaining),
+            )
+        except httpx.HTTPError as exc:
+            logger.info(
+                "Hydraulic model warm-up probe failed for %s (attempt %d/%d): %s",
+                base_url,
+                attempt,
+                HYDRAULIC_MODEL_WARMUP_ATTEMPTS,
+                exc,
+            )
+            continue
+        if response.status_code < 400:
+            logger.info("Hydraulic model service %s is warm", base_url)
+            return
+        logger.info(
+            "Hydraulic model warm-up probe returned %s for %s",
+            response.status_code,
+            base_url,
+        )
+
+
+def _post_hydraulic_prepare(
+    *,
+    base_url: str,
+    data: dict,
+    files: dict,
+    deadline: float,
+) -> Optional[httpx.Response]:
+    """POST the preparation payload to one base URL, retrying transient errors.
+
+    Returns the last response, or None when the base URL was unreachable.
+    """
+    try:
+        with httpx.Client(timeout=HYDRAULIC_MODEL_REQUEST_TIMEOUT_SECONDS) as client:
+            _warm_up_hydraulic_model(client, base_url, deadline=deadline)
+
+            response = None
+            for attempt in range(1, HYDRAULIC_MODEL_PREPARE_ATTEMPTS + 1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                response = client.post(
+                    f"{base_url}/majiscope/prepare-gpkg",
+                    data=data,
+                    files=files,
+                    headers={"X-API-Key": settings.hydraulic_model_api_key},
+                    timeout=min(HYDRAULIC_MODEL_REQUEST_TIMEOUT_SECONDS, remaining),
+                )
+                if response.status_code not in HYDRAULIC_MODEL_RETRYABLE_STATUSES:
+                    return response
+                if attempt >= HYDRAULIC_MODEL_PREPARE_ATTEMPTS:
+                    break
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                delay = min(_hydraulic_retry_delay(response, attempt), remaining)
+                logger.warning(
+                    "Hydraulic model service returned %s for %s (attempt %d/%d); retrying in %.1f seconds",
+                    response.status_code,
+                    base_url,
+                    attempt,
+                    HYDRAULIC_MODEL_PREPARE_ATTEMPTS,
+                    delay,
+                )
+                time.sleep(delay)
+            return response
+    except httpx.HTTPError as exc:
+        logger.warning("Hydraulic model service at %s is not reachable: %s", base_url, exc)
+        return None
+
+
 def _call_hydraulic_gpkg_builder(
     *,
     session: HydraulicModelLaunchSession,
@@ -532,7 +692,8 @@ def _call_hydraulic_gpkg_builder(
     reported_leaks_geojson: dict,
     inp_upload: tuple[str, bytes, str] | None = None,
 ) -> dict:
-    if not settings.hydraulic_model_base_url:
+    base_urls = _hydraulic_model_base_urls()
+    if not base_urls:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Hydraulic model service URL is not configured.",
@@ -563,37 +724,27 @@ def _call_hydraulic_gpkg_builder(
         "reported_leaks_geojson": json.dumps(reported_leaks_geojson or {"type": "FeatureCollection", "features": []}),
     }
 
-    try:
-        with httpx.Client(timeout=120.0) as client:
-            for attempt in range(3):
-                response = client.post(
-                    f"{settings.hydraulic_model_base_url}/majiscope/prepare-gpkg",
-                    data=data,
-                    files=files,
-                    headers={"X-API-Key": settings.hydraulic_model_api_key},
-                )
-                if response.status_code != status.HTTP_429_TOO_MANY_REQUESTS or attempt == 2:
-                    break
+    response = None
+    deadline = time.monotonic() + HYDRAULIC_MODEL_PREPARE_BUDGET_SECONDS
+    for base_url in base_urls:
+        attempt_response = _post_hydraulic_prepare(
+            base_url=base_url,
+            data=data,
+            files=files,
+            deadline=deadline,
+        )
+        if attempt_response is None:
+            # Unreachable address — try the next configured base URL.
+            continue
+        response = attempt_response
+        if attempt_response.status_code not in HYDRAULIC_MODEL_RETRYABLE_STATUSES:
+            break
 
-                retry_after = response.headers.get("Retry-After")
-                try:
-                    delay = float(retry_after) if retry_after else 1.0 * (attempt + 1)
-                except ValueError:
-                    # HTTP-date Retry-After values are left to the caller to honor.
-                    break
-                if delay < 0 or delay > 5:
-                    break
-                logger.warning(
-                    "Hydraulic model service rate-limited preparation (attempt %d/3); retrying in %.1f seconds",
-                    attempt + 1,
-                    delay,
-                )
-                time.sleep(delay)
-    except httpx.HTTPError as exc:
+    if response is None:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Hydraulic model service is not reachable: {exc}",
-        ) from exc
+            detail=HYDRAULIC_MODEL_UNAVAILABLE_DETAIL,
+        )
 
     if response.status_code >= 400:
         if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
@@ -608,8 +759,20 @@ def _call_hydraulic_gpkg_builder(
             )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="The hydraulic model service is temporarily busy. Please try again shortly.",
+                detail=HYDRAULIC_MODEL_BUSY_DETAIL,
                 headers={"Retry-After": retry_after} if retry_after else None,
+            )
+        if response.status_code in HYDRAULIC_MODEL_RETRYABLE_STATUSES:
+            logger.warning(
+                "Hydraulic model service is unavailable: status=%d server=%s request_id=%s response=%r",
+                response.status_code,
+                response.headers.get("server", ""),
+                response.headers.get("x-request-id") or response.headers.get("cf-ray") or "",
+                getattr(response, "text", "")[:500],
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=HYDRAULIC_MODEL_UNAVAILABLE_DETAIL,
             )
         if response.status_code >= 500 or response.status_code in (401, 403):
             raise HTTPException(
@@ -734,9 +897,15 @@ def _prepare_hydraulic_model(
     db.commit()
     db.refresh(session)
 
-    base_url = settings.hydraulic_model_base_url or ""
+    base_url = _hydraulic_model_public_url()
     launch_url = None
     if base_url and session.hydraulic_filename:
+        if not settings.hydraulic_model_public_url and len(_hydraulic_model_base_urls()) > 1:
+            logger.warning(
+                "HYDRAULIC_MODEL_PUBLIC_URL is not configured; the hydraulic model launch link "
+                "uses the first HYDRAULIC_MODEL_BASE_URL entry (%s)",
+                base_url,
+            )
         query = urlencode(
             {
                 "launch_token": token,

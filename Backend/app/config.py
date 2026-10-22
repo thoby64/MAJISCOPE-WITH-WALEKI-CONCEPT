@@ -114,7 +114,15 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
 
     # ===== Hydraulic Model Integration =====
+    # HYDRAULIC_MODEL_BASE_URL holds the service-to-service base URL(s) used by
+    # the backend to talk to the hydraulic model service. It accepts a
+    # comma-separated list that is tried in order, so a Render private-network
+    # (internal) address can be preferred over the public edge URL.
     hydraulic_model_base_url: str = Field(default="", alias="HYDRAULIC_MODEL_BASE_URL")
+    # Browser-facing base URL of the hydraulic model service. It is used to
+    # build the launch link the user opens, and therefore must stay publicly
+    # reachable even when the backend calls the service over a private address.
+    hydraulic_model_public_url: str = Field(default="", alias="HYDRAULIC_MODEL_PUBLIC_URL")
     hydraulic_model_api_key: str = Field(default="", alias="HYDRAULIC_MODEL_API_KEY")
     hydraulic_model_launch_secret: str = Field(default="", alias="HYDRAULIC_MODEL_LAUNCH_SECRET")
     hydraulic_model_callback_secret: str = Field(default="", alias="HYDRAULIC_MODEL_CALLBACK_SECRET")
@@ -188,7 +196,12 @@ class Settings(BaseSettings):
         self.media_storage_api_key = self.media_storage_api_key.strip()
         self.media_s3_region = self.media_s3_region.strip()
         self.public_backend_url = self.public_backend_url.rstrip("/")
-        self.hydraulic_model_base_url = self.hydraulic_model_base_url.rstrip("/")
+        self.hydraulic_model_base_url = ",".join(
+            part.strip().rstrip("/")
+            for part in self.hydraulic_model_base_url.split(",")
+            if part.strip()
+        )
+        self.hydraulic_model_public_url = self.hydraulic_model_public_url.strip().rstrip("/")
         if self.environment == "production" and "frontend_url" not in self.__pydantic_fields_set__:
             self.frontend_url = ""
         if self.environment == "production":
