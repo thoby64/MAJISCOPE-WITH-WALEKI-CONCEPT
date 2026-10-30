@@ -60,7 +60,7 @@ from app.services.water_quality_services import (
     ingest_water_quality_reading,
     promote_pending_water_quality,
 )
-from app.api.sensors import _water_level_payload_recognised
+from app.api.sensors import _ensure_engineer_install_access, _water_level_payload_recognised
 
 water_sources_router = APIRouter(prefix="/api/water-sources", tags=["water-sources"])
 water_source_sensors_router = APIRouter(prefix="/api/water-source-sensors", tags=["water-source-sensors"])
@@ -318,19 +318,33 @@ async def update_water_source(
 
 
 def _registration_config(payload: WaterSourceSensorRegisterRequest) -> dict[str, Any]:
+    installation_location = None
+    if payload.installation_latitude is not None and payload.installation_longitude is not None:
+        installation_location = {
+            "latitude": payload.installation_latitude,
+            "longitude": payload.installation_longitude,
+            "accuracy_m": payload.installation_accuracy_m,
+            "captured_at": datetime.utcnow().isoformat() + "Z",
+        }
     if payload.category == "water_quality":
-        return {
+        config = {
             "parameters": {
                 field: bounds.model_dump(exclude_none=True)
                 for field, bounds in (payload.parameter_thresholds or {}).items()
             }
         }
-    return {
+        if installation_location:
+            config["installation_location"] = installation_location
+        return config
+    config = {
         "h1_m": payload.h1_m,
         "depth_m": payload.depth_m,
         "warning_height_m": payload.warning_height_m if payload.warning_height_m is not None else 10.0,
         "critical_height_m": payload.critical_height_m if payload.critical_height_m is not None else 0.0,
     }
+    if installation_location:
+        config["installation_location"] = installation_location
+    return config
 
 
 @water_source_sensors_router.post(
@@ -341,10 +355,13 @@ def _registration_config(payload: WaterSourceSensorRegisterRequest) -> dict[str,
 async def register_water_source_sensor(
     payload: WaterSourceSensorRegisterRequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_utility_manager),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     sensor_db: Session = Depends(get_sensor_db),
 ):
+    if current_user.user_type not in {"user", "utility_manager", "engineer"}:
+        raise HTTPException(status_code=403, detail="Sensor registration access required")
+
     if (
         sensor_db.query(SensorDevice.id).filter(SensorDevice.device_id == payload.device_id).first()
         or sensor_db.query(WaterSourceSensorDevice.id).filter(
@@ -375,6 +392,15 @@ async def register_water_source_sensor(
             source_ref.dma_id = matched_dma.id
             dma_auto_assigned = True
             db.flush()
+
+    source_ref.dma_id = source.dma_id
+    _ensure_engineer_install_access(
+        current_user,
+        source_ref.dma_id,
+        payload.installation_latitude,
+        payload.installation_longitude,
+        payload.installation_accuracy_m,
+    )
 
     category = SensorCategoryEnum(payload.category)
     if payload.activated:
@@ -440,6 +466,7 @@ async def register_water_source_sensor(
             "water_source_id": source.id,
             "activated": sensor.activated,
             "promoted_readings": promoted,
+            "installation_location": sensor.config.get("installation_location") if isinstance(sensor.config, dict) else None,
         },
     )
     db.commit()

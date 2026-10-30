@@ -55,7 +55,11 @@ from app.security.dependencies import (
     CurrentUser,
 )
 from app.services.activity_logs import audit_log
-from app.services.hierarchy import resolve_current_user_utility_id
+from app.services.hierarchy import (
+    find_dma_within_utility_by_boundary,
+    find_utility_by_boundary,
+    resolve_current_user_utility_id,
+)
 from app.services.sensor_platform_sync import (
     drain_outbox,
     mirror_storage_facility,
@@ -210,6 +214,64 @@ def _ensure_storage_facility_access(
     )
 
 
+def _ensure_engineer_install_access(
+    current_user: CurrentUser,
+    dma_id: Optional[str],
+    installation_latitude: Optional[float],
+    installation_longitude: Optional[float],
+    installation_accuracy_m: Optional[float],
+) -> None:
+    if current_user.user_type != "engineer":
+        return
+    if not current_user.dma_id or dma_id != current_user.dma_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Engineers can register sensors only for assets in their assigned DMA",
+        )
+    if installation_latitude is None or installation_longitude is None or installation_accuracy_m is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Installation GPS coordinates and accuracy are required for engineer registration",
+        )
+
+
+@sensors_router.get("/installation-location")
+async def resolve_sensor_installation_location(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    accuracy_m: float = Query(..., ge=0, le=100000),
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Resolve a field GPS fix against configured utility and DMA boundaries."""
+    if current_user.user_type != "engineer":
+        raise HTTPException(status_code=403, detail="Engineer access required")
+
+    assigned_dma = db.query(DMA).filter(DMA.id == current_user.dma_id).first() if current_user.dma_id else None
+    assigned_utility = db.query(Utility).filter(Utility.id == assigned_dma.utility_id).first() if assigned_dma else None
+    detected_utility = find_utility_by_boundary(latitude, longitude, db)
+    detected_dma = find_dma_within_utility_by_boundary(latitude, longitude, detected_utility, db)
+    exact_match = detected_utility is not None and detected_dma is not None
+    matches_assignment = bool(
+        exact_match
+        and assigned_dma
+        and detected_utility.id == assigned_dma.utility_id
+        and detected_dma.id == assigned_dma.id
+    )
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "accuracy_m": accuracy_m,
+        "detected_utility": {"id": detected_utility.id, "name": detected_utility.name} if detected_utility else None,
+        "detected_dma": {"id": detected_dma.id, "name": detected_dma.name} if detected_dma else None,
+        "assigned_utility": {"id": assigned_utility.id, "name": assigned_utility.name} if assigned_utility else None,
+        "assigned_dma": {"id": assigned_dma.id, "name": assigned_dma.name} if assigned_dma else None,
+        "boundary_match": exact_match,
+        "matches_engineer_scope": matches_assignment,
+        "location_quality": "low" if accuracy_m > 100 else "usable",
+    }
+
+
 def _ensure_sensor_access(
     sensor: SensorDevice,
     current_user: CurrentUser,
@@ -311,6 +373,14 @@ def _water_level_payload_recognised(flat: dict, properties: dict) -> bool:
 
 def _registration_config(payload: SensorRegisterRequest) -> dict:
     """Build the category-specific config JSONB for a new sensor."""
+    installation_location = None
+    if payload.installation_latitude is not None and payload.installation_longitude is not None:
+        installation_location = {
+            "latitude": payload.installation_latitude,
+            "longitude": payload.installation_longitude,
+            "accuracy_m": payload.installation_accuracy_m,
+            "captured_at": datetime.utcnow().isoformat() + "Z",
+        }
     if payload.category == "water_quality":
         cfg: dict = {}
         if payload.parameter_thresholds:
@@ -318,6 +388,8 @@ def _registration_config(payload: SensorRegisterRequest) -> dict:
                 field: bounds.model_dump(exclude_none=True)
                 for field, bounds in payload.parameter_thresholds.items()
             }
+        if installation_location:
+            cfg["installation_location"] = installation_location
         return cfg
 
     wl_cfg: dict = {}
@@ -327,6 +399,8 @@ def _registration_config(payload: SensorRegisterRequest) -> dict:
         wl_cfg["depth_m"] = payload.depth_m
     wl_cfg["warning_height_m"] = payload.warning_height_m if payload.warning_height_m is not None else 10.0
     wl_cfg["critical_height_m"] = payload.critical_height_m if payload.critical_height_m is not None else 0.0
+    if installation_location:
+        wl_cfg["installation_location"] = installation_location
     return wl_cfg
 
 
@@ -334,7 +408,7 @@ def _registration_config(payload: SensorRegisterRequest) -> dict:
 async def register_sensor(
     payload: SensorRegisterRequest,
     request: Request,
-    current_user: CurrentUser = Depends(require_utility_manager),
+    current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     sensor_db: Session = Depends(get_sensor_db),
 ):
@@ -348,6 +422,9 @@ async def register_sensor(
     category per storage_facility is enforced.
     """
     from app.services.sensor_platform_sync import ensure_storage_facility_ref
+
+    if current_user.user_type not in {"user", "utility_manager", "engineer"}:
+        raise HTTPException(status_code=403, detail="Sensor registration access required")
 
     existing = (
         sensor_db.query(SensorDevice)
@@ -381,8 +458,6 @@ async def register_sensor(
     dma_auto_assigned = False
     if main_storage_facility.dma_id is None and main_storage_facility.latitude is not None and main_storage_facility.longitude is not None:
         utility = db.query(Utility).filter(Utility.id == main_storage_facility.utility_id).first()
-        from app.services.hierarchy import find_dma_within_utility_by_boundary
-
         matched_dma = find_dma_within_utility_by_boundary(
             main_storage_facility.latitude, main_storage_facility.longitude, utility, db
         )
@@ -392,6 +467,14 @@ async def register_sensor(
             dma_auto_assigned = True
             storage_facility_ref.dma_id = matched_dma.id
             sensor_db.commit()
+
+    _ensure_engineer_install_access(
+        current_user,
+        main_storage_facility.dma_id,
+        payload.installation_latitude,
+        payload.installation_longitude,
+        payload.installation_accuracy_m,
+    )
 
     # One active sensor per category per storage_facility (partial unique index also
     # guards this at the DB level).
@@ -454,6 +537,7 @@ async def register_sensor(
             "storage_facility_id": storage_facility_ref.id,
             "activated": payload.activated,
             "promoted_readings": promoted,
+            "installation_location": sensor.config.get("installation_location") if isinstance(sensor.config, dict) else None,
         },
     )
     db.commit()
