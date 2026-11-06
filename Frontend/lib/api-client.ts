@@ -72,12 +72,17 @@ type CacheEntry = {
  */
 class ApiClient {
   private baseUrl: string;
+  private readonly usesNgrokTunnel: boolean;
   private timeout: number = CONFIG.request.timeout;
   private getCache = new Map<string, CacheEntry>();
   private inFlightGets = new Map<string, Promise<ApiResponse<any>>>();
 
   constructor() {
     this.baseUrl = CONFIG.backend.fullUrl;
+    const backendHostname = this.baseUrl ? new URL(this.baseUrl).hostname : "";
+    this.usesNgrokTunnel =
+      backendHostname.endsWith(".ngrok-free.app") ||
+      backendHostname.endsWith(".ngrok-free.dev");
   }
 
   /**
@@ -225,6 +230,9 @@ class ApiClient {
 
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
     const headers = new Headers(restOptions.headers);
+    if (this.usesNgrokTunnel) {
+      headers.set('ngrok-skip-browser-warning', 'true');
+    }
     if (isFormData) {
       headers.delete('Content-Type');
     } else if (!headers.has('Content-Type')) {

@@ -46,9 +46,6 @@ class WaterSourceSensorRegisterRequest(BaseModel):
     water_source_id: str
     category: str = Field("water_level", pattern="^(water_level|water_quality)$")
     activated: bool = False
-    installation_latitude: Optional[float] = Field(None, ge=-90, le=90)
-    installation_longitude: Optional[float] = Field(None, ge=-180, le=180)
-    installation_accuracy_m: Optional[float] = Field(None, ge=0, le=100000)
     h1_m: Optional[float] = Field(None, ge=0)
     depth_m: Optional[float] = Field(None, ge=0)
     warning_height_m: Optional[float] = Field(None, gt=0)

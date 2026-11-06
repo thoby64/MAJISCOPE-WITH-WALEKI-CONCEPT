@@ -415,14 +415,14 @@ export default function UtilityManagersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-              <Users className="h-7 w-7 text-cyan-600" />
+              <Users className="h-7 w-7 text-primary" />
               Utility Managers
             </h1>
             <p className="text-slate-500 mt-1">Create and manage Utility Managers and assign them to utilities</p>
           </div>
           <Button 
             onClick={openCreateDialog}
-            className="bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300 rounded-xl h-11 px-6"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/15 hover:shadow-cyan-500/40 transition-all duration-300 rounded-xl h-11 px-6"
           >
             <Plus className="h-4 w-4 mr-2" />
             Invite Manager
@@ -434,7 +434,7 @@ export default function UtilityManagersPage() {
           <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
-                <Users className="h-8 w-8 shrink-0 text-cyan-600" />
+                <Users className="h-8 w-8 shrink-0 text-primary" />
                 <div>
                   <p className="text-sm font-medium text-slate-500">Total Managers</p>
                   <p className="text-2xl font-bold text-slate-800">{totalManagers}</p>
@@ -458,7 +458,7 @@ export default function UtilityManagersPage() {
           <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
-                <WaterUtilityIcon className="h-8 w-8 shrink-0 text-cyan-600" />
+                <WaterUtilityIcon className="h-8 w-8 shrink-0 text-primary" />
                 <div>
                   <p className="text-sm font-medium text-slate-500">Assigned to Utilities</p>
                   <p className="text-2xl font-bold text-slate-800">{assignedManagers}</p>
@@ -478,7 +478,7 @@ export default function UtilityManagersPage() {
             placeholder="Search by name, email, phone, utility..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-11 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20 shadow-sm"
+            className="pl-11 h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15 shadow-sm"
           />
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -500,7 +500,7 @@ export default function UtilityManagersPage() {
                 {!search ? (
                   <Button
                     onClick={openCreateDialog}
-                    className="mt-4 bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white shadow-lg shadow-cyan-500/25 rounded-xl"
+                    className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/15 rounded-xl"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Invite Manager
@@ -522,7 +522,7 @@ export default function UtilityManagersPage() {
                     <Avatar className={cn("h-10 w-10 shadow-lg", isInactive ? "ring-2 ring-red-200" : "ring-2 ring-cyan-200")}>
                       <AvatarFallback className={cn(
                         "text-sm font-semibold",
-                        isInactive ? "bg-gradient-to-br from-red-400 to-rose-500 text-white" : "bg-gradient-to-br from-sky-500 to-cyan-600 text-white"
+                        isInactive ? "bg-gradient-to-br from-red-400 to-rose-500 text-white" : "bg-primary text-white"
                       )}>
                         {getInitials(manager.name)}
                       </AvatarFallback>
@@ -603,7 +603,7 @@ export default function UtilityManagersPage() {
                         {!search && (
                           <Button 
                             onClick={openCreateDialog}
-                            className="mt-2 bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white shadow-lg shadow-cyan-500/25 rounded-xl"
+                            className="mt-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/15 rounded-xl"
                           >
                             <Plus className="h-4 w-4 mr-2" />
                             Invite Manager
@@ -640,7 +640,7 @@ export default function UtilityManagersPage() {
                                 "text-sm font-semibold",
                                 isInactive
                                   ? "bg-gradient-to-br from-red-400 to-rose-500 text-white"
-                                  : "bg-gradient-to-br from-sky-500 to-cyan-600 text-white"
+                                  : "bg-primary text-white"
                               )}>
                                 {getInitials(manager.name)}
                               </AvatarFallback>
@@ -673,7 +673,7 @@ export default function UtilityManagersPage() {
                           {utility ? (
                             <div className="flex items-center gap-2">
                               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-cyan-200 flex items-center justify-center">
-                                <WaterUtilityIcon className="h-4 w-4 text-cyan-600" />
+                                <WaterUtilityIcon className="h-4 w-4 text-primary" />
                               </div>
                               <span className="font-medium text-slate-700">{utility.name}</span>
                             </div>
@@ -708,7 +708,7 @@ export default function UtilityManagersPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent 
                               align="end" 
-                              className="w-48 rounded-xl shadow-lg shadow-slate-200/50 border-slate-200/60"
+                              className="w-48 rounded-xl shadow-md shadow-slate-900/10 border-slate-200/60"
                             >
                               <DropdownMenuItem 
                                 onClick={() => setViewingManager(manager)} 
@@ -764,10 +764,10 @@ export default function UtilityManagersPage() {
 
       {/* Modern Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col bg-white/95 backdrop-blur-xl border-slate-200/50 shadow-2xl shadow-slate-200/50 rounded-2xl">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center">
+              <div className="dashboard-modal-accent h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
                 {editingManager ? (
                   <Pencil className="h-4 w-4 text-white" />
                 ) : (
@@ -786,7 +786,7 @@ export default function UtilityManagersPage() {
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="e.g., john@example.com"
-                className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20"
+                className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
               />
             </div>
             {editingManager && (
@@ -798,7 +798,7 @@ export default function UtilityManagersPage() {
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="e.g., John Smith"
-                    className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20"
+                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -809,7 +809,7 @@ export default function UtilityManagersPage() {
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     placeholder="e.g., +255 22 211 0001"
-                    className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20"
+                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
               </>
@@ -817,10 +817,10 @@ export default function UtilityManagersPage() {
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Assigned Utility</Label>
               <Select value={formUtilityId} onValueChange={setFormUtilityId}>
-                <SelectTrigger className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl">
+                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl">
                   <SelectValue placeholder={availableUtilities.length === 0 ? "No unassigned utilities available" : "Select a utility"} />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
                   {availableUtilities.length === 0 ? (
                     <SelectItem value="_none" disabled>
                       No unassigned utilities
@@ -843,10 +843,10 @@ export default function UtilityManagersPage() {
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Status</Label>
               <Select value={formStatus} onValueChange={setFormStatus}>
-                <SelectTrigger className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl">
+                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
                   <SelectItem value="active" className="rounded-lg">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -876,7 +876,7 @@ export default function UtilityManagersPage() {
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
                       placeholder="Enter new password (optional)"
-                      className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20 pr-10"
+                      className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15 pr-10"
                     />
                     <Button
                       type="button"
@@ -893,12 +893,12 @@ export default function UtilityManagersPage() {
                     value={formConfirmPassword}
                     onChange={(e) => setFormConfirmPassword(e.target.value)}
                     placeholder="Confirm password"
-                    className="h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20"
+                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-cyan-200 bg-cyan-50/60 p-4 text-sm text-slate-600">
+              <div className="dashboard-modal-note rounded-xl border border-dashed border-primary/25 bg-secondary/70 p-4 text-sm text-slate-600">
                 The system will send this manager a secure setup link so they can finish their own profile and password.
               </div>
             )}
@@ -909,7 +909,7 @@ export default function UtilityManagersPage() {
             </Button>
             <Button 
               onClick={handleSubmit}
-              className="bg-gradient-to-r from-sky-500 to-cyan-600 hover:from-sky-600 hover:to-cyan-700 text-white shadow-lg shadow-cyan-500/25 rounded-xl"
+              className="dashboard-modal-submit bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/15 rounded-xl"
             >
               {editingManager ? (
                 <>
@@ -939,10 +939,10 @@ export default function UtilityManagersPage() {
 
       {/* View Details Modal */}
       <Dialog open={!!viewingManager} onOpenChange={() => setViewingManager(null)}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-xl border-slate-200/50 shadow-2xl shadow-slate-200/50 rounded-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-xl">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 flex items-center justify-center">
+              <div className="dashboard-modal-accent h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
                 <Eye className="h-5 w-5 text-white" />
               </div>
               Manager Details
@@ -955,7 +955,7 @@ export default function UtilityManagersPage() {
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
                     <Avatar className="h-16 w-16 shadow-lg ring-2 ring-cyan-200">
-                      <AvatarFallback className="text-xl font-bold bg-gradient-to-br from-sky-500 to-cyan-600 text-white">
+                      <AvatarFallback className="text-xl font-bold bg-primary text-white">
                         {getInitials(viewingManager.name)}
                       </AvatarFallback>
                     </Avatar>
@@ -995,7 +995,7 @@ export default function UtilityManagersPage() {
                     <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
                       <CardContent className="p-5">
                         <div className="flex items-center gap-3 mb-4">
-                          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-700 flex items-center justify-center">
+                          <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
                             <WaterUtilityIcon className="h-5 w-5 text-white" />
                           </div>
                           <div>
@@ -1054,7 +1054,7 @@ export default function UtilityManagersPage() {
                               const dmaEngineers = engineers.filter(e => e.dmaId === dma.id)
                               const dmaReports = reports.filter(r => r.dmaId === dma.id)
                               return (
-                                <div key={dma.id} className="rounded-xl border border-slate-200/80 bg-gradient-to-r from-slate-50/50 to-white p-4">
+                                <div key={dma.id} className="rounded-xl border border-border bg-gradient-to-r from-slate-50/50 to-white p-4">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                       <MapPin className="h-4 w-4 text-cyan-500" />

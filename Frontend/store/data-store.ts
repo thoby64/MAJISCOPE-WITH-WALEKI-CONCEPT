@@ -208,21 +208,6 @@ export interface StorageFacilitySnap {
   deactivatedAt: string | null
 }
 
-export interface RegisterSensorInput {
-  device_id: string
-  storage_facility_id?: string
-  water_source_id?: string
-  asset_type?: "storage_facility" | "water_source"
-  category?: SensorCategory
-  h1_m?: number
-  depth_m?: number
-  warning_height_m?: number
-  critical_height_m?: number
-  activated?: boolean
-  dma_id?: string | null
-  parameter_thresholds?: Record<string, Record<string, number>>
-}
-
 function serializeUtilityPayload(data: Partial<Utility>) {
   return {
     ...(data.name !== undefined ? { name: data.name } : {}),
@@ -491,11 +476,6 @@ interface DataState {
     options?: { sensorId?: string; startAt?: string; endAt?: string }
   ) => Promise<void>
   fetchSensorReadings: (storageFacilityId: string, sensorId: string, options?: { limit?: number; startAt?: string; endAt?: string; category?: SensorCategory }) => Promise<StorageFacilityReading[]>
-  registerSensor: (data: RegisterSensorInput) => Promise<SensorSnap>
-  updateSensor: (deviceId: string, data: Partial<RegisterSensorInput>) => Promise<SensorSnap>
-  deleteSensor: (deviceId: string) => Promise<void>
-  detectSensorDma: (storageFacilityId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
-  detectWaterSourceDma: (waterSourceId: string) => Promise<{ dmaId: string | null; dmaName: string | null }>
   updateStorageFacilityStatus: (storageFacilityId: string, status: "active" | "deactivated") => Promise<StorageFacilitySnap>
   updateWaterSourceStatus: (waterSourceId: string, status: "active" | "deactivated") => Promise<WaterSourceSnap>
   getUnreadNotificationCount: () => number
@@ -721,16 +701,25 @@ export const useDataStore = create<DataState>((set, get) => ({
             typeof response.data.total === "number" ? response.data.total : transformed.length,
         })
       } else if (!isAbortLikeError(response.error, response.code)) {
-        console.error("Error fetching reports:", response.error)
+        console.warn("Unable to fetch reports:", {
+          endpoint,
+          error: response.error,
+          code: response.code,
+          details: response.details,
+        })
       }
     } catch (error) {
       if (!isAbortLikeError(error)) console.error("Error fetching reports:", error)
     }
   },
 
-  // Load every report with GPS for the map (paginates until the API total is reached).
+  // Load the complete scoped report set for dashboard totals and charts.
+  // Map marker rendering filters out records without usable coordinates.
   fetchReportsForMap: async (filters?: { utilityId?: string; dmaId?: string }) => {
-    const pageSize = 500
+    // Keep map pages deliberately small: the general report serializer also
+    // includes photo and assignment metadata, which can overwhelm hosted DBs
+    // when a single map request asks for hundreds of rows.
+    const pageSize = 100
     const maxPages = 500
 
     const loadReportsForScope = async (scope?: { utilityId?: string; dmaId?: string }) => {
@@ -738,12 +727,12 @@ export const useDataStore = create<DataState>((set, get) => ({
       let total = 0
       let skip = 0
       let page = 0
+      let failed = false
 
       while (page < maxPages) {
         const params = new URLSearchParams()
         if (scope?.utilityId) params.set("utility_id", scope.utilityId)
         if (scope?.dmaId) params.set("dma_id", scope.dmaId)
-        params.set("has_coordinates", "true")
         params.set("limit", String(pageSize))
         params.set("skip", String(skip))
 
@@ -751,8 +740,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         const response = await apiClient.get<{ total?: number; items?: unknown[] }>(endpoint)
         if (!response.success || !response.data) {
           if (!isAbortLikeError(response.error, response.code)) {
-            console.error("Error fetching reports for map:", response.error)
+            console.warn("Unable to load reports for the map:", {
+              endpoint,
+              error: response.error,
+              code: response.code,
+              details: response.details,
+            })
           }
+          failed = true
           break
         }
 
@@ -773,11 +768,16 @@ export const useDataStore = create<DataState>((set, get) => ({
       return {
         reports: collected,
         total: total || collected.length,
+        failed,
       }
     }
 
     try {
       let result = await loadReportsForScope(filters)
+
+      // Keep the last working map data on a failed page instead of replacing
+      // it with an incomplete (or empty) result.
+      if (result.failed) return
 
       if (!filters?.utilityId && !filters?.dmaId && result.reports.length === 0) {
         const utilities = get().utilities
@@ -796,6 +796,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           result = {
             reports: Array.from(byId.values()),
             total: total || byId.size,
+            failed: false,
           }
         }
       }
@@ -1002,102 +1003,6 @@ export const useDataStore = create<DataState>((set, get) => ({
       throw new Error(response.error || "Failed to load sensor analytics readings")
     }
     return ((response.data as { items?: unknown[] }).items ?? []).map(transformKeys) as StorageFacilityReading[]
-  },
-
-  registerSensor: async (data: RegisterSensorInput) => {
-    try {
-      const isWaterSource = data.asset_type === "water_source" || Boolean(data.water_source_id)
-      const { asset_type: _assetType, ...body } = data
-      const response = await apiClient.post(isWaterSource ? "/water-source-sensors" : "/sensors", body, { skipCache: true })
-      if (!response.success) throw new Error(response.error || "Failed to register sensor")
-      const created = transformKeys(response.data || {}) as SensorSnap
-      created.assetType = isWaterSource ? "water_source" : "storage_facility"
-      created.parentAssetId = created.waterSourceId ?? created.storageFacilityId ?? ""
-      created.parentAssetName = created.waterSourceName ?? created.storageFacilityName ?? null
-      apiClient.invalidateCache("/sensors")
-      apiClient.invalidateCache("/water-source-sensors")
-      set((state) => ({ sensors: upsertEntity(state.sensors, created) }))
-      void get().fetchStorageFacilities()
-      if (isWaterSource) void get().fetchWaterSources()
-      return created
-    } catch (error) {
-      console.error("Error registering sensor:", error)
-      throw error
-    }
-  },
-
-  updateSensor: async (deviceId: string, data: Partial<RegisterSensorInput>) => {
-    try {
-      const existing = get().sensors.find((sensor) => sensor.deviceId === deviceId)
-      if (!existing) throw new Error("Sensor details are not loaded. Refresh the sensor list and try again.")
-      const isWaterSource =
-        existing.assetType === "water_source" ||
-        data.asset_type === "water_source" ||
-        Boolean(data.water_source_id)
-      const { asset_type: _assetType, ...body } = data
-      const endpoint = isWaterSource ? "/water-source-sensors" : "/sensors"
-      const response = await apiClient.patch(`${endpoint}/${encodeURIComponent(deviceId)}`, body, { skipCache: true })
-      if (!response.success) throw new Error(response.error || "Failed to update sensor")
-      const updatedData = transformKeys(response.data || {}) as Partial<SensorSnap>
-      const updated = {
-        ...existing,
-        ...updatedData,
-      } as SensorSnap
-      updated.assetType = isWaterSource ? "water_source" : "storage_facility"
-      updated.parentAssetId = updated.waterSourceId ?? updated.storageFacilityId ?? existing.parentAssetId
-      updated.parentAssetName =
-        updated.waterSourceName ?? updated.storageFacilityName ?? existing.parentAssetName
-      apiClient.invalidateCache("/sensors")
-      apiClient.invalidateCache("/water-source-sensors")
-      set((state) => ({ sensors: upsertEntity(state.sensors, updated) }))
-      void get().fetchSensors()
-      void get().fetchStorageFacilities()
-      if (isWaterSource) void get().fetchWaterSources()
-      return updated
-    } catch (error) {
-      console.error("Error updating sensor:", error)
-      throw error
-    }
-  },
-
-  deleteSensor: async (deviceId: string) => {
-    try {
-      const isWaterSource = get().sensors.find((sensor) => sensor.deviceId === deviceId)?.assetType === "water_source"
-      const endpoint = isWaterSource ? "/water-source-sensors" : "/sensors"
-      const response = await apiClient.delete(`${endpoint}/${encodeURIComponent(deviceId)}`, { skipCache: true })
-      if (!response.success) throw new Error(response.error || "Failed to delete sensor")
-      apiClient.invalidateCache("/sensors")
-      apiClient.invalidateCache("/water-source-sensors")
-      set((state) => ({ sensors: state.sensors.filter((s) => s.deviceId !== deviceId) }))
-      void get().fetchStorageFacilities()
-      if (isWaterSource) void get().fetchWaterSources()
-    } catch (error) {
-      console.error("Error deleting sensor:", error)
-      throw error
-    }
-  },
-
-  detectSensorDma: async (storageFacilityId: string) => {
-    try {
-      const response = await apiClient.get(`/storage-facilities/${storageFacilityId}/detect-dma`, { skipCache: true })
-      if (response.success && response.data) {
-        const data = transformKeys(response.data) as { dmaId: string | null; dmaName: string | null }
-        return { dmaId: data.dmaId ?? null, dmaName: data.dmaName ?? null }
-      }
-      return { dmaId: null, dmaName: null }
-    } catch (error) {
-      console.error("Error detecting storage-facility DMA:", error)
-      return { dmaId: null, dmaName: null }
-    }
-  },
-
-  detectWaterSourceDma: async (waterSourceId: string) => {
-    const response = await apiClient.get(`/water-sources/${waterSourceId}/detect-dma`, { skipCache: true })
-    if (!response.success || !response.data) {
-      throw new Error(response.error || "Failed to detect water-source DMA")
-    }
-    const data = transformKeys(response.data) as { dmaId: string | null; dmaName: string | null }
-    return { dmaId: data.dmaId ?? null, dmaName: data.dmaName ?? null }
   },
 
   updateStorageFacilityStatus: async (storageFacilityId: string, status: "active" | "deactivated") => {

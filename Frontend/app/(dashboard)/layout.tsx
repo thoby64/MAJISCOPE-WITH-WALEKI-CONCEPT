@@ -27,6 +27,14 @@ export default function DashboardLayout({
     setHydrated(true)
   }, [])
 
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.dashboardContentTheme = "active"
+    return () => {
+      delete root.dataset.dashboardContentTheme
+    }
+  }, [])
+
   // Initialize live API-backed store state on first load
   useEffect(() => {
     if (hydrated && !initialized) {
@@ -54,7 +62,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider defaultOpen={false}>
+    <SidebarProvider defaultOpen={true}>
       <TopbarTitleProvider>
         <div className="flex w-full h-screen">
           <AppSidebar />
@@ -63,10 +71,10 @@ export default function DashboardLayout({
             <SidebarInset className="relative m-0 min-h-[calc(100svh-3.5rem)] min-w-0 rounded-none bg-background">
               <main
                 className={cn(
-                  "flex-1 bg-background text-slate-900 dark:text-slate-100",
+                  "dashboard-content-area flex-1 bg-background text-foreground",
                   isHydraulicWorkspace
                     ? "overflow-hidden p-0"
-                    : "overflow-y-auto overflow-x-hidden p-6"
+                    : "overflow-y-auto overflow-x-hidden px-5 py-6 xl:px-8 xl:py-7"
                 )}
               >
                 {children}

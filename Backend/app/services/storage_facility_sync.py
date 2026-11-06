@@ -131,6 +131,8 @@ def detect_storage_facility_raw_name(properties: Dict[str, Any]) -> Any:
         for key in properties.keys()
     }
     for candidate in STORAGE_FACILITY_NAME_KEY_CANDIDATES:
+        if candidate == "fid":
+            continue
         canonical_candidate = _canonical_key(candidate)
         original_key = canonical_to_original.get(canonical_candidate)
         if original_key is None:
@@ -288,6 +290,7 @@ def sync_storage_facilities_from_layer(
         # Raw name from the first name-like field (even if numeric) so we can
         # fold numeric identifiers into a "STORAGE_FACILITY-<n>" default.
         raw_name_value = detect_storage_facility_raw_name(properties)
+        display_name = _resolve_storage_facility_name(raw_name_value)
 
         geometry = feature.get("geometry")
 
@@ -304,12 +307,10 @@ def sync_storage_facilities_from_layer(
         else:
             fid = None
 
-        name: Optional[str] = None
         source_key: Optional[str] = None
         if key_field is not None:
             raw_value = properties.get(key_field)
             source_key = str(raw_value).strip()
-            name = source_key or None
             if not source_key:
                 source_key = None
 
@@ -336,7 +337,7 @@ def sync_storage_facilities_from_layer(
             continue
 
         # Human-readable fallback: never display coordinates as a storage_facility name.
-        fallback_name = name or _resolve_storage_facility_name(raw_name_value)
+        fallback_name = display_name
 
         # Check if we've already seen this source_key in the current batch
         # to avoid creating duplicate storage_facilities within the same batch.
@@ -380,13 +381,12 @@ def sync_storage_facilities_from_layer(
         else:
             was_deactivated = existing.status == StorageFacilityStatusEnum.DEACTIVATED
             # Prefer real names; otherwise upgrade placeholders when possible.
-            if _is_usable_name(name):
-                existing.name = name
+            if _is_usable_name(display_name):
+                existing.name = display_name
             elif _name_priority(existing.name) < 2:
                 # Existing name is plain "STORAGE_FACILITY" or unusable; try to use raw value.
-                candidate = _resolve_storage_facility_name(raw_name_value)
-                if _name_priority(candidate) > _name_priority(existing.name):
-                    existing.name = candidate
+                if _name_priority(display_name) > _name_priority(existing.name):
+                    existing.name = display_name
             existing.latitude = latitude if latitude is not None else existing.latitude
             existing.longitude = longitude if longitude is not None else existing.longitude
             if was_deactivated:

@@ -5,6 +5,7 @@ import { PALETTE } from "@/lib/palette"
 
 import "./globals.css"
 
+
 export const metadata: Metadata = {
   title: "Majiscope - Water Leakage Management System",
   description:

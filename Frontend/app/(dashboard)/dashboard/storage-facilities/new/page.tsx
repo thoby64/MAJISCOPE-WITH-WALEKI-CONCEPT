@@ -32,9 +32,6 @@ export default function StorageFacilityCreatePage() {
       latitude: null,
       longitude: null,
       custom_attributes: [],
-      register_sensor: false,
-      sensor_device_id: '',
-      sensor_activated: false,
     },
   });
 
@@ -74,7 +71,7 @@ export default function StorageFacilityCreatePage() {
       setIsSubmitting(false);
       return;
     }
-    if (!values.latitude || !values.longitude) {
+    if (values.latitude === null || values.latitude === undefined || values.longitude === null || values.longitude === undefined) {
       toast.error('Storage facility location (latitude and longitude) is required');
       setIsSubmitting(false);
       return;
@@ -93,7 +90,7 @@ export default function StorageFacilityCreatePage() {
 
       // Call backend API
       const response = await apiClient.post<{ storage_facility_id: string }>(
-        `/api/utilities/${utilityId}/storage-facilities/manual`,
+        `/utilities/${utilityId}/storage-facilities/manual`,
         payload
       );
 
@@ -135,7 +132,7 @@ export default function StorageFacilityCreatePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Add Storage Facility</h1>
             <p className="text-sm text-slate-500">
-              Register a new storage facility and optionally link a sensor.
+              Register a new storage facility.
             </p>
           </div>
         </div>
@@ -161,7 +158,7 @@ export default function StorageFacilityCreatePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Add Storage Facility</h1>
             <p className="text-sm text-slate-500">
-              Register a new storage facility and optionally link a sensor.
+              Register a new storage facility.
             </p>
           </div>
         </div>
@@ -213,7 +210,7 @@ export default function StorageFacilityCreatePage() {
                   </li>
                   <li className="flex gap-3">
                     <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold">3</div>
-                    <p>Optionally register a sensor device to start monitoring.</p>
+                    <p>Review the details, then create the storage facility.</p>
                   </li>
                 </ul>
               </div>

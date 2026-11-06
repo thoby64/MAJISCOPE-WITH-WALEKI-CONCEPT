@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ROLE_LABELS, getRoleBadgeClass } from "@/lib/constants"
+import { ROLE_LABELS } from "@/lib/constants"
 import { transformKeys } from "@/lib/transform-data"
 import { 
   Loader2, 
@@ -160,24 +160,24 @@ export default function ProfilePage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-cyan-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       ) : userRecord ? (
         <>
           {/* Profile Header Card */}
-          <Card className="overflow-hidden border-0 bg-gradient-to-r from-slate-50 via-cyan-50 to-blue-50 shadow-lg">
+          <Card className="overflow-hidden border border-border/70 bg-card shadow-sm">
             <CardContent className="p-8">
               <div className="flex flex-col items-center text-center sm:flex-row sm:text-left gap-6">
                 {/* Avatar */}
-                <div className={`h-20 w-20 rounded-2xl bg-gradient-to-br ${getRoleBadgeClass(currentUser?.role || "")} flex items-center justify-center text-white text-2xl font-bold shadow-lg shrink-0`}>
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-sm">
                   {initials}
                 </div>
 
                 {/* User Info */}
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-slate-900 mb-2">{currentUser?.name}</h1>
+                  <h1 className="mb-2 text-2xl font-bold text-foreground">{currentUser?.name}</h1>
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
-                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-3 py-1">
+                    <Badge className="bg-primary px-3 py-1 text-primary-foreground">
                       {ROLE_LABELS[currentUser?.role || "user"]}
                     </Badge>
                     <Badge variant={userRecord.status === "active" ? "default" : "secondary"} className="px-3 py-1">
@@ -202,11 +202,11 @@ export default function ProfilePage() {
           {/* Main Profile Information */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Editable Fields */}
-            <Card className="lg:col-span-2 border-slate-200 shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+            <Card className="lg:col-span-2 border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+              <CardHeader className="border-b border-border bg-secondary/55">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <User className="h-5 w-5 text-cyan-600" />
+                    <User className="h-5 w-5 text-primary" />
                     Personal Information
                   </CardTitle>
                   {!isEditing && (
@@ -214,7 +214,7 @@ export default function ProfilePage() {
                       onClick={() => setIsEditing(true)}
                       size="sm"
                       variant="outline"
-                      className="border-cyan-200 text-cyan-600 hover:bg-cyan-50"
+                      className="border-border text-primary hover:bg-secondary"
                     >
                       Edit
                     </Button>
@@ -225,45 +225,45 @@ export default function ProfilePage() {
                 <div className="space-y-6">
                   {/* Full Name */}
                   <div className="flex flex-col gap-2">
-                    <Label className="text-sm font-semibold text-slate-700">Full Name</Label>
+                    <Label className="text-sm font-semibold text-foreground">Full Name</Label>
                     {isEditing ? (
                       <Input
                         value={editData.name}
                         onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                        className="border-cyan-200 focus:border-cyan-500 focus:ring-cyan-500"
+                        className="border-border bg-secondary focus-visible:border-primary focus-visible:ring-primary/15"
                       />
                     ) : (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                      <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary p-3">
                         <User className="h-4 w-4 text-slate-400" />
-                        <span className="text-slate-900 font-medium">{userRecord.name}</span>
+                        <span className="font-medium text-foreground">{userRecord.name}</span>
                       </div>
                     )}
                   </div>
 
                   {/* Phone Number */}
                   <div className="flex flex-col gap-2">
-                    <Label className="text-sm font-semibold text-slate-700">Phone Number</Label>
+                    <Label className="text-sm font-semibold text-foreground">Phone Number</Label>
                     {isEditing ? (
                       <Input
                         value={editData.phone}
                         onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
                         placeholder="Enter phone number"
-                        className="border-cyan-200 focus:border-cyan-500 focus:ring-cyan-500"
+                        className="border-border bg-secondary focus-visible:border-primary focus-visible:ring-primary/15"
                       />
                     ) : (
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                      <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary p-3">
                         <Phone className="h-4 w-4 text-slate-400" />
-                        <span className="text-slate-900 font-medium">{userRecord.phone || "Not provided"}</span>
+                        <span className="font-medium text-foreground">{userRecord.phone || "Not provided"}</span>
                       </div>
                     )}
                   </div>
 
                   {isEditing && (
-                    <div className="flex gap-3 pt-4 border-t border-slate-200">
+                    <div className="flex gap-3 border-t border-border pt-4">
                       <Button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+                        className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
                       >
                         {isSaving ? (
                           <>
@@ -286,7 +286,7 @@ export default function ProfilePage() {
                           })
                         }}
                         variant="outline"
-                        className="flex-1 border-slate-200"
+                        className="flex-1 border-border"
                       >
                         Cancel
                       </Button>
@@ -297,10 +297,10 @@ export default function ProfilePage() {
             </Card>
 
             {/* Account Details (Read-only) */}
-            <Card className="border-slate-200 shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+            <Card className="border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+              <CardHeader className="border-b border-border bg-secondary/55">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Shield className="h-5 w-5 text-emerald-600" />
+                  <Shield className="h-5 w-5 text-primary" />
                   Account Details
                 </CardTitle>
               </CardHeader>
@@ -308,16 +308,16 @@ export default function ProfilePage() {
                 {/* Email */}
                 <div className="flex flex-col gap-2">
                   <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email Address</Label>
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200">
+                  <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary p-3">
                     <Mail className="h-4 w-4 text-slate-400" />
-                    <span className="text-sm text-slate-900 font-medium truncate">{userRecord.email}</span>
+                    <span className="truncate text-sm font-medium text-foreground">{userRecord.email}</span>
                   </div>
                 </div>
 
                 {/* Role */}
                 <div className="flex flex-col gap-2">
                   <Label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</Label>
-                  <Badge className={`w-fit bg-gradient-to-r ${getRoleBadgeClass(currentUser?.role || "")} text-white`}>
+                  <Badge className="w-fit bg-primary text-primary-foreground">
                     {ROLE_LABELS[currentUser?.role || "user"]}
                   </Badge>
                 </div>
@@ -335,10 +335,10 @@ export default function ProfilePage() {
 
           {/* Assignment Information */}
           {(userRecord.utilityId || userRecord.dmaId) && (
-            <Card className="border-slate-200 shadow-md hover:shadow-lg transition-shadow">
-              <CardHeader className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+            <Card className="border-border bg-card shadow-sm transition-shadow hover:shadow-md">
+              <CardHeader className="border-b border-border bg-secondary/55">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <MapPin className="h-5 w-5 text-blue-600" />
+                  <MapPin className="h-5 w-5 text-primary" />
                   Organizational Assignment
                 </CardTitle>
               </CardHeader>
@@ -347,22 +347,22 @@ export default function ProfilePage() {
                   {userRecord.utilityId && (
                     <div className="flex flex-col gap-2">
                       <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <WaterUtilityIcon className="h-4 w-4 text-cyan-600" />
+                        <WaterUtilityIcon className="h-4 w-4 text-primary" />
                         Assigned Utility
                       </Label>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-cyan-50 border border-cyan-200">
-                        <span className="text-slate-900 font-medium">{getUtilityName(userRecord.utilityId)}</span>
+                      <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary p-3">
+                        <span className="font-medium text-foreground">{getUtilityName(userRecord.utilityId)}</span>
                       </div>
                     </div>
                   )}
                   {userRecord.dmaId && (
                     <div className="flex flex-col gap-2">
                       <Label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                        <WaterUtilityIcon className="h-4 w-4 text-emerald-600" />
+                        <WaterUtilityIcon className="h-4 w-4 text-primary" />
                         Assigned DMA
                       </Label>
-                      <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
-                        <span className="text-slate-900 font-medium">{getDMAName(userRecord.dmaId)}</span>
+                      <div className="flex items-center gap-3 rounded-lg border border-border bg-secondary p-3">
+                        <span className="font-medium text-foreground">{getDMAName(userRecord.dmaId)}</span>
                       </div>
                     </div>
                   )}

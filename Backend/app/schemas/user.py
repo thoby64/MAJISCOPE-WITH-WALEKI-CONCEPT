@@ -586,7 +586,7 @@ class ReportResponse(BaseModel):
     report_type: str = "leakage"
     leakage_type: Optional[str] = None
     status: str
-    utility_id: str
+    utility_id: Optional[str] = None
     utility_name: Optional[str] = None
     dma_id: Optional[str] = None
     dma_name: Optional[str] = None

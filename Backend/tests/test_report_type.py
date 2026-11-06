@@ -57,3 +57,28 @@ def test_mobile_payload_keeps_high_priority_input() -> None:
         leakage_type=None,
     )
     assert payload.priority == "High"
+
+
+def test_report_list_accepts_reports_without_utility(client, db, admin_auth_headers) -> None:
+    report = Report(
+        tracking_id="UNASSIGNED-UTILITY-TEST",
+        description="Unassigned report with map coordinates",
+        latitude=-6.1,
+        longitude=35.7,
+        leakage_type="unknown",
+        utility_id=None,
+        reporter_name="Test reporter",
+        reporter_phone="N/A",
+        sla_deadline=datetime.utcnow() + timedelta(days=7),
+    )
+    db.add(report)
+    db.commit()
+
+    response = client.get(
+        "/api/reports?has_coordinates=true&limit=500&skip=0",
+        headers=admin_auth_headers,
+    )
+
+    assert response.status_code == 200
+    item = next(item for item in response.json()["items"] if item["id"] == report.id)
+    assert item["utility_id"] is None

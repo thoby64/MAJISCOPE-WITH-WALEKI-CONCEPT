@@ -1,39 +1,46 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: majiscope-db
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: majiscope/backend:local
+    container_name: majiscope-backend
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
-      POSTGRES_USER: majiscope
-      POSTGRES_PASSWORD: majiscope_password
-      POSTGRES_DB: majiscope_db
+      HOST: 0.0.0.0
+      PORT: 8000
+      MEDIA_STORAGE_PATH: /data/media
+    command:
+      - sh
+      - -c
+      - alembic -c alembic.sensor.ini upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
-      - "5432:5432"
+      - "127.0.0.1:8000:8000"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - type: bind
+        source: 'D:\majiscope\backend-media'
+        target: /data/media
     healthcheck:
       test:
-        - CMD-SHELL
-        - pg_isready -U majiscope
-      interval: 10s
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 15s
       timeout: 5s
       retries: 5
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: majiscope-pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@majiscope.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-
-volumes:
-  postgres_data:
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    networks:
+      - majiscope-app
 
 networks:
-  default:
-    name: majiscope-network
+  majiscope-app:
+    name: majiscope-app
+    external: true

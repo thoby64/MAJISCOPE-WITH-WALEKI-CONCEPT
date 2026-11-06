@@ -800,7 +800,7 @@ export function OperationsMap({
   }, [aggregateMarkers, assetLayers, boundaryLayers, initialBounds, networkLayers, preferInitialBounds, showBoundaries, validReports])
 
   return (
-    <div className="h-full overflow-hidden rounded-[30px] border border-slate-300/85 bg-slate-100 shadow-[0_28px_80px_-52px_rgba(15,23,42,0.4)]">
+    <div className="relative isolate z-0 h-full overflow-hidden rounded-[30px] border border-slate-300/85 bg-slate-100 shadow-[0_28px_80px_-52px_rgba(15,23,42,0.4)]">
       <div className="relative h-full">
         {isCommandCenter ? (
           <style jsx global>{`

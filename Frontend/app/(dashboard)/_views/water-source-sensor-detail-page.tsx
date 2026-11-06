@@ -2,16 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, BarChart3, Droplets, FlaskConical, MapPin, Plus, RefreshCw, Waves } from "lucide-react"
+import { ArrowLeft, BarChart3, Droplets, FlaskConical, MapPin, RefreshCw, Waves } from "lucide-react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { RegisterWaterSourceSensorModal } from "@/components/water-level/register-water-source-sensor-modal"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import { formatTanzaniaDateTime } from "@/lib/date-time"
 import { WATER_LEVEL_POLL_INTERVAL_MS, WATER_SOURCE_READING_HISTORY_LIMIT } from "@/lib/water-level"
-import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type SensorCategory } from "@/store/data-store"
 
 const PARAMETER_LABELS: Record<string, string> = {
@@ -30,7 +28,6 @@ export default function WaterSourceSensorDetailPage() {
   const router = useRouter()
   const params = useParams<{ waterSourceId: string }>()
   const waterSourceId = Array.isArray(params?.waterSourceId) ? params.waterSourceId[0] : params?.waterSourceId
-  const { currentUser } = useAuthStore()
   const {
     sensors,
     waterSources,
@@ -40,7 +37,6 @@ export default function WaterSourceSensorDetailPage() {
     fetchWaterSourceReadings,
   } = useDataStore()
   const [category, setCategory] = useState<SensorCategory>("water_level")
-  const [registerOpen, setRegisterOpen] = useState(false)
 
   const source = waterSources.find((item) => item.id === waterSourceId)
   const sourceSensors = useMemo(
@@ -51,7 +47,6 @@ export default function WaterSourceSensorDetailPage() {
   const activeSensor = sourceSensors.find((sensor) => sensor.category === category && sensor.activated)
   const readings = waterSourceReadingsByWaterSource[`${waterSourceId}:${category}`] ?? []
   const latestReading = readings[0] ?? activeSensor?.lastReading
-  const canManage = currentUser?.role === "admin" || currentUser?.role === "utility_manager"
 
   useEffect(() => {
     if (!waterSourceId) return
@@ -116,16 +111,11 @@ export default function WaterSourceSensorDetailPage() {
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Installed sensors</p>
                   <p className="mt-1 text-lg font-semibold text-slate-900">
-                    {source.activeSensorCount} active · {sourceSensors.length} registered
+                    {source.activeSensorCount} active · {sourceSensors.length} linked
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <WaterStatusPill status={activeSensor?.status ?? "inactive"} />
-                  {canManage && (
-                    <Button size="sm" onClick={() => setRegisterOpen(true)}>
-                      <Plus className="mr-1.5 h-4 w-4" /> Register sensor
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -180,8 +170,8 @@ export default function WaterSourceSensorDetailPage() {
               {!activeSensor ? (
                 <p className="mt-4 text-sm text-slate-500">
                   {sourceSensors.some((sensor) => sensor.category === category)
-                    ? "The registered sensor is inactive."
-                    : `No ${category === "water_level" ? "water-level" : "water-quality"} sensor is registered for this source.`}
+                    ? "The linked sensor is inactive."
+                    : `No ${category === "water_level" ? "water-level" : "water-quality"} sensor is linked to this source.`}
                 </p>
               ) : !latestReading ? (
                 <p className="mt-4 text-sm text-slate-500">Waiting for the first reading from {activeSensor.deviceId}.</p>
@@ -244,11 +234,6 @@ export default function WaterSourceSensorDetailPage() {
               )}
             </CardContent>
           </Card>
-          <RegisterWaterSourceSensorModal
-            open={registerOpen}
-            onOpenChange={setRegisterOpen}
-            defaultWaterSourceId={waterSourceId}
-          />
         </>
       )}
     </div>

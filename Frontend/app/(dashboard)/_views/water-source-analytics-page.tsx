@@ -204,7 +204,7 @@ export default function WaterSourceAnalyticsPage({ category }: { category: Senso
       </div>
 
       {error && <Card className="border-rose-200 bg-rose-50"><CardContent className="p-4 text-sm text-rose-700">{error}</CardContent></Card>}
-      {!sensor && !loading && <Card><CardContent className="p-6 text-sm text-slate-600">This sensor is not registered as an active sensor of the selected category on this source.</CardContent></Card>}
+      {!sensor && !loading && <Card><CardContent className="p-6 text-sm text-slate-600">No active sensor is linked to this source for the selected category.</CardContent></Card>}
       {loading ? (
         <Card><CardContent className="p-12 text-center text-sm text-slate-500">Loading sensor history…</CardContent></Card>
       ) : sensor && (

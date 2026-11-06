@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import type { MouseEvent } from "react"
-import { useTheme } from "next-themes"
 import { useAuthStore } from "@/store/auth-store"
 import { NAV_ITEMS } from "@/lib/constants"
 import {
@@ -16,18 +15,50 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 import { BrandWordmark } from "@/components/shared/brand-wordmark"
 import { cleanupHydraulicWorkspaceSession } from "@/lib/hydraulic-workspace"
 
+const NAV_SECTIONS = [
+  {
+    label: "Operations",
+    hrefs: ["/dashboard", "/dashboard/reports", "/dashboard/location-routing", "/dashboard/notifications"],
+  },
+  {
+    label: "Water network",
+    hrefs: ["/dashboard/utilities", "/dashboard/utility-infrastructure", "/dashboard/dmas"],
+  },
+  {
+    label: "Monitoring & insight",
+    hrefs: [
+      "/dashboard/hydraulic-model",
+      "/dashboard/hydraulic-reports",
+      "/dashboard/sensor-data",
+      "/dashboard/sensors",
+      "/dashboard/analytics",
+    ],
+  },
+  {
+    label: "People & access",
+    hrefs: [
+      "/dashboard/managers",
+      "/dashboard/dma-managers",
+      "/dashboard/engineers",
+      "/dashboard/teams",
+      "/dashboard/team-leaders",
+      "/dashboard/logs",
+    ],
+  },
+] as const
+
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const { currentUser } = useAuthStore()
   const { state, isMobile, setOpenMobile } = useSidebar()
-  const { resolvedTheme } = useTheme()
   const isCollapsed = !isMobile && state === "collapsed"
   const isHydraulicWorkspace = pathname === "/dashboard/hydraulic-model/workspace"
 
@@ -45,130 +76,110 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar 
-      collapsible="icon" 
+    <Sidebar
+      collapsible="icon"
       overlayExpandedDesktop={isHydraulicWorkspace}
-      className="border-r border-slate-300/80 bg-sidebar shadow-[8px_0_24px_-26px_rgba(15,23,42,0.38)]"
+      className="border-r border-[#2b424e] bg-sidebar text-sidebar-foreground shadow-[8px_0_28px_-28px_rgba(18,39,28,0.7)]"
     >
-      <div className="absolute inset-0 bg-slate-200/45 dark:bg-transparent pointer-events-none" />
-      <div className="absolute top-0 left-0 right-0 h-px bg-slate-400/70 dark:bg-slate-700/70" />
-
       <SidebarHeader className={cn(
-        "border-b border-slate-300/80 relative bg-slate-200/55 backdrop-blur-sm dark:border-slate-700/60 dark:bg-slate-900/60",
-        isCollapsed ? "px-2 py-4" : "px-5 py-6"
+        "relative flex-row items-center justify-between gap-2 border-b border-sidebar-border bg-[#192f3b] px-3 py-4",
+        isCollapsed && "items-center px-2 py-4"
       )}>
-        <Link href="/dashboard" onClick={(event) => void handleWorkspaceNavigation(event, "/dashboard")} className={cn(
-          "flex items-center",
-          isCollapsed ? "justify-center" : "gap-4"
-        )}>
-          <div className={cn(
-            "relative flex items-center justify-center",
-            isCollapsed ? "h-10 w-10" : "h-14 w-14"
+        <Link
+          href="/dashboard"
+          onClick={(event) => void handleWorkspaceNavigation(event, "/dashboard")}
+          aria-label="MajiScope home"
+          className={cn("flex min-w-0 items-center", isCollapsed ? "flex-1 justify-center" : "gap-3")}
+        >
+          <span className={cn(
+            "flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#e9efec] shadow-sm",
+            isCollapsed ? "h-10 w-10" : "h-11 w-11"
           )}>
-            <div className={cn(
-              "relative flex items-center justify-center rounded-xl border border-slate-300 bg-slate-100 shadow-sm shadow-slate-900/[0.04] transition-shadow duration-500 hover:shadow-slate-900/[0.08]",
-              isCollapsed ? "h-10 w-10" : "h-full w-full rounded-2xl"
-            )}>
-              <img 
-                src="/logo1.png" 
-                alt="MajiScope Logo" 
-                className={cn(
-                  "object-contain rounded-lg",
-                  isCollapsed ? "h-6 w-6" : "h-9 w-9"
-                )}
-              />
-            </div>
-          </div>
-
-          {!isCollapsed && (
-            <div className="flex flex-col gap-0.5">
+            <img src="/logo1.png" alt="" className="h-7 w-7 rounded-md object-contain" />
+          </span>
+          {!isCollapsed ? (
+            <span className="flex min-w-0 flex-col">
               <BrandWordmark
                 size="sm"
-                theme={resolvedTheme === "dark" ? "dark" : "light"}
+                theme="dark"
                 wordClassName="leading-none"
-                underlineClassName="mt-1 h-0.5"
               />
-              <span className="mt-2 font-serif text-[11px] font-bold italic tracking-normal text-slate-600 dark:text-slate-400">
-                <span className="text-cyan-700 dark:text-cyan-400">Smart Water.</span>{" "}
-                <span>Informed Management.</span>
+              <span className="mt-1.5 truncate font-serif text-[11px] italic tracking-[0.01em] text-[#c4d2d2]">
+                <span className="bg-gradient-to-r from-[#75b9b2] via-[#8bc4bc] to-[#9abdc3] bg-clip-text text-transparent">Smart Water.</span>{" "}
+                <span className="text-[#c4d2d2]">Informed Management.</span>
               </span>
-            </div>
-          )}
+            </span>
+          ) : null}
         </Link>
+        {!isMobile && !isCollapsed ? (
+          <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-[#4b7478] bg-gradient-to-br from-[#2a5860] to-[#203f4b] text-[#b8ded9] shadow-[0_5px_14px_-8px_rgba(0,0,0,0.8)] transition-all hover:border-[#78bdb5] hover:from-[#34717a] hover:to-[#28545f] hover:text-white focus-visible:ring-[#66c6bf]/55 [&_svg]:drop-shadow-[0_1px_2px_rgba(87,207,191,0.4)]" />
+        ) : null}
       </SidebarHeader>
 
       <SidebarContent className={cn(
-        "flex flex-col h-full relative",
-        isCollapsed ? "px-1 py-2" : "px-3 pt-4 pb-16"
+        "relative flex-1 overflow-x-hidden overflow-y-auto py-3",
+        isCollapsed ? "px-1.5" : "px-3"
       )}>
-        <SidebarGroup className="flex-1 flex flex-col h-full">
-          <SidebarGroupLabel className={cn(
-            "text-slate-500 text-[10px] uppercase tracking-[0.15em] font-semibold mb-2",
-            isCollapsed ? "px-0 text-center hidden" : "px-2"
-          )}>
-            {!isCollapsed && "Navigation"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent className="flex-1 flex flex-col">
-            <SidebarMenu className={cn(
-              "flex flex-col",
-              isCollapsed ? "gap-0 items-center justify-between flex-1 h-full" : "gap-1.5"
-            )}>
-              {visibleItems.map((item, index) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href))
+        {NAV_SECTIONS.map((section) => {
+          const sectionHrefs = new Set<string>(section.hrefs)
+          const sectionItems = visibleItems.filter((item) => sectionHrefs.has(item.href))
+          if (!sectionItems.length) return null
 
-                return (
-                  <SidebarMenuItem key={item.href} className={isCollapsed ? "w-full flex justify-center flex-1" : ""}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={isMobile ? undefined : item.title}
-                      className={cn(
-                        "relative transition-all duration-300 ease-out",
-                        isCollapsed ? "h-11 w-11 justify-center rounded-xl mx-auto" : "min-h-12 h-auto w-full rounded-xl justify-start px-4 py-2.5",
-                        isActive 
-                          ? "bg-gradient-to-r from-sky-700 to-blue-700 text-white shadow-md shadow-slate-900/15 hover:from-sky-800 hover:to-blue-800 hover:shadow-lg hover:shadow-slate-900/20" 
-                          : "text-slate-600 hover:text-slate-950 hover:bg-slate-300/55",
-                        "group overflow-hidden"
-                      )}
-                      style={{ animationDelay: `${index * 50}ms` }}
-                    >
-                      <Link 
-                        href={item.href} 
-                        onClick={(event) => void handleWorkspaceNavigation(event, item.href)}
-                        className={cn(
-                          "flex min-h-full w-full items-center",
-                          isCollapsed ? "justify-center" : "gap-4"
-                        )}
-                      >
-                        <div className="relative flex h-6 w-6 items-center justify-center">
-                          <item.icon className={cn(
-                            "transition-colors duration-200",
-                            isActive 
-                              ? "h-5 w-5 text-white" 
-                              : "h-5 w-5 text-slate-700"
-                          )} />
-                        </div>
-                        
-                        {!isCollapsed && (
-                          <span className={cn(
-                            "max-w-[9.25rem] whitespace-normal break-words text-sm font-semibold leading-snug tracking-wide",
-                            isActive ? "text-white" : ""
-                          )}>
-                            {item.title}
-                          </span>
-                        )}
-                        
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-            {!isCollapsed && <div className="h-16 shrink-0" />}
-          </SidebarGroupContent>
-        </SidebarGroup>
+          return (
+            <SidebarGroup key={section.label} className={cn(
+              "p-0",
+              !isCollapsed && "mb-3 border-b border-white/[0.055] pb-3 last:border-0 last:pb-0"
+            )}>
+              {!isCollapsed ? (
+                <SidebarGroupLabel className="mb-1 h-7 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#96b1b5]">
+                  {section.label}
+                </SidebarGroupLabel>
+              ) : null}
+              <SidebarGroupContent>
+                <SidebarMenu className={cn("gap-1", isCollapsed && "items-center")}>
+                  {sectionItems.map((item) => {
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== "/dashboard" && pathname.startsWith(item.href))
+
+                    return (
+                      <SidebarMenuItem key={item.href} className={cn(isCollapsed && "flex w-full justify-center")}>
+                        <SidebarMenuButton
+                          asChild
+                          isActive={isActive}
+                          tooltip={isMobile ? undefined : item.title}
+                          className={cn(
+                            "group relative h-10 rounded-lg text-[13px] font-medium transition-all duration-200 ease-out",
+                            isCollapsed ? "mx-auto w-10 justify-center px-0" : "w-full justify-start gap-3 px-3",
+                            isActive
+                              ? "bg-[#294b58] text-white shadow-[inset_3px_0_0_#68c8c1,0_5px_14px_-12px_rgba(104,200,193,0.65)] hover:bg-[#315966] hover:text-white"
+                              : "text-[#d2e0e1] hover:translate-x-0.5 hover:bg-white/[0.075] hover:text-white"
+                          )}
+                        >
+                          <Link
+                            href={item.href}
+                            onClick={(event) => void handleWorkspaceNavigation(event, item.href)}
+                            className={cn("flex min-h-full w-full min-w-0 items-center", isCollapsed ? "justify-center" : "gap-3")}
+                          >
+                            <span className={cn(
+                              "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
+                              isActive
+                                ? "bg-white/[0.09] text-[#86d6d0]"
+                                : "text-[#a9c4c7] group-hover:bg-white/[0.055] group-hover:text-[#d5eeeb]"
+                            )}>
+                              <item.icon className="h-[17px] w-[17px]" />
+                            </span>
+                            {!isCollapsed ? <span className="min-w-0 truncate">{item.title}</span> : null}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
     </Sidebar>
   )

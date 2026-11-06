@@ -129,16 +129,16 @@ export default function LoginPage() {
       ))}
 
       {/* Dark Overlay with gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/80 via-black/70 to-black/80" />
+      <div className="absolute inset-0 bg-gradient-to-br from-[#061c22]/85 via-[#102b35]/75 to-[#071c26]/85" />
       
       {/* Animated gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-cyan-950/50 via-transparent to-blue-950/30" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#063a3d]/45 via-transparent to-[#153b45]/30" />
 
       {/* Subtle animated particles/dots */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-4 top-1/4 h-72 w-72 animate-pulse rounded-full bg-cyan-500/10 blur-3xl" />
-        <div className="absolute -right-4 bottom-1/4 h-72 w-72 animate-pulse rounded-full bg-blue-500/10 blur-3xl" style={{ animationDelay: "1s" }} />
-        <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-teal-500/5 blur-3xl" style={{ animationDelay: "2s" }} />
+        <div className="absolute -left-4 top-1/4 h-72 w-72 animate-pulse rounded-full bg-[#27b8a8]/10 blur-3xl" />
+        <div className="absolute -right-4 bottom-1/4 h-72 w-72 animate-pulse rounded-full bg-[#278a9a]/10 blur-3xl" style={{ animationDelay: "1s" }} />
+        <div className="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 animate-pulse rounded-full bg-[#2ca795]/5 blur-3xl" style={{ animationDelay: "2s" }} />
       </div>
 
       {/* Grid pattern overlay */}
@@ -157,8 +157,8 @@ export default function LoginPage() {
         <div className="mb-10 flex flex-col items-center text-center">
           {/* Original Logo */}
           <div className="relative mb-6">
-            <div className="absolute inset-0 animate-ping rounded-full bg-cyan-400/20" style={{ animationDuration: "3s" }} />
-            <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-3xl bg-white/10 shadow-2xl shadow-cyan-500/30 backdrop-blur-sm">
+            <div className="absolute inset-0 animate-ping rounded-full bg-[#62d4c4]/20" style={{ animationDuration: "3s" }} />
+            <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-3xl bg-white/10 shadow-2xl shadow-[#168d88]/30 backdrop-blur-sm">
               <Image
                 src="/logo1.png"
                 alt="MajiScope Logo"
@@ -177,16 +177,16 @@ export default function LoginPage() {
             key={currentImageIndex}
             className="mt-5 animate-fade-in max-w-sm text-center font-serif"
           >
-            <span aria-hidden="true" className="mr-1.5 text-2xl leading-none text-cyan-200/90">&ldquo;</span>
+            <span aria-hidden="true" className="mr-1.5 text-2xl leading-none text-[#9fe2d7]">&ldquo;</span>
             <span className="font-bold italic tracking-wide">
-              <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-teal-300 bg-clip-text text-transparent drop-shadow-lg">
+              <span className="bg-gradient-to-r from-[#9be5d6] via-[#60c9c8] to-[#a9e2d8] bg-clip-text text-transparent drop-shadow-lg">
                 {SLOGANS[(currentImageIndex) % SLOGANS.length].first}
               </span>{" "}
               <span className="text-white drop-shadow-lg">
                 {SLOGANS[(currentImageIndex) % SLOGANS.length].second}
               </span>
             </span>
-            <span aria-hidden="true" className="ml-1.5 text-2xl leading-none text-cyan-200/90">&rdquo;</span>
+            <span aria-hidden="true" className="ml-1.5 text-2xl leading-none text-[#9fe2d7]">&rdquo;</span>
           </blockquote>
         </div>
 
@@ -227,7 +227,7 @@ export default function LoginPage() {
                     setEmail(e.target.value)
                     clearError?.()
                   }}
-                  className="h-12 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-cyan-400/50 focus:ring-cyan-400/20"
+                  className="h-12 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
                   autoComplete="email"
                 />
               </div>
@@ -246,7 +246,7 @@ export default function LoginPage() {
                       setPassword(e.target.value)
                       clearError?.()
                     }}
-                    className="h-12 rounded-xl border-white/10 bg-white/5 pr-12 text-white placeholder:text-white/30 focus:border-cyan-400/50 focus:ring-cyan-400/20"
+                    className="h-12 rounded-xl border-white/10 bg-white/5 pr-12 text-white placeholder:text-white/30 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
                     autoComplete="current-password"
                   />
                   <button
@@ -263,7 +263,7 @@ export default function LoginPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <Link href="/reset-password" className="font-medium text-cyan-200/80 transition-colors hover:text-cyan-100">
+                  <Link href="/reset-password" className="font-medium text-[#a2dfd6]/85 transition-colors hover:text-[#d2f2eb]">
                     Forgot password?
                   </Link>
                   <a href="mailto:support@majiscope.app?subject=MajiScope%20Sign-in%20Help" className="font-medium text-white/55 transition-colors hover:text-white/80">
@@ -274,7 +274,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="mt-2 h-12 w-full rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-teal-500 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition-all duration-300 hover:shadow-cyan-500/40 hover:brightness-110 disabled:opacity-50"
+                className="mt-2 h-12 w-full rounded-xl bg-gradient-to-r from-[#087e83] via-[#168d95] to-[#39a99a] text-sm font-semibold text-white shadow-lg shadow-[#087e83]/25 transition-all duration-300 hover:shadow-[#087e83]/40 hover:brightness-110 disabled:opacity-50"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -296,7 +296,7 @@ export default function LoginPage() {
             <span className="text-white/30">MajiScope</span>
             <span aria-hidden="true" className="mx-1.5 text-white/20">&middot;</span>
             <span className="font-bold italic">
-              <span className="text-cyan-200/90">Smart Water.</span>{" "}
+              <span className="bg-gradient-to-r from-[#9be5d6] via-[#60c9c8] to-[#a9e2d8] bg-clip-text text-transparent">Smart Water.</span>{" "}
               <span className="text-white/70">Informed Management.</span>
             </span>
             <span aria-hidden="true" className="mx-1.5 text-white/20">&middot;</span>
@@ -318,7 +318,7 @@ export default function LoginPage() {
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
                   index === currentImageIndex
-                    ? "w-6 bg-cyan-400"
+                    ? "w-6 bg-gradient-to-r from-[#37b8ae] to-[#70d6c8]"
                     : "w-1.5 bg-white/30 hover:bg-white/50"
                 )}
                 aria-label={`Go to slide ${index + 1}`}

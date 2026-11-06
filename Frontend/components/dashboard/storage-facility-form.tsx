@@ -5,7 +5,7 @@ import { useFieldArray, type SubmitHandler, type UseFormReturn } from 'react-hoo
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
-import { Plus, Trash2, MapPin, Wifi, Info } from 'lucide-react'
+import { Plus, Trash2, MapPin, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -38,19 +38,6 @@ export const storageFacilityFormSchema = z.object({
   installer: z.string().optional(),
   service_area: z.string().optional(),
   custom_attributes: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
-  register_sensor: z.boolean().optional(),
-  sensor_device_id: z.string().optional(),
-  sensor_h1_m: z.coerce.number().optional(),
-  sensor_depth_m: z.coerce.number().optional(),
-  sensor_activated: z.boolean().optional(),
-}).refine(data => {
-  if (data.register_sensor && !data.sensor_device_id) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Sensor Device ID is required when registering a sensor",
-  path: ["sensor_device_id"],
 })
 
 export type StorageFacilityFormInput = z.input<typeof storageFacilityFormSchema>
@@ -296,105 +283,6 @@ export function StorageFacilityFormUI({ form, isSubmitting, utilityCenter, dmaCe
           </CardContent>
         </Card>
 
-        {/* Sensor Registration */}
-        <Card className="border-slate-200 shadow-sm">
-          <CardContent className="p-6 space-y-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Wifi className="h-5 w-5 text-sky-600" />
-              <h3 className="text-lg font-semibold text-slate-800">Sensor Registration (Optional)</h3>
-            </div>
-
-            <FormField
-              control={form.control}
-              name="register_sensor"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                  <div className="space-y-0.5">
-                    <FormItem>
-                      <FormLabel className="text-base">Register sensor now?</FormLabel>
-                    </FormItem>
-                    <FormDescription className="text-sm text-slate-500">
-                      Link a water-level sensor to this storage facility immediately.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Checkbox 
-                      checked={field.value} 
-                      onCheckedChange={field.onChange} 
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            {form.watch('register_sensor') && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
-                <FormField
-                  control={form.control}
-                  name="sensor_device_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Device ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="SENS-12345" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sensor_h1_m"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>H1 (m)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="any" {...field} onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sensor_depth_m"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Depth (m)</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="any" {...field} onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="sensor_activated"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 shadow-sm">
-                      <div className="space-y-0.5">
-                        <FormItem>
-                          <FormLabel className="text-base">Activated</FormLabel>
-                        </FormItem>
-                        <FormDescription className="text-sm text-slate-500">
-                          Start recording data immediately.
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Checkbox 
-                          checked={field.value} 
-                          onCheckedChange={field.onChange} 
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <div className="flex justify-end gap-4 pt-4">
           <Button variant="outline" onClick={() => form.reset()} type="button">
             Reset Form
@@ -411,5 +299,3 @@ export function StorageFacilityFormUI({ form, isSubmitting, utilityCenter, dmaCe
   );
 }
 
-import { FormDescription } from '@/components/ui/form';
-import { Checkbox } from '@/components/ui/checkbox';

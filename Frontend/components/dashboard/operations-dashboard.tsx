@@ -316,15 +316,16 @@ function ComparisonBarChartCard({
 
 function LeakageTypeDonutCard({ rows }: { rows: LeakageTypeDistributionRow[] }) {
   const total = rows.reduce((sum, row) => sum + row.count, 0)
+  const cardMinHeight = Math.max(240, Math.min(460, 186 + rows.length * 24))
 
   return (
-    <div className="flex h-full min-h-[210px] flex-col overflow-hidden rounded-[18px] border border-slate-300/80 bg-slate-100/85 shadow-sm shadow-slate-900/[0.025]">
-      <div className="border-b border-slate-200 px-3 py-2">
+    <div style={{ minHeight: cardMinHeight }} className="flex h-full flex-col overflow-visible rounded-[18px] border border-slate-300/80 bg-slate-100/85 shadow-sm shadow-slate-900/[0.025]">
+      <div className="px-3 py-2">
         <p className="text-xs font-semibold text-slate-900">Leakage by type</p>
         <p className="mt-0.5 text-[11px] text-slate-500">Reported leakage type</p>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 px-2 py-2.5">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 py-2.5">
         {total ? (
           <>
             <div className="h-[108px] shrink-0">
@@ -353,7 +354,7 @@ function LeakageTypeDonutCard({ rows }: { rows: LeakageTypeDistributionRow[] }) 
               </ResponsiveContainer>
             </div>
             <div className="grid shrink-0 gap-1.5 px-1 pb-0.5 text-[11px]">
-              {rows.slice(0, 3).map((row) => (
+              {rows.map((row) => (
                 <div key={row.type} className="flex items-center justify-between gap-2 text-slate-600">
                   <span className="flex min-w-0 items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.fill }} />
@@ -921,7 +922,7 @@ export function OperationsDashboard() {
 
   useEffect(() => {
     setTopbarTitle({
-      title: "Water Leakage Monitoring",
+      title: "Dashboard",
     })
 
     return () => setTopbarTitle(null)
@@ -939,9 +940,9 @@ export function OperationsDashboard() {
   }
 
   return (
-    <div className="h-[calc(100dvh-5.5rem)] min-h-[560px] overflow-hidden">
-      <div className="grid h-full grid-cols-1 gap-3 xl:grid-cols-[168px_minmax(0,1fr)_280px]">
-        <aside className="grid h-full min-h-0 gap-3 sm:grid-cols-2 xl:w-[168px] xl:grid-cols-1 xl:grid-rows-[repeat(4,minmax(0,1fr))_auto]">
+    <div className="min-h-[calc(100dvh-5.5rem)] overflow-visible xl:h-[calc(100dvh-5.5rem)] xl:min-h-[560px] xl:overflow-hidden">
+      <div className="grid h-auto grid-cols-1 gap-3 xl:h-full xl:grid-cols-[168px_minmax(0,1fr)_280px]">
+        <aside className="order-2 grid min-h-0 gap-3 sm:grid-cols-2 xl:order-none xl:h-full xl:w-[168px] xl:grid-cols-1 xl:grid-rows-[repeat(4,minmax(0,1fr))_auto]">
           <KpiCard label="Total Reports" value={kpis.total} tone="slate" />
           <KpiCard label="Resolved Reports" value={kpis.repaired} tone="green" />
           <KpiCard label="Urgent Reports" value={kpis.urgent} tone="amber" />
@@ -970,7 +971,7 @@ export function OperationsDashboard() {
           </div>
         </aside>
 
-        <section className="min-h-0">
+        <section className="order-1 h-[52svh] min-h-[360px] sm:h-[58svh] sm:min-h-[420px] xl:order-none xl:h-full xl:min-h-0">
           <OperationsMap
             reports={displayedMapReports.map((report) => ({
               id: report.id,
@@ -1010,7 +1011,7 @@ export function OperationsDashboard() {
           />
         </section>
 
-        <aside className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_minmax(210px,0.72fr)] gap-3">
+        <aside className="order-3 grid h-auto min-h-0 gap-3 xl:order-none xl:h-full xl:grid-rows-[auto_minmax(0,1fr)_auto]">
           <section className="rounded-[18px] border border-slate-300/80 bg-slate-100/85 px-3 py-2.5 shadow-sm shadow-slate-900/[0.025] backdrop-blur">
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-300/70 bg-white/45 px-3 py-2 text-xs dark:border-slate-600/70 dark:bg-slate-950/45">

@@ -465,7 +465,7 @@ export default function HydraulicModelPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 dark:border-sky-500/30 dark:bg-sky-500/10">
+            <div className="hydraulic-upload-panel rounded-xl border p-4">
               <label htmlFor="hydraulic-inp-file" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Optional EPANET model (.inp)
               </label>
@@ -477,7 +477,7 @@ export default function HydraulicModelPage() {
                 id="hydraulic-inp-file"
                 type="file"
                 accept=".inp"
-                className="mt-3 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-sky-100 file:px-3 file:py-2 file:font-semibold file:text-sky-800 hover:file:bg-sky-200 dark:text-slate-200 dark:file:bg-sky-900 dark:file:text-sky-100"
+                className="mt-3 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold file:text-secondary-foreground hover:file:bg-muted dark:text-slate-200"
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null
                   if (file && !file.name.toLowerCase().endsWith(".inp")) {

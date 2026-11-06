@@ -60,7 +60,7 @@ from app.services.water_quality_services import (
     ingest_water_quality_reading,
     promote_pending_water_quality,
 )
-from app.api.sensors import _ensure_engineer_install_access, _water_level_payload_recognised
+from app.api.sensors import _water_level_payload_recognised
 
 water_sources_router = APIRouter(prefix="/api/water-sources", tags=["water-sources"])
 water_source_sensors_router = APIRouter(prefix="/api/water-source-sensors", tags=["water-source-sensors"])
@@ -318,50 +318,32 @@ async def update_water_source(
 
 
 def _registration_config(payload: WaterSourceSensorRegisterRequest) -> dict[str, Any]:
-    installation_location = None
-    if payload.installation_latitude is not None and payload.installation_longitude is not None:
-        installation_location = {
-            "latitude": payload.installation_latitude,
-            "longitude": payload.installation_longitude,
-            "accuracy_m": payload.installation_accuracy_m,
-            "captured_at": datetime.utcnow().isoformat() + "Z",
-        }
     if payload.category == "water_quality":
-        config = {
+        return {
             "parameters": {
                 field: bounds.model_dump(exclude_none=True)
                 for field, bounds in (payload.parameter_thresholds or {}).items()
             }
         }
-        if installation_location:
-            config["installation_location"] = installation_location
-        return config
-    config = {
+    return {
         "h1_m": payload.h1_m,
         "depth_m": payload.depth_m,
         "warning_height_m": payload.warning_height_m if payload.warning_height_m is not None else 10.0,
         "critical_height_m": payload.critical_height_m if payload.critical_height_m is not None else 0.0,
     }
-    if installation_location:
-        config["installation_location"] = installation_location
-    return config
 
 
 @water_source_sensors_router.post(
-    "",
-    response_model=WaterSourceSensorRegisterResponse,
+    "", response_model=WaterSourceSensorRegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def register_water_source_sensor(
     payload: WaterSourceSensorRegisterRequest,
     request: Request,
-    current_user: CurrentUser = Depends(get_current_user),
+    current_user: CurrentUser = Depends(require_utility_manager),
     db: Session = Depends(get_db),
     sensor_db: Session = Depends(get_sensor_db),
 ):
-    if current_user.user_type not in {"user", "utility_manager", "engineer"}:
-        raise HTTPException(status_code=403, detail="Sensor registration access required")
-
     if (
         sensor_db.query(SensorDevice.id).filter(SensorDevice.device_id == payload.device_id).first()
         or sensor_db.query(WaterSourceSensorDevice.id).filter(
@@ -385,22 +367,12 @@ async def register_water_source_sensor(
     if source.dma_id is None and source.latitude is not None and source.longitude is not None:
         utility = db.query(Utility).filter(Utility.id == source.utility_id).first()
         from app.services.hierarchy import find_dma_within_utility_by_boundary
-
         matched_dma = find_dma_within_utility_by_boundary(source.latitude, source.longitude, utility, db)
         if matched_dma:
             source.dma_id = matched_dma.id
             source_ref.dma_id = matched_dma.id
             dma_auto_assigned = True
             db.flush()
-
-    source_ref.dma_id = source.dma_id
-    _ensure_engineer_install_access(
-        current_user,
-        source_ref.dma_id,
-        payload.installation_latitude,
-        payload.installation_longitude,
-        payload.installation_accuracy_m,
-    )
 
     category = SensorCategoryEnum(payload.category)
     if payload.activated:
@@ -410,16 +382,11 @@ async def register_water_source_sensor(
             WaterSourceSensorDevice.activated.is_(True),
         ).first()
         if clash:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Water source already has an active {payload.category} sensor",
-            )
+            raise HTTPException(status_code=409, detail=f"Water source already has an active {payload.category} sensor")
 
     sensor = WaterSourceSensorDevice(
-        device_id=payload.device_id.strip(),
-        category=category,
-        water_source_id=source.id,
-        activated=payload.activated,
+        device_id=payload.device_id.strip(), category=category,
+        water_source_id=source.id, activated=payload.activated,
         config=_registration_config(payload),
     )
     sensor_db.add(sensor)
@@ -434,55 +401,33 @@ async def register_water_source_sensor(
     if category == SensorCategoryEnum.WATER_QUALITY:
         promoted = promote_pending_water_quality(
             sensor_db, sensor, source_ref, pending,
-            reading_model=WaterSourceWaterQualityReading,
-            parent_field="water_source_id",
+            reading_model=WaterSourceWaterQualityReading, parent_field="water_source_id",
         )
     else:
         promoted = promote_pending_water_level(
             sensor_db, sensor, source_ref, pending,
-            reading_model=WaterSourceWaterLevelReading,
-            parent_field="water_source_id",
+            reading_model=WaterSourceWaterLevelReading, parent_field="water_source_id",
         )
     if pending:
         take_pending_rows(sensor_db, sensor.device_id, WaterSourceSensorPendingReading)
         sensor_db.commit()
     refresh_water_source_sensor_counts(sensor_db, source.id)
     db.commit()
-
     audit_log(
-        db,
-        request=request,
-        actor=current_user,
-        action="water_source_sensor.register",
-        event_type="sensor",
-        status="success",
-        entity="water_source_sensor",
-        entity_id=sensor.id,
-        target_name=sensor.device_id,
-        utility_id=source.utility_id,
-        metadata={
-            "device_id": sensor.device_id,
-            "category": category.value,
-            "water_source_id": source.id,
-            "activated": sensor.activated,
-            "promoted_readings": promoted,
-            "installation_location": sensor.config.get("installation_location") if isinstance(sensor.config, dict) else None,
-        },
+        db, request=request, actor=current_user, action="water_source_sensor.register",
+        event_type="sensor", status="success", entity="water_source_sensor",
+        entity_id=sensor.id, target_name=sensor.device_id, utility_id=source.utility_id,
+        metadata={"device_id": sensor.device_id, "category": category.value,
+                  "water_source_id": source.id, "activated": sensor.activated,
+                  "promoted_readings": promoted},
     )
     db.commit()
     return WaterSourceSensorRegisterResponse(
-        id=sensor.id,
-        device_id=sensor.device_id,
-        category=sensor.category.value,
-        water_source_id=sensor.water_source_id,
-        utility_id=source_ref.utility_id,
-        dma_id=source_ref.dma_id,
-        dma_auto_assigned=dma_auto_assigned,
-        config=sensor.config,
-        activated=sensor.activated,
-        promoted_readings=promoted,
-        created_at=sensor.created_at,
-        updated_at=sensor.updated_at,
+        id=sensor.id, device_id=sensor.device_id, category=sensor.category.value,
+        water_source_id=sensor.water_source_id, utility_id=source_ref.utility_id,
+        dma_id=source_ref.dma_id, dma_auto_assigned=dma_auto_assigned,
+        config=sensor.config, activated=sensor.activated,
+        promoted_readings=promoted, created_at=sensor.created_at, updated_at=sensor.updated_at,
     )
 
 

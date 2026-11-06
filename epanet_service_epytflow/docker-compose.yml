@@ -17,6 +17,10 @@ services:
     ports:
       - "8080:8080"
 
+    networks:
+      - default
+      - majiscope-app
+
     env_file:
       - .env
 
@@ -62,3 +66,9 @@ volumes:
     driver: local
   db_data:
     driver: local
+
+networks:
+  default:
+  majiscope-app:
+    name: majiscope-app
+    external: true

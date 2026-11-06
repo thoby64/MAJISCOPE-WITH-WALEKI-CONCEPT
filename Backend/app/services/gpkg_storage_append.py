@@ -125,7 +125,7 @@ def _gpkg_geometry_wkb(latitude: float, longitude: float) -> bytes:
     Matches the encoding used in utilities.py _gpkg_geometry_wkb.
     """
     point = Point(longitude, latitude)  # WKB uses (x, y) = (lon, lat)
-    wkb_bytes = wkb.dumps(point, srid=4326)  # Include SRID
+    wkb_bytes = wkb.dumps(point)
     
     # GPKG header: magic(2) + version(1) + flags(1) + srs_id(4) = 8 bytes
     # flags: bit 0-2 = envelope code (0 = no envelope), bit 3 = empty, bit 4-7 = reserved
@@ -174,6 +174,16 @@ def _get_max_fid(conn: sqlite3.Connection, table_name: str) -> int:
     return (result[0] or 0) + 1
 
 
+def _load_spatialite(conn: sqlite3.Connection) -> bool:
+    """Load SpatiaLite when available; the GeoPackage remains usable without it."""
+    try:
+        conn.enable_load_extension(True)
+        conn.load_extension("mod_spatialite")
+    except sqlite3.Error:
+        return False
+    return True
+
+
 def _create_new_gpkg() -> bytes:
     """Create a new GPKG file with storage_facilities schema."""
     with tempfile.NamedTemporaryFile(suffix=".gpkg", delete=False) as f:
@@ -181,15 +191,9 @@ def _create_new_gpkg() -> bytes:
     
     try:
         conn = sqlite3.connect(temp_path)
-        conn.enable_load_extension(True)
+        _load_spatialite(conn)
         
         try:
-            # Load SpatiaLite if available (for spatial index)
-            try:
-                conn.load_extension("mod_spatialite")
-            except Exception:
-                pass  # Spatialite not available, continue without
-            
             cursor = conn.cursor()
             
             # Create GPKG metadata tables
@@ -304,7 +308,7 @@ def _append_feature_to_gpkg(
     
     try:
         conn = sqlite3.connect(temp_path)
-        conn.enable_load_extension(True)
+        _load_spatialite(conn)
         
         try:
             cursor = conn.cursor()
@@ -334,7 +338,11 @@ def _append_feature_to_gpkg(
             for form_key, gpkg_col in FORM_TO_GPKG_COLUMN.items():
                 if gpkg_col in existing_columns and gpkg_col not in AUTO_COLUMNS:
                     # Check storage_facility_data.attributes first, then custom_attributes
-                    value = storage_facility_data.attributes.get(form_key)
+                    value = (
+                        storage_facility_data.name
+                        if form_key == "name"
+                        else storage_facility_data.attributes.get(form_key)
+                    )
                     if value is None:
                         value = storage_facility_data.custom_attributes.get(form_key)
                     
@@ -379,7 +387,7 @@ def append_storage_facility(
     db: Session,
     utility_id: str,
     storage_facility_data: StorageFacilityCreateData,
-    current_user_id: str,
+    uploaded_by_manager_id: Optional[str],
     register_sensor: bool = False,
     sensor_device_id: Optional[str] = None,
     sensor_h1_m: Optional[float] = None,
@@ -426,7 +434,8 @@ def append_storage_facility(
         existing_layer.file_size = len(updated_gpkg_data)
         existing_layer.feature_count = next_fid
         existing_layer.updated_at = datetime.utcnow()
-        existing_layer.uploaded_by_manager_id = current_user_id
+        if uploaded_by_manager_id is not None:
+            existing_layer.uploaded_by_manager_id = uploaded_by_manager_id
         layer = existing_layer
     else:
         layer = UtilityInfrastructureLayer(
@@ -437,7 +446,7 @@ def append_storage_facility(
             mime_type="application/geopackage+sqlite3",
             file_size=len(updated_gpkg_data),
             feature_count=next_fid,
-            uploaded_by_manager_id=current_user_id,
+            uploaded_by_manager_id=uploaded_by_manager_id,
         )
         db.add(layer)
     
@@ -446,31 +455,17 @@ def append_storage_facility(
     # 3. Run sync_storage_facilities_from_layer to materialize storage_facility
     features = _load_gpkg_features(updated_gpkg_data, "storage.gpkg")
     sync_result = sync_storage_facilities_from_layer(db, utility_id, features, layer)
-    
-    # 4. Find the newly created storage_facility (by source_key matching name or coordinate hash)
-    from app.services.storage_facility_sync import detect_storage_facility_key_field, coordinate_hash
-    
-    new_storage_facility = None
-    for feature in features:
-        props = feature.get("properties", {})
-        key_field = detect_storage_facility_key_field(props)
-        geom = feature.get("geometry")
-        
-        source_key = None
-        if key_field and props.get(key_field):
-            source_key = str(props[key_field]).strip()
-        elif geom and geom.get("type") == "Point":
-            coords = geom.get("coordinates", [])
-            if len(coords) >= 2:
-                source_key = coordinate_hash(coords[1], coords[0])  # lat, lon
-        
-        if source_key and source_key == storage_facility_data.name:
-            new_storage_facility = (
-                db.query(StorageFacility)
-                .filter(StorageFacility.utility_id == utility_id, StorageFacility.source_key == source_key)
-                .first()
-            )
-            break
+    db.flush()
+
+    # GeoPackage `fid` is the sync key, so locate the row by the ID just appended.
+    new_storage_facility = (
+        db.query(StorageFacility)
+        .filter(
+            StorageFacility.utility_id == utility_id,
+            StorageFacility.source_key == str(next_fid),
+        )
+        .first()
+    )
     
     # Fallback: find storage_facility by name and location
     if not new_storage_facility:

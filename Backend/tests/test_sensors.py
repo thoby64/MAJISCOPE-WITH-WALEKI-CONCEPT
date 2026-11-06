@@ -27,6 +27,7 @@ from app.models.sensor_platform import (
     SensorPendingReading,
     SensorStatusEnum,
     WaterLevelReading,
+    WaterSourceSensorPendingReading,
 )
 from app.security.auth import create_access_token, hash_password
 from app.services.storage_facility_sync import sync_storage_facilities_from_layer
@@ -615,6 +616,38 @@ class TestScopedListsAndPatch:
         ids = {item["device_id"] for item in data["items"]}
         assert sensor_b.device_id in ids
         assert sensor_a.device_id not in ids
+
+    def test_list_unregistered_simulator_readings(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
+        utility = _make_utility(db, name="AUWSA")
+        _make_dma(db, utility, name="Nambala")
+        sensor_db.add_all(
+            [
+                SensorPendingReading(
+                    device_id="AU_NAM_9001",
+                    payload=json.dumps({"depth_m": 3.2}),
+                    occurred_at=datetime(2026, 1, 1, 10, 0),
+                    dedup_key="AU_NAM_9001:2026-01-01T10:00:00",
+                ),
+                WaterSourceSensorPendingReading(
+                    device_id="AU_NAM_9003",
+                    payload=json.dumps({"ph": 7.0}),
+                    occurred_at=datetime(2026, 1, 1, 10, 0),
+                    dedup_key="AU_NAM_9003:2026-01-01T10:00:00",
+                ),
+            ]
+        )
+        sensor_db.commit()
+
+        response = client.get("/api/sensors/simulator-pending", headers=auth_headers)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 4
+        devices = {item["device_id"]: item for item in data["items"]}
+        assert devices["AU_NAM_9001"]["pending_reading_count"] == 1
+        assert devices["AU_NAM_9001"]["latest_reading"]["payload"]["depth_m"] == 3.2
+        assert devices["AU_NAM_9003"]["latest_reading"]["payload"]["ph"] == 7.0
+        assert devices["AU_NAM_9002"]["latest_reading"] is None
 
     def test_patch_storage_facility_assign_dma(self, client: TestClient, db: Session, sensor_db: Session, auth_headers: dict):
         utility = _make_utility(db)

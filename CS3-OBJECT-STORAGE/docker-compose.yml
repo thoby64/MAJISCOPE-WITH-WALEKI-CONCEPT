@@ -1,0 +1,42 @@
+services:
+  cs3-storage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: majiscope/cs3-storage:local
+    container_name: majiscope-cs3-storage
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CS3_UI_BIND_ADDRESS: 0.0.0.0
+      CS3_UI_PORT: 8082
+      CS3_STORAGE_ROOT: /data
+    ports:
+      - "127.0.0.1:8082:8082"
+    volumes:
+      - type: bind
+        source: 'D:\majiscope\cs3-storage'
+        target: /data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/healthz', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    networks:
+      - majiscope-app
+
+networks:
+  majiscope-app:
+    name: majiscope-app
+    external: true

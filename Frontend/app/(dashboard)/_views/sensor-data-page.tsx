@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Droplets, FlaskConical, Gauge, MapPin, Plus, RefreshCw, Waves } from "lucide-react"
+import { Droplets, FlaskConical, Gauge, MapPin, RefreshCw, Waves } from "lucide-react"
 import { InfrastructureIcon } from "@/components/icons/infrastructure-icon"
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type SensorCategory, type SensorSnap, type StorageFacilitySnap } from "@/store/data-store"
@@ -11,7 +11,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
-import { RegisterSensorModal } from "@/components/water-level/register-sensor-modal"
 import {
   WATER_LEVEL_POLL_INTERVAL_MS,
   fillPercent,
@@ -58,8 +57,6 @@ export default function SensorDataPage() {
   const [dmaFilter, setDmaFilter] = useState("")
   const [search, setSearch] = useState("")
   const [sensorFilter, setSensorFilter] = useState("all")
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalStorageFacilityId, setModalStorageFacilityId] = useState<string | undefined>(undefined)
   const [now, setNow] = useState(() => Date.now())
 
   const effectiveUtilityId =
@@ -197,7 +194,6 @@ export default function SensorDataPage() {
       )
   }, [dmaFilter, dmas, latestSensorByStorageFacility, search, sensorFilter, sensors, storageFacilities, utilities, utilityFilter])
 
-  const canRegister = role === "admin" || role === "utility_manager"
   const canCreateFacility = role === "admin" || role === "utility_manager"
 
   const openStorageFacility = useCallback(
@@ -208,11 +204,6 @@ export default function SensorDataPage() {
   const openCreateFacility = useCallback(() => {
     router.push('/dashboard/storage-facilities/new')
   }, [router])
-
-  const openRegister = useCallback((storageFacilityId?: string) => {
-    setModalStorageFacilityId(storageFacilityId)
-    setModalOpen(true)
-  }, [])
 
   if (!canView) {
     return (
@@ -326,12 +317,6 @@ export default function SensorDataPage() {
             <Button size="sm" variant="outline" onClick={openCreateFacility}>
               <InfrastructureIcon assetType="storage_facilities" className="mr-1.5 h-4 w-4" />
               Add Storage Facility
-            </Button>
-          )}
-          {canRegister && (
-            <Button size="sm" onClick={() => openRegister(undefined)}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              Register sensor
             </Button>
           )}
         </div>
@@ -474,20 +459,6 @@ export default function SensorDataPage() {
                     <span>{group.activeSensorCount} sensor{group.activeSensorCount !== 1 ? "s" : ""}</span>
                   </div>
 
-                  {canRegister && !group.activeSensorCount && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3 w-full"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        openRegister(storageFacility.id)
-                      }}
-                    >
-                      <Plus className="mr-1.5 h-4 w-4" />
-                      Register sensor
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
             )
@@ -495,11 +466,6 @@ export default function SensorDataPage() {
         </div>
       )}
 
-      <RegisterSensorModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        defaultStorageFacilityId={modalStorageFacilityId}
-      />
     </div>
   )
 }

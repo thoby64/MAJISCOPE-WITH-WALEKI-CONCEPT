@@ -1904,7 +1904,9 @@ async def create_storage_facility_manual(
             db=db,
             utility_id=utility_id,
             storage_facility_data=storage_facility_data,
-            current_user_id=current_user.id,
+            uploaded_by_manager_id=(
+                current_user.id if current_user.user_type == "utility_manager" else None
+            ),
             register_sensor=payload.register_sensor,
             sensor_device_id=payload.sensor_device_id,
             sensor_h1_m=payload.sensor_h1_m,
@@ -1938,7 +1940,8 @@ async def create_storage_facility_manual(
             layer.file_size = len(updated_gpkg_data)
             layer.feature_count = (layer.feature_count or 0) + 1
             layer.updated_at = datetime.utcnow()
-            layer.uploaded_by_manager_id = current_user.id if current_user.user_type == "utility_manager" else None
+            if current_user.user_type == "utility_manager":
+                layer.uploaded_by_manager_id = current_user.id
         else:
             # Should not happen as append_storage_facility creates layer
             before_data = None

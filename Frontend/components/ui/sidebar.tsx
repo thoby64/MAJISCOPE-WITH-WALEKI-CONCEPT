@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { VariantProps, cva } from 'class-variance-authority'
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronsLeft, ChevronsRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
@@ -208,7 +208,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            className="w-[--sidebar-width] !bg-[#1b3541] p-0 !text-[#e3eeec] dark:!bg-[#101827] dark:!text-slate-100 [&>button]:hidden"
             style={
               {
                 '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
@@ -291,7 +291,7 @@ const SidebarTrigger = React.forwardRef<
 >(({ className, onClick, ...props }, ref) => {
   const { state, toggleSidebar } = useSidebar()
   const isCollapsed = state === 'collapsed'
-  const Icon = isCollapsed ? PanelLeftOpen : PanelLeftClose
+  const Icon = isCollapsed ? ChevronsRight : ChevronsLeft
   const label = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
 
   return (
@@ -314,7 +314,7 @@ const SidebarTrigger = React.forwardRef<
           }}
           {...props}
         >
-          <Icon className="h-4 w-4" />
+          <Icon aria-hidden="true" className="h-[21px] w-[21px] stroke-[1.9] transition-transform duration-200 group-hover:scale-105" />
           <span className="sr-only">{label}</span>
         </Button>
       </TooltipTrigger>

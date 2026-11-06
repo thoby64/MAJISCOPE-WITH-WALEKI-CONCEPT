@@ -1,25 +1,20 @@
 "use client"
 
-import type { ChangeEvent } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { Activity, ArrowLeft, BarChart3, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, Pencil, Plus, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
+import { Activity, ArrowLeft, BarChart3, Calendar, Clock, Droplets, FlaskConical, GlassWater, Gauge, Leaf, MapPin, RefreshCw, Ruler, Thermometer, TrendingUp, Waves } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { SensorIcon } from "@/components/icons/sensor-icon"
 import { useDataStore, type SensorCategory, type SensorSnap, type StorageFacilityReading } from "@/store/data-store"
-import { useAuthStore } from "@/store/auth-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { WaterLevelStorageFacility } from "@/components/water-level/water-level-storage-facility"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
-import { RegisterSensorModal } from "@/components/water-level/register-sensor-modal"
 import { formatTanzaniaDateTime } from "@/lib/date-time"
 import {
   READING_HISTORY_LIMIT,
   WATER_LEVEL_POLL_INTERVAL_MS,
   readStoredStorageFacilityLength,
-  stashStorageFacilityLength,
   storageFacilityLengthFor,
 } from "@/lib/water-level"
 
@@ -131,14 +126,8 @@ export default function WaterLevelStorageFacilityDetailPage() {
 
   const { sensors, storageFacilities, storageFacilityReadingsByStorageFacility, fetchSensors, fetchStorageFacilities, fetchStorageFacilityReadings } = useDataStore()
 
-  const [lengthOverride, setLengthOverride] = useState<number | null>(() =>
-    storageFacilityId ? readStoredStorageFacilityLength(storageFacilityId) : null
-  )
+  const lengthOverride = storageFacilityId ? readStoredStorageFacilityLength(storageFacilityId) : null
 
-  const { currentUser } = useAuthStore()
-  const [registerOpen, setRegisterOpen] = useState(false)
-  const [editOpen, setEditOpen] = useState(false)
-  const canRegister = currentUser?.role === "admin" || currentUser?.role === "utility_manager"
 
   const storageFacilitySensors = useMemo(
     () => sensors.filter((s) => s.storageFacilityId === storageFacilityId),
@@ -205,12 +194,6 @@ export default function WaterLevelStorageFacilityDetailPage() {
           <p className="text-sm text-slate-500">
             Sensors linked to this storage facility. Select a sensor to view its readings.
           </p>
-          {canRegister && (
-            <Button size="sm" onClick={() => setRegisterOpen(true)} className="w-fit rounded-xl">
-              <Plus className="mr-1.5 h-4 w-4" />
-              Register sensor
-            </Button>
-          )}
         </div>
 
         {storageFacilitySensors.length === 0 ? (
@@ -221,9 +204,9 @@ export default function WaterLevelStorageFacilityDetailPage() {
                   <Droplets className="h-8 w-8 text-slate-400" />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold text-slate-800">No sensors registered</p>
+                  <p className="text-lg font-semibold text-slate-800">No sensors linked</p>
                   <p className="mt-1 text-sm text-slate-500">
-                    This storageFacility does not have any sensor registered yet.
+                    No sensor is currently linked to this storage facility.
                   </p>
                 </div>
               </div>
@@ -288,7 +271,6 @@ export default function WaterLevelStorageFacilityDetailPage() {
             </CardContent>
           </Card>
         )}
-        <RegisterSensorModal open={registerOpen} onOpenChange={setRegisterOpen} defaultStorageFacilityId={storageFacilityId} />
       </div>
     )
   }
@@ -329,16 +311,9 @@ export default function WaterLevelStorageFacilityDetailPage() {
           readings={readings}
           storageFacility={storageFacility ?? null}
           lengthOverride={lengthOverride}
-          canEdit={canRegister}
-          onEdit={() => setEditOpen(true)}
-          onLengthChange={(v) => {
-            setLengthOverride(v)
-            if (storageFacilityId) stashStorageFacilityLength(storageFacilityId, v)
-          }}
           onAnalytics={() => router.push(`/dashboard/sensor-data/${storageFacilityId}/analytics?sensor=${selected.id}`)}
           onBack={() => router.push(`/dashboard/sensor-data/${storageFacilityId}`)}
         />
-        <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
       </>
     )
   }
@@ -353,12 +328,9 @@ export default function WaterLevelStorageFacilityDetailPage() {
         sensor={selected}
         readings={readings}
         storageFacility={storageFacility ?? null}
-        canEdit={canRegister}
-        onEdit={() => setEditOpen(true)}
         onAnalytics={() => router.push(`/dashboard/sensor-data/${storageFacilityId}/water-quality-analytics?sensor=${selected.id}`)}
         onBack={() => router.push(`/dashboard/sensor-data/${storageFacilityId}`)}
       />
-      <RegisterSensorModal open={editOpen} onOpenChange={setEditOpen} sensor={selected} />
     </>
   )
 }
@@ -372,9 +344,6 @@ function WaterLevelReadingsView({
   readings,
   storageFacility,
   lengthOverride,
-  canEdit,
-  onEdit,
-  onLengthChange,
   onAnalytics,
   onBack,
 }: {
@@ -384,9 +353,6 @@ function WaterLevelReadingsView({
   readings: StorageFacilityReading[]
   storageFacility: { latitude: number | null; longitude: number | null } | null
   lengthOverride: number | null
-  canEdit: boolean
-  onEdit: () => void
-  onLengthChange: (value: number) => void
   onAnalytics: () => void
   onBack: () => void
 }) {
@@ -403,12 +369,6 @@ function WaterLevelReadingsView({
       max: heights.length ? Math.max(...heights) : 0,
     }
   }, [readings])
-
-  function handleLengthChange(event: ChangeEvent<HTMLInputElement>) {
-    const next = Number.parseFloat(event.target.value)
-    if (!Number.isFinite(next) || next <= 0) return
-    onLengthChange(Number.parseFloat(next.toFixed(2)))
-  }
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -448,12 +408,6 @@ function WaterLevelReadingsView({
           <CardContent className="p-6">
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-slate-800">Sensor details</h2>
-              {canEdit && (
-                <Button size="sm" variant="outline" className="rounded-xl" onClick={onEdit}>
-                  <Pencil className="mr-1.5 h-4 w-4" />
-                  Edit sensor
-                </Button>
-              )}
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="flex items-center gap-3">
@@ -466,17 +420,7 @@ function WaterLevelReadingsView({
               <div className="flex items-center gap-3">
                 <Ruler className="h-4 w-4 shrink-0 text-cyan-600" />
                 <span className="text-sm text-slate-500">StorageFacility length</span>
-                <label className="ml-auto flex items-center gap-1.5">
-                  <Input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={storageFacilityLength}
-                    onChange={handleLengthChange}
-                    className="h-8 w-20 rounded-lg px-2 text-right text-sm"
-                  />
-                  <strong className="text-sm font-semibold text-slate-800">m</strong>
-                </label>
+                <strong className="ml-auto font-semibold text-slate-800">{storageFacilityLength.toFixed(2)}m</strong>
               </div>
               <div className="flex items-center gap-3">
                 <Ruler className="h-4 w-4 shrink-0 text-cyan-600" />
@@ -581,8 +525,6 @@ function WaterQualityReadingsView({
   sensor,
   readings,
   storageFacility,
-  canEdit,
-  onEdit,
   onAnalytics,
   onBack,
 }: {
@@ -590,8 +532,6 @@ function WaterQualityReadingsView({
   sensor: SensorSnap
   readings: StorageFacilityReading[]
   storageFacility: { latitude: number | null; longitude: number | null } | null
-  canEdit: boolean
-  onEdit: () => void
   onAnalytics: () => void
   onBack: () => void
 }) {
@@ -641,12 +581,6 @@ function WaterQualityReadingsView({
         <CardContent className="p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-slate-800">Sensor details</h2>
-            {canEdit && (
-              <Button size="sm" variant="outline" className="rounded-xl" onClick={onEdit}>
-                <Pencil className="mr-1.5 h-4 w-4" />
-                Edit sensor
-              </Button>
-            )}
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex items-center gap-3">
