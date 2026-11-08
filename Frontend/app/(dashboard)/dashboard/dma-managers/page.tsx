@@ -7,6 +7,7 @@ import { usePageAccess } from "@/hooks/use-page-access"
 import { CONFIG } from "@/lib/config"
 import { PageHeader } from "@/components/shared/page-header"
 import { EntityStatusBadge } from "@/components/shared/status-badge"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 import type { EntityStatus } from "@/lib/types"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
@@ -88,6 +89,7 @@ export default function DMAManagersPage() {
   } = useDataStore()
 
   const [search, setSearch] = useState("")
+  const [searchInputEnabled, setSearchInputEnabled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingManager, setEditingManager] = useState<DMAManager | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -173,6 +175,9 @@ export default function DMAManagersPage() {
   }
 
   function openEditDialog(manager: DMAManager) {
+    // Keep browser credential autofill from turning the list filter into the
+    // signed-in user's email when the edit dialog focuses its email field.
+    setSearch("")
     setEditingManager(manager)
     setFormName(manager.name)
     setFormEmail(manager.email)
@@ -184,6 +189,21 @@ export default function DMAManagersPage() {
     setFormStatus(manager.status)
     setShowPassword(false)
     setDialogOpen(true)
+  }
+
+  function closeEditor() {
+    setDialogOpen(false)
+    setEditingManager(null)
+    setFormName("")
+    setFormEmail("")
+    setFormPhone("")
+    setFormPassword("")
+    setFormConfirmPassword("")
+    setFormUtilityId(isUtilityManager ? (myUtilityId || "") : "")
+    setFormDMAId("unassigned")
+    setFormStatus("active")
+    setShowPassword(false)
+    // Keep the current list intact when the editor is dismissed without saving.
   }
 
   async function handleSubmit() {
@@ -344,51 +364,11 @@ export default function DMAManagersPage() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <UserCog className="h-8 w-8 shrink-0 text-primary" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Managers</p>
-                  <p className="text-2xl font-bold text-slate-800">{stats.total}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 bg-gradient-to-br from-emerald-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="h-8 w-8 shrink-0 text-emerald-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Active Managers</p>
-                  <p className="text-2xl font-bold text-slate-800">{stats.active}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <MapPin className="h-8 w-8 shrink-0 text-primary" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">With DMAs</p>
-                  <p className="text-2xl font-bold text-slate-800">{stats.assigned}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-300 bg-gradient-to-br from-amber-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <Unlink className="h-8 w-8 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Unassigned</p>
-                  <p className="text-2xl font-bold text-slate-800">{stats.unassigned}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="content-metric-grid grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetricCard label="Total Managers" value={stats.total} icon={UserCog} tone="slate" />
+          <SummaryMetricCard label="Active Managers" value={stats.active} icon={CheckCircle2} tone="blue" />
+          <SummaryMetricCard label="With DMAs" value={stats.assigned} icon={MapPin} tone="slate" />
+          <SummaryMetricCard label="Unassigned" value={stats.unassigned} icon={Unlink} tone="amber" />
         </div>
       </div>
 
@@ -396,7 +376,7 @@ export default function DMAManagersPage() {
         <div className="relative w-full sm:w-80">
           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/10 to-sky-500/10 blur-lg opacity-0 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
-          <Input placeholder="Search by name, email, DMA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15 shadow-sm" />
+          <Input type="search" name="dma-manager-list-filter" autoComplete="off" readOnly={!searchInputEnabled} onFocus={() => setSearchInputEnabled(true)} placeholder="Search by name, email, DMA..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-11 h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15 shadow-sm" />
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Users className="h-4 w-4" />
@@ -453,14 +433,14 @@ export default function DMAManagersPage() {
             })}
           </div>
           <div className="hidden md:block">
-            <Table className="table-fixed">
+            <Table className="reports-data-table table-fixed min-w-[860px]">
               <TableHeader>
-                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/80 hover:from-slate-50 hover:to-slate-100/80 border-b border-slate-200/60">
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6"><div className="flex items-center gap-2"><User className="h-4 w-4" />Manager</div></TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6"><div className="flex items-center gap-2"><Mail className="h-4 w-4" />Contact</div></TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6"><div className="flex items-center gap-2"><MapPin className="h-4 w-4" />Assigned DMA</div></TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Status</div></TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6 text-right">Actions</TableHead>
+                <TableRow >
+                  <TableHead className="w-[20%] py-4 px-4"><div className="flex items-center gap-2"><User className="h-4 w-4" />Manager</div></TableHead>
+                  <TableHead className="w-[31%] py-4 px-4"><div className="flex items-center gap-2"><Mail className="h-4 w-4" />Contact</div></TableHead>
+                  <TableHead className="w-[23%] py-4 px-4">Assigned DMA</TableHead>
+                  <TableHead className="w-[18%] py-4 px-4"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4" />Status</div></TableHead>
+                  <TableHead className="w-14 min-w-14 max-w-14 py-4 px-1 text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -480,43 +460,34 @@ export default function DMAManagersPage() {
                 ) : (
                   filteredManagers.map((manager) => {
                     const dma = dmas.find((d) => d.id === manager.dmaId)
-                    const isInactive = manager.status === "inactive"
                     return (
-                      <TableRow key={manager.id} className={cn("border-b border-slate-100 transition-all duration-200", isInactive ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-cyan-50/50")}>
-                        <TableCell className="py-4 px-6">
-                          <div className="flex items-center gap-3">
-                            <Avatar className={cn("h-10 w-10 shadow-lg transition-all duration-300", isInactive ? "ring-2 ring-red-200" : "ring-2 ring-cyan-200")}>
-                              <AvatarFallback className={cn("text-sm font-semibold", isInactive ? "bg-gradient-to-br from-red-400 to-rose-500 text-white" : "bg-primary text-white")}>{getInitials(manager.name)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-semibold text-slate-800">{manager.name}</p>
-                              <p className="text-xs text-slate-500">DMA Manager</p>
-                            </div>
+                      <TableRow key={manager.id} >
+                        <TableCell className="py-4 px-4">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800">{manager.name}</p>
+                            <p className="text-xs text-slate-500">DMA Manager</p>
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 px-6">
+                        <TableCell className="py-4 px-4">
                           <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2 text-sm text-slate-600"><Mail className="h-3.5 w-3.5 text-slate-400" /><span className="break-all">{manager.email}</span></div>
-                            {manager.phone && <div className="flex items-center gap-2 text-sm text-slate-500"><Phone className="h-3.5 w-3.5 text-slate-400" /><span>{manager.phone}</span></div>}
+                            <div className="flex min-w-0 items-center gap-2 text-sm text-slate-600"><Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className="min-w-0 truncate" title={manager.email}>{manager.email}</span></div>
+                            {manager.phone && <div className="flex min-w-0 items-center gap-2 text-sm text-slate-500"><Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className="truncate" title={manager.phone}>{manager.phone}</span></div>}
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 px-6">
+                        <TableCell className="py-4 px-4">
                           {dma ? (
-                            <div className="flex items-center gap-2">
-                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-cyan-200 flex items-center justify-center"><MapPin className="h-4 w-4 text-primary" /></div>
-                              <span className="font-medium text-slate-700">{dma.name}</span>
-                            </div>
+                            <span className="font-medium text-slate-700">{dma.name}</span>
                           ) : (
-                            <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100"><MapPin className="h-3 w-3 mr-1" />Unassigned</Badge>
+                            <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100">Unassigned</Badge>
                           )}
                         </TableCell>
-                        <TableCell className="py-4 px-6"><div className="flex flex-col items-start gap-2"><EntityStatusBadge status={manager.status} />{renderOnboardingBadge(manager.onboardingStatus)}</div></TableCell>
-                        <TableCell className="py-4 px-6 text-right">
+                        <TableCell className="py-4 px-4"><div className="flex flex-col items-start gap-2"><EntityStatusBadge status={manager.status} />{renderOnboardingBadge(manager.onboardingStatus)}</div></TableCell>
+                        <TableCell className="w-14 min-w-14 max-w-14 py-4 px-1 text-center">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-9 w-9 rounded-lg hover:bg-slate-100 transition-colors"><MoreHorizontal className="h-4 w-4 text-slate-500" /><span className="sr-only">Actions</span></Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-md shadow-slate-900/10 border-slate-200/60">
+                            <DropdownMenuContent align="end" className="w-48 rounded-xl border-slate-200/60">
                               <DropdownMenuItem onClick={() => setViewingManager(manager)} className="rounded-lg gap-2 cursor-pointer"><Eye className="h-4 w-4 text-cyan-500" />View Details</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openEditDialog(manager)} className="rounded-lg gap-2 cursor-pointer"><Pencil className="h-4 w-4 text-cyan-500" />Edit Manager</DropdownMenuItem>
                               {manager.onboardingStatus !== "completed" && <DropdownMenuItem onClick={() => handleResendInvite(manager.id)} className="rounded-lg gap-2 cursor-pointer"><Send className="h-4 w-4 text-cyan-500" />{resendingInviteId === manager.id ? "Sending..." : "Resend Invite"}</DropdownMenuItem>}
@@ -535,8 +506,8 @@ export default function DMAManagersPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (open) setDialogOpen(true); else closeEditor() }}>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <div className="dashboard-modal-accent h-8 w-8 rounded-lg bg-primary flex items-center justify-center">{editingManager ? <Pencil className="h-4 w-4 text-white" /> : <Plus className="h-4 w-4 text-white" />}</div>
@@ -563,10 +534,10 @@ export default function DMAManagersPage() {
                     setFormDMAId("unassigned")
                   }}
                 >
-                  <SelectTrigger className="h-11 bg-secondary border-border rounded-xl">
+                  <SelectTrigger className="h-11  rounded-xl">
                     <SelectValue placeholder="Select a utility" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
+                  <SelectContent className="rounded-xl">
                     {availableUtilities.map((utility) => (
                       <SelectItem key={utility.id} value={utility.id} className="rounded-lg">
                         {utility.name}
@@ -577,26 +548,26 @@ export default function DMAManagersPage() {
               </div>
             )}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="manager-email" className="text-sm font-medium text-slate-700">Email <span className="text-red-500">*</span></Label>
-              <Input id="manager-email" type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="john@example.com" className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15" />
+              <Label htmlFor="dma-manager-email" className="text-sm font-medium text-slate-700">Email <span className="text-red-500">*</span></Label>
+              <Input id="dma-manager-email" name="dma-manager-contact-email" type="email" autoComplete="new-password" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="john@example.com" className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15" />
             </div>
             {editingManager && (
               <>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="manager-name" className="text-sm font-medium text-slate-700">Manager Name <span className="text-red-500">*</span></Label>
-                  <Input id="manager-name" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g., John Mwangi" className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15" />
+                  <Input id="manager-name" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g., John Mwangi" className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15" />
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="manager-phone" className="text-sm font-medium text-slate-700">Phone Number</Label>
-                  <Input id="manager-phone" type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="+254 712 345 678" className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15" />
+                  <Input id="manager-phone" type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="+254 712 345 678" className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15" />
                 </div>
               </>
             )}
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Assign DMA</Label>
               <Select value={formDMAId} onValueChange={setFormDMAId}>
-                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl"><SelectValue placeholder="Select a DMA (optional)" /></SelectTrigger>
-                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
+                <SelectTrigger className="h-11  rounded-xl"><SelectValue placeholder="Select a DMA (optional)" /></SelectTrigger>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="unassigned" className="rounded-lg"><span className="text-slate-500">None (Unassigned)</span></SelectItem>
                   {availableDMAs.map((dma) => (<SelectItem key={dma.id} value={dma.id} className="rounded-lg"><span>{dma.name}</span>{dma.managerId && dma.managerId === editingManager?.id && <span className="text-slate-400 ml-2">(currently assigned)</span>}</SelectItem>))}
                 </SelectContent>
@@ -605,8 +576,8 @@ export default function DMAManagersPage() {
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Status <span className="text-red-500">*</span></Label>
               <Select value={formStatus} onValueChange={(v) => setFormStatus(v as EntityStatus)}>
-                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
+                <SelectTrigger className="h-11  rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent className="rounded-xl">
                   <SelectItem value="active" className="rounded-lg"><div className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-emerald-500" />Active</div></SelectItem>
                   <SelectItem value="inactive" className="rounded-lg"><div className="flex items-center gap-2"><XCircle className="h-4 w-4 text-slate-400" />Inactive</div></SelectItem>
                 </SelectContent>
@@ -616,10 +587,10 @@ export default function DMAManagersPage() {
               <div className="border-t border-slate-200 pt-4 flex flex-col gap-3">
                 <Label className="flex items-center gap-2 text-sm font-medium text-slate-700"><Lock className="h-4 w-4" />Change Password (optional)</Label>
                 <div className="relative">
-                  <Input type={showPassword ? "text" : "password"} value={formPassword} onChange={(e) => setFormPassword(e.target.value)} placeholder="Enter new password (optional)" className="h-11 bg-secondary border-border rounded-xl pr-10 focus:border-primary/50 focus:ring-primary/15" />
+                  <Input type={showPassword ? "text" : "password"} value={formPassword} onChange={(e) => setFormPassword(e.target.value)} placeholder="Enter new password (optional)" className="h-11  rounded-xl pr-10 focus:border-primary/50 focus:ring-primary/15" />
                   <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</Button>
                 </div>
-                <Input type={showPassword ? "text" : "password"} value={formConfirmPassword} onChange={(e) => setFormConfirmPassword(e.target.value)} placeholder="Confirm password" className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15" />
+                <Input type={showPassword ? "text" : "password"} value={formConfirmPassword} onChange={(e) => setFormConfirmPassword(e.target.value)} placeholder="Confirm password" className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15" />
               </div>
             ) : (
               <div className="dashboard-modal-note rounded-xl border border-dashed border-primary/25 bg-secondary/70 p-4 text-sm text-slate-600">
@@ -628,7 +599,7 @@ export default function DMAManagersPage() {
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">Cancel</Button>
+            <Button type="button" variant="outline" onClick={closeEditor} className="rounded-xl">Cancel</Button>
             <Button onClick={handleSubmit} className="dashboard-modal-submit bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/15 rounded-xl">
               {editingManager ? <><Save className="h-4 w-4 mr-2" />Save Changes</> : <><Plus className="h-4 w-4 mr-2" />Invite Manager</>}
             </Button>
@@ -637,11 +608,11 @@ export default function DMAManagersPage() {
       </Dialog>
 
       <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title="Delete DMA Manager" description="Are you sure you want to delete this DMA Manager? This action cannot be undone." confirmLabel="Delete Manager" onConfirm={handleDelete} />
-      <ConfirmDialog open={!!unassignId} onOpenChange={() => setUnassignId(null)} title="Unassign DMA" description="Are you sure you want to unassign the DMA from this manager? They will no longer manage this DMA." confirmLabel="Unassign DMA" onConfirm={handleUnassignDMA} variant="default" />
+      <ConfirmDialog open={!!unassignId} onOpenChange={() => setUnassignId(null)} title="Unassign DMA" description="Are you sure you want to unassign the DMA from this manager? They will no longer manage this DMA." confirmLabel="Unassign DMA" onConfirm={handleUnassignDMA} variant="warning" />
 
       {/* View Details Modal */}
       <Dialog open={!!viewingManager} onOpenChange={() => setViewingManager(null)}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-xl">
               <div className="dashboard-modal-accent h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -657,7 +628,7 @@ export default function DMAManagersPage() {
             return (
               <div className="flex flex-col gap-6 py-4">
                 {/* Manager Profile Card */}
-                <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 bg-gradient-to-r from-cyan-50/50 to-sky-50/50">
+                <Card className="dashboard-modal-panel dashboard-modal-profile">
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4">
                       <Avatar className="h-16 w-16 shadow-lg ring-2 ring-cyan-200">
@@ -688,7 +659,7 @@ export default function DMAManagersPage() {
 
                 {/* Associated Utility Card */}
                 {utility && (
-                  <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+                  <Card className="dashboard-modal-panel">
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -709,7 +680,7 @@ export default function DMAManagersPage() {
 
                 {/* Assigned DMA Card */}
                 {dma && (
-                  <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+                  <Card className="dashboard-modal-panel">
                     <CardContent className="p-5">
                       <div className="flex items-center gap-3 mb-4">
                         <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -725,21 +696,21 @@ export default function DMAManagersPage() {
                         <p className="text-sm text-slate-600 mb-4">{dma.description}</p>
                       )}
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="dashboard-modal-subpanel p-3">
                           <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                             <WaterUtilityIcon className="h-3.5 w-3.5" />
                             Utility
                           </div>
                           <p className="text-sm font-medium text-slate-800">{utility?.name || "N/A"}</p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="dashboard-modal-subpanel p-3">
                           <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                             <Layers className="h-3.5 w-3.5" />
                             Teams
                           </div>
                           <p className="text-lg font-bold text-slate-800">{dma.teamsCount || 0}</p>
                         </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="dashboard-modal-subpanel p-3">
                           <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                             <Users className="h-3.5 w-3.5" />
                             Engineers
@@ -753,10 +724,10 @@ export default function DMAManagersPage() {
 
                 {/* No DMA assigned message */}
                 {!dma && (
-                  <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+                  <Card className="dashboard-modal-panel">
                     <CardContent className="p-6 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center">
+                        <div className="dashboard-modal-status-icon h-12 w-12 rounded-xl flex items-center justify-center">
                           <Unlink className="h-6 w-6 text-amber-600" />
                         </div>
                         <div>

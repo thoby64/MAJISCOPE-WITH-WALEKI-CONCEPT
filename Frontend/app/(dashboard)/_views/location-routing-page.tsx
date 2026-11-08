@@ -12,12 +12,13 @@ import {
   Save,
   Search,
 } from "lucide-react"
-import { WaterUtilityIcon } from "@/components/icons/water-utility-icon"
 import { toast } from "sonner"
 
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type Report } from "@/store/data-store"
 import { PriorityBadge, ReportStatusBadge } from "@/components/shared/status-badge"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,113 +51,65 @@ function getReportLocationLabel(report: Pick<Report, "address" | "districtName" 
   return "Location not available"
 }
 
-function QueueCard({
-  report,
+function RoutingQueueTable({
+  reports,
   onResolve,
   onOpen,
 }: {
-  report: Report
+  reports: Report[]
   onResolve: (report: Report) => void
   onOpen: (reportId: string) => void
 }) {
-  const needsUtility = !report.utilityId
-  const needsDMA = Boolean(report.utilityId) && !report.dmaId
-
   return (
-    <Card className="overflow-hidden border-slate-200/70 bg-white shadow-lg shadow-slate-200/20">
-      <CardContent className="flex flex-col gap-4 p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-sans text-sm font-extrabold tracking-[0.04em] text-slate-800">{report.trackingId}</p>
-              <PriorityBadge priority={report.priority} />
-              <ReportStatusBadge status={report.status} />
-              {needsUtility ? (
-                <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
-                  Needs Utility
-                </span>
-              ) : null}
-              {needsDMA ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
-                  Needs DMA
-                </span>
-              ) : null}
-            </div>
-            <h3 className="text-base font-semibold leading-6 text-slate-900">
-              {report.description || "Report without description"}
-            </h3>
-            <p className="flex items-start gap-2 text-sm leading-6 text-slate-500">
-              <MapPin className="mt-1 h-4 w-4 shrink-0 text-emerald-600" />
-              <span>{getReportLocationLabel(report)}</span>
-            </p>
-          </div>
-
-          <div className="grid min-w-[220px] gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-500">Utility</span>
-              <span className="font-medium text-slate-800">{report.utilityName || "Unassigned Utility"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-500">DMA</span>
-              <span className="font-medium text-slate-800">{report.dmaName || "Unassigned DMA"}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-slate-500">Reported</span>
-              <span className="font-medium text-slate-800">{formatTanzaniaDateTime(report.createdAt)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <Globe2 className="h-4 w-4 text-sky-600" />
-              <span className="font-medium">Region Hint</span>
-            </div>
-            <p className="mt-2 font-semibold text-slate-800">{report.regionName || "Not captured"}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <MapPin className="h-4 w-4 text-emerald-600" />
-              <span className="font-medium">District Hint</span>
-            </div>
-            <p className="mt-2 font-semibold text-slate-800">{report.districtName || "Not captured"}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <WaterUtilityIcon className="h-4 w-4 text-cyan-600" />
-              <span className="font-medium">Reporter</span>
-            </div>
-            <p className="mt-2 font-semibold text-slate-800">{report.reporterName || "Unknown"}</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <Route className="h-4 w-4 text-cyan-600" />
-              <span className="font-medium">Coordinates</span>
-            </div>
-            <p className="mt-2 font-semibold text-slate-800">
-              {Number.isFinite(report.latitude) && Number.isFinite(report.longitude)
-                ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`
-                : "Missing"}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={() => onResolve(report)}
-            className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-600 hover:to-blue-700"
-          >
-            <Route className="mr-2 h-4 w-4" />
-            Resolve Routing
-          </Button>
-          <Button variant="outline" className="rounded-xl" onClick={() => onOpen(report.trackingId || report.id)}>
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Open Full Report
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="reports-table-container">
+      <Table className="reports-data-table min-w-[1050px]">
+        <TableHeader>
+          <TableRow>
+            <TableHead>Tracking ID</TableHead>
+            <TableHead>Report location</TableHead>
+            <TableHead>Current scope</TableHead>
+            <TableHead>Location hints</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Reported</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {reports.map((report) => (
+            <TableRow key={report.id}>
+              <TableCell data-label="Tracking ID">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold" title={report.trackingId}>{report.trackingId}</p>
+                  <PriorityBadge priority={report.priority} />
+                </div>
+              </TableCell>
+              <TableCell data-label="Report location">
+                <div className="min-w-0">
+                  <p className="reports-cell-truncate font-medium" title={report.description || "Report without description"}>{report.description || "Report without description"}</p>
+                  <p className="reports-cell-truncate text-xs text-slate-500" title={getReportLocationLabel(report)}>{getReportLocationLabel(report)}</p>
+                </div>
+              </TableCell>
+              <TableCell data-label="Current scope">
+                <p className="reports-cell-truncate" title={report.utilityName || "Unassigned Utility"}>{report.utilityName || "Unassigned Utility"}</p>
+                <p className="reports-cell-truncate text-xs text-slate-500" title={report.dmaName || "Unassigned DMA"}>{report.dmaName || "Unassigned DMA"}</p>
+              </TableCell>
+              <TableCell data-label="Location hints">
+                <p className="reports-cell-truncate" title={report.regionName || "Region not captured"}>{report.regionName || "Region not captured"}</p>
+                <p className="reports-cell-truncate text-xs text-slate-500" title={report.districtName || "District not captured"}>{report.districtName || "District not captured"}</p>
+              </TableCell>
+              <TableCell data-label="Status"><ReportStatusBadge status={report.status} /></TableCell>
+              <TableCell data-label="Reported" className="whitespace-nowrap">{formatTanzaniaDateTime(report.createdAt)}</TableCell>
+              <TableCell data-label="Actions" className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button size="sm" onClick={() => onResolve(report)}><Route className="h-4 w-4" />Resolve</Button>
+                  <Button size="sm" variant="outline" onClick={() => onOpen(report.trackingId || report.id)}><ExternalLink className="h-4 w-4" /><span className="sr-only">Open report</span></Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   )
 }
 
@@ -290,7 +243,7 @@ export default function LocationRoutingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-3xl border border-slate-200/70 bg-white p-6 shadow-lg shadow-slate-200/20">
+      <div className="content-panel-card rounded-3xl p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-cyan-700">Routing review</p>
@@ -308,43 +261,10 @@ export default function LocationRoutingPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
-          <CardContent className="p-5">
-            <div className="flex items-start gap-3">
-              <Globe2 className="mt-1 h-7 w-7 shrink-0 text-sky-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-500">Needs Utility</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{unassignedUtilityReports.length}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">Reports missing the correct regional authority.</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
-          <CardContent className="p-5">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-1 h-7 w-7 shrink-0 text-emerald-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-500">Needs DMA</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{unassignedDMAReports.length}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">Reports already linked to a utility but not a district DMA.</p>
-          </CardContent>
-        </Card>
-        <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
-          <CardContent className="p-5">
-            <div className="flex items-start gap-3">
-              <Route className="mt-1 h-7 w-7 shrink-0 text-cyan-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-500">Routing Queue</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{filteredReports.length}</p>
-              </div>
-            </div>
-            <p className="mt-2 text-sm text-slate-500">Reports still waiting for confident location routing.</p>
-          </CardContent>
-        </Card>
+      <div className="content-metric-grid grid grid-cols-1 gap-3 md:grid-cols-3">
+        <SummaryMetricCard label="Needs Utility" value={unassignedUtilityReports.length} icon={Globe2} tone="blue" />
+        <SummaryMetricCard label="Needs DMA" value={unassignedDMAReports.length} icon={MapPin} tone="amber" />
+        <SummaryMetricCard label="Routing Queue" value={filteredReports.length} icon={Route} tone="slate" />
       </div>
 
       <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
@@ -355,7 +275,7 @@ export default function LocationRoutingPage() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search tracking ID, location hint, utility, DMA, or description..."
-              className="h-11 rounded-xl border-slate-200/80 bg-slate-50/80 pl-10"
+              className="h-11 rounded-xl pl-10"
             />
           </div>
         </CardContent>
@@ -371,11 +291,7 @@ export default function LocationRoutingPage() {
             <p className="text-sm text-slate-500">Reports that still need a regional utility like DUWASA or AUWSA.</p>
           </div>
           {unassignedUtilityReports.length ? (
-            <div className="space-y-4">
-              {unassignedUtilityReports.map((report) => (
-                <QueueCard key={report.id} report={report} onResolve={openResolve} onOpen={(id) => router.push(`/dashboard/reports/${id}`)} />
-              ))}
-            </div>
+            <RoutingQueueTable reports={unassignedUtilityReports} onResolve={openResolve} onOpen={(id) => router.push(`/dashboard/reports/${id}`)} />
           ) : (
             <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-500">
@@ -395,11 +311,7 @@ export default function LocationRoutingPage() {
             <p className="text-sm text-slate-500">Reports that already know the utility but still need the correct district DMA.</p>
           </div>
           {unassignedDMAReports.length ? (
-            <div className="space-y-4">
-              {unassignedDMAReports.map((report) => (
-                <QueueCard key={report.id} report={report} onResolve={openResolve} onOpen={(id) => router.push(`/dashboard/reports/${id}`)} />
-              ))}
-            </div>
+            <RoutingQueueTable reports={unassignedDMAReports} onResolve={openResolve} onOpen={(id) => router.push(`/dashboard/reports/${id}`)} />
           ) : (
             <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-500">
@@ -422,7 +334,7 @@ export default function LocationRoutingPage() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-md rounded-2xl border-slate-200/50 bg-white/95 shadow-2xl shadow-slate-200/50 backdrop-blur-xl">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Route className="h-5 w-5 text-cyan-600" />
@@ -435,7 +347,7 @@ export default function LocationRoutingPage() {
 
           {selectedReport ? (
             <div className="space-y-5">
-              <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/60 p-4">
+              <div className="dashboard-modal-note rounded-xl border p-4">
                 <p className="font-sans text-sm font-extrabold tracking-[0.04em] text-slate-800">{selectedReport.trackingId}</p>
                 <p className="mt-1 text-sm text-slate-500">{selectedReport.description || "No description"}</p>
                 <p className="mt-2 text-xs text-slate-500">{getReportLocationLabel(selectedReport)}</p>
@@ -451,10 +363,10 @@ export default function LocationRoutingPage() {
                     setResolveDMAId("")
                   }}
                 >
-                  <SelectTrigger className="h-11 rounded-xl border-slate-200/80 bg-slate-50/80">
+                  <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Select utility" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="__none__" className="rounded-lg">
                       Unassigned Utility
                     </SelectItem>
@@ -473,10 +385,10 @@ export default function LocationRoutingPage() {
                   value={resolveDMAId || "__none__"}
                   onValueChange={(value) => setResolveDMAId(value === "__none__" ? "" : value)}
                 >
-                  <SelectTrigger className="h-11 rounded-xl border-slate-200/80 bg-slate-50/80">
+                  <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue placeholder="Select DMA" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+                  <SelectContent className="rounded-xl">
                     <SelectItem value="__none__" className="rounded-lg">
                       {resolveUtilityId ? "Unassigned DMA" : "Unassigned Location"}
                     </SelectItem>

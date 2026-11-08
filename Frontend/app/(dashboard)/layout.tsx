@@ -64,14 +64,14 @@ export default function DashboardLayout({
   return (
     <SidebarProvider defaultOpen={true}>
       <TopbarTitleProvider>
-        <div className="flex w-full h-screen">
+        <div className="flex h-screen min-h-0 w-full overflow-hidden">
           <AppSidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#172a39] dark:bg-[#172a39]">
             <TopNavbar />
-            <SidebarInset className="relative m-0 min-h-[calc(100svh-3.5rem)] min-w-0 rounded-none bg-background">
+            <SidebarInset className="relative m-0 !min-h-0 min-w-0 flex-1 overflow-hidden bg-[linear-gradient(112deg,#172a39_0%,#142f3f_55%,#173546_100%)] dark:bg-[linear-gradient(112deg,#172a39_0%,#101d29_55%,#111e2a_100%)]">
               <main
                 className={cn(
-                  "dashboard-content-area flex-1 bg-background text-foreground",
+                  "dashboard-content-area min-h-0 flex-1 bg-background text-foreground md:rounded-tl-[18px]",
                   isHydraulicWorkspace
                     ? "overflow-hidden p-0"
                     : "overflow-y-auto overflow-x-hidden px-5 py-6 xl:px-8 xl:py-7"

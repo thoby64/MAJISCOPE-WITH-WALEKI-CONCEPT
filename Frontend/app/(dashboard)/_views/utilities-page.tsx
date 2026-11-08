@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -228,7 +229,7 @@ export default function UtilitiesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="content-metric-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
@@ -329,38 +330,26 @@ export default function UtilitiesPage() {
             </div>
 
             {/* Region dropdown */}
-            <select
-              value={regionFilter}
-              onChange={(e) => setRegionFilter(e.target.value)}
-              className={cn(
-                "h-10 rounded-xl border bg-slate-50/60 text-xs font-medium shadow-sm focus:outline-none focus:border-cyan-400 focus:ring-cyan-400/20 px-3",
-                regionFilter
-                  ? "border-cyan-400/70 text-cyan-700"
-                  : "border-slate-200/80 text-slate-500"
-              )}
-            >
-              <option value="">All regions</option>
-              {regionOptions.map((region) => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
+            <Select value={regionFilter || "__all_regions__"} onValueChange={(value) => setRegionFilter(value === "__all_regions__" ? "" : value)}>
+              <SelectTrigger className="h-10 w-auto min-w-[8.5rem] rounded-xl px-3 text-xs font-medium shadow-none">
+                <SelectValue placeholder="All regions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all_regions__">All regions</SelectItem>
+                {regionOptions.map((region) => <SelectItem key={region} value={region}>{region}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
             {/* Manager dropdown */}
-            <select
-              value={managerFilter}
-              onChange={(e) => setManagerFilter(e.target.value)}
-              className={cn(
-                "h-10 rounded-xl border bg-slate-50/60 text-xs font-medium shadow-sm focus:outline-none focus:border-cyan-400 focus:ring-cyan-400/20 px-3 max-w-[160px]",
-                managerFilter
-                  ? "border-cyan-400/70 text-cyan-700"
-                  : "border-slate-200/80 text-slate-500"
-              )}
-            >
-              <option value="">All managers</option>
-              {managerOptions.map((manager) => (
-                <option key={manager} value={manager}>{manager}</option>
-              ))}
-            </select>
+            <Select value={managerFilter || "__all_managers__"} onValueChange={(value) => setManagerFilter(value === "__all_managers__" ? "" : value)}>
+              <SelectTrigger className="h-10 w-auto min-w-[9.5rem] max-w-[10rem] rounded-xl px-3 text-xs font-medium shadow-none">
+                <SelectValue placeholder="All managers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all_managers__">All managers</SelectItem>
+                {managerOptions.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}
+              </SelectContent>
+            </Select>
 
             {hasActiveFilters && (
               <Button
@@ -479,7 +468,7 @@ export default function UtilitiesPage() {
                         className={cn(
                           "rounded-lg",
                           utility.status === "active"
-                            ? "text-slate-600 focus:text-slate-700"
+                            ? "menu-action-deactivate"
                             : "text-emerald-700 focus:text-emerald-800 focus:bg-emerald-50"
                         )}
                       >

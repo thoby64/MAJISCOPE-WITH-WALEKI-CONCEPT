@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { WaterLevelStorageFacility } from "@/components/water-level/water-level-storage-facility"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import { formatTanzaniaDateTime } from "@/lib/date-time"
+import { cn } from "@/lib/utils"
 import {
   READING_HISTORY_LIMIT,
   WATER_LEVEL_POLL_INTERVAL_MS,
@@ -602,7 +603,7 @@ function WaterQualityReadingsView({
       </Card>
 
       {/* Parameter cards (latest values) — 3 per row on md+ screens */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="sensor-quality-metric-grid grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {paramKeys.length === 0 && (
           <Card className="col-span-full border-slate-200/70 bg-white shadow-sm">
             <CardContent className="py-10 text-center text-sm text-slate-500">
@@ -616,35 +617,17 @@ function WaterQualityReadingsView({
           const value = paramValue(latestParams, key)
           const unit = wqUnit(key)
           return (
-            <Card
-              key={key}
-              className="group overflow-hidden rounded-2xl border-slate-200/70 bg-gradient-to-b from-white to-slate-50/60 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/70"
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-xs font-medium text-slate-500">{meta?.label ?? wqLabel(key)}</p>
-                  <span
-                    className={`flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg px-1 ${meta?.tint ?? "text-cyan-700 bg-cyan-50"}`}
-                  >
-                    {Icon ? (
-                      <Icon className="h-3.5 w-3.5" />
-                    ) : (
-                      <span className="text-[10px] font-extrabold tracking-tight">{meta?.tile?.text ?? key.slice(0, 2).toUpperCase()}</span>
-                    )}
-                  </span>
-                </div>
-                <p className="mt-2.5 flex items-baseline gap-1.5">
-                  <span className="text-2xl font-bold tracking-tight text-slate-800">
-                    {value != null ? value : "—"}
-                  </span>
-                  {unit ? (
-                    <span className={`rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold ${meta?.chip ?? "text-slate-500"}`}>
-                      {unit}
-                    </span>
-                  ) : null}
+            <article key={key} className="sensor-quality-metric-card">
+              <span className={cn("sensor-quality-metric-icon", meta?.tile?.tint ?? meta?.tint ?? "text-cyan-600 bg-cyan-50")} aria-hidden="true">
+                {meta?.tile ? <span className="font-bold leading-none">{meta.tile.text}</span> : Icon ? <Icon className="h-4 w-4" strokeWidth={1.9} /> : <Droplets className="h-4 w-4" strokeWidth={1.9} />}
+              </span>
+              <div className="min-w-0">
+                <p className="sensor-quality-metric-label">{meta?.label ?? wqLabel(key)}</p>
+                <p className={cn("sensor-quality-metric-value", meta?.chip ?? "text-cyan-700")}>
+                  {value == null ? "—" : `${value}${unit ? ` ${unit}` : ""}`}
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </article>
           )
         })}
       </div>

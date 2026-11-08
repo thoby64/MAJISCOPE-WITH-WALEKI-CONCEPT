@@ -32,6 +32,13 @@ interface PriorityBadgeProps {
   className?: string
 }
 
+const PRIORITY_TONE_CLASS: Record<ReportPriority, string> = {
+  low: "",
+  medium: "priority-badge--moderate",
+  high: "priority-badge--high",
+  critical: "priority-badge--critical",
+}
+
 export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
   const config = PRIORITY_CONFIG[priority]
   return (
@@ -40,6 +47,7 @@ export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
         "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
         config.bgColor,
         config.color,
+        PRIORITY_TONE_CLASS[priority],
         className
       )}
     >

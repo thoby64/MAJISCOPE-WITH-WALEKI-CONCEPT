@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { ArrowLeft, BarChart3, Droplets, FlaskConical, MapPin, RefreshCw, Waves } from "lucide-react"
 import { toast } from "sonner"
 import { PageHeader } from "@/components/shared/page-header"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
@@ -241,12 +242,5 @@ export default function WaterSourceSensorDetailPage() {
 }
 
 function Metric({ label, value, unit = "" }: { label: string; value?: number | null; unit?: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-semibold text-slate-900">
-        {value == null ? "—" : `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`}
-      </p>
-    </div>
-  )
+  return <SummaryMetricCard label={label} value={value == null ? "—" : `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`} icon={Droplets} tone="blue" />
 }

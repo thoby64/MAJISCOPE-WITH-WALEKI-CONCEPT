@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/auth-store"
 import { usePageAccess } from "@/hooks/use-page-access"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { PageHeader } from "@/components/shared/page-header"
 import { cn } from "@/lib/utils"
 
@@ -94,27 +95,36 @@ export default function HydraulicReportsPage() {
         onAction={() => router.push("/dashboard/hydraulic-reports/compare")}
       />
 
-      <section className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 lg:grid-cols-[minmax(15rem,1fr)_repeat(3,minmax(10rem,0.45fr))]">
+      <section className="hydraulic-reports-filters content-panel-card grid gap-3 rounded-lg p-4 lg:grid-cols-[minmax(15rem,1fr)_repeat(3,minmax(10rem,0.45fr))]">
         <label className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search reference, scenario, DMA or runner" className="pl-9" />
         </label>
-        <select value={status} onChange={(event) => setStatus(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-          <option value="">All statuses</option><option value="DONE">Completed</option><option value="FAILED">Failed</option>
-        </select>
-        {currentUser?.role === "admin" ? <select value={utilityId} onChange={(event) => { setUtilityId(event.target.value); setDmaId("") }} className="h-10 rounded-md border border-input bg-background px-3 text-sm"><option value="">All utilities</option>{visibleUtilities.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select> : <div className="flex h-10 items-center rounded-md border border-input px-3 text-sm">{currentUser?.utilityName || "Assigned utility"}</div>}
-        <select value={dmaId} onChange={(event) => setDmaId(event.target.value)} disabled={currentUser?.role === "dma_manager"} className="h-10 rounded-md border border-input bg-background px-3 text-sm disabled:opacity-70"><option value="">All DMAs</option>{visibleDmas.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+        <Select value={status || "__all_statuses__"} onValueChange={(value) => setStatus(value === "__all_statuses__" ? "" : value)}>
+          <SelectTrigger className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All statuses" /></SelectTrigger>
+          <SelectContent><SelectItem value="__all_statuses__">All statuses</SelectItem><SelectItem value="DONE">Completed</SelectItem><SelectItem value="FAILED">Failed</SelectItem></SelectContent>
+        </Select>
+        {currentUser?.role === "admin" ? (
+          <Select value={utilityId || "__all_utilities__"} onValueChange={(value) => { setUtilityId(value === "__all_utilities__" ? "" : value); setDmaId("") }}>
+            <SelectTrigger className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All utilities" /></SelectTrigger>
+            <SelectContent><SelectItem value="__all_utilities__">All utilities</SelectItem>{visibleUtilities.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+          </Select>
+        ) : <div className="flex h-10 items-center rounded-xl border border-input px-3 text-sm">{currentUser?.utilityName || "Assigned utility"}</div>}
+        <Select value={dmaId || "__all_dmas__"} onValueChange={(value) => setDmaId(value === "__all_dmas__" ? "" : value)} disabled={currentUser?.role === "dma_manager"}>
+          <SelectTrigger className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All DMAs" /></SelectTrigger>
+          <SelectContent><SelectItem value="__all_dmas__">All DMAs</SelectItem>{visibleDmas.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent>
+        </Select>
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+      <section className="content-panel-card overflow-hidden rounded-2xl">
+          <div className="content-table-header flex items-center justify-between px-4 py-3">
           <div><h2 className="font-semibold">Scenario archive</h2><p className="text-sm text-slate-500 dark:text-slate-400">{data.total.toLocaleString()} scenarios{hasLoaded.current && loading ? " · Refreshing" : ""}</p></div>
-          <div className="flex items-center gap-2 text-sm"><SlidersHorizontal className="h-4 w-4" /><span>Rows</span><select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))} className="rounded-md border border-input bg-background px-2 py-1"><option>25</option><option>50</option><option>100</option></select></div>
+          <div className="flex items-center gap-2 text-sm"><SlidersHorizontal className="h-4 w-4" /><span>Rows</span><Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}><SelectTrigger className="h-9 w-20 rounded-xl px-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="25">25</SelectItem><SelectItem value="50">50</SelectItem><SelectItem value="100">100</SelectItem></SelectContent></Select></div>
         </div>
         {error ? <div className="p-10 text-center"><p className="font-semibold text-red-700 dark:text-red-300">{error}</p><Button className="mt-4" onClick={load}>Try again</Button></div> : loading ? <div className="p-14 text-center text-slate-500">Loading hydraulic scenarios...</div> : data.items.length === 0 ? <div className="p-14 text-center"><FileChartColumn className="mx-auto h-8 w-8 text-slate-400" /><p className="mt-3 font-semibold">No hydraulic scenarios found</p><p className="text-sm text-slate-500">Completed model runs will appear here automatically.</p></div> : (
-          <div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-800 text-white dark:bg-black"><tr>{["Scenario", "Scope", "Run by", "Status", "Min / Avg pressure", "NRW", "Alerts", "Completed", ""].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-200 dark:divide-slate-700">{data.items.map((item) => <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/70"><td className="px-4 py-3"><p className="font-semibold text-slate-950 dark:text-white">{item.report_reference || item.id.slice(0, 12)}</p><p className="text-xs text-slate-500">{item.scenario_name || "Hydraulic scenario"}</p></td><td className="px-4 py-3"><p className="font-medium">{item.utility_name || "Historical utility"}</p><p className="text-xs text-slate-500">{item.dma_name || "Historical DMA"}</p></td><td className="px-4 py-3"><p>{item.created_by_name || "System"}</p><p className="text-xs capitalize text-slate-500">{(item.created_by_role || "automated").replaceAll("_", " ")}</p></td><td className="px-4 py-3"><span className={cn("rounded-full border px-2 py-1 text-xs font-semibold", statusClass(item.scenario_status))}>{(item.scenario_status || "Unknown").toUpperCase()}</span></td><td className="px-4 py-3">{formatNumber(item.pressure_min_m)} / {formatNumber(item.pressure_avg_m)} m</td><td className="px-4 py-3 font-semibold">{item.nrw_pct == null ? "N/A" : `${formatNumber(item.nrw_pct)}%`}</td><td className="px-4 py-3">{item.alert_count}</td><td className="px-4 py-3">{formatDate(item.completed_at || item.created_at)}</td><td className="px-4 py-3 text-right"><Button asChild size="sm"><Link href={`/dashboard/hydraulic-reports/${item.report_reference || item.id}`}>View scenario</Link></Button></td></tr>)}</tbody></table></div>
+          <div className="reports-table-container content-table-scroll"><table className="reports-data-table w-full min-w-[980px] text-left text-sm"><thead><tr>{["Scenario", "Scope", "Run by", "Status", "Min / Avg pressure", "NRW", "Completed", ""].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr></thead><tbody className="divide-y">{data.items.map((item) => <tr key={item.id}><td data-label="Scenario" className="px-4 py-3"><p className="font-semibold text-slate-950 dark:text-white">{item.report_reference || item.id.slice(0, 12)}</p><p className="text-xs text-slate-500">{item.scenario_name || "Hydraulic scenario"}</p></td><td data-label="Scope" className="px-4 py-3"><p className="font-medium">{item.utility_name || "Historical utility"}</p><p className="text-xs text-slate-500">{item.dma_name || "Historical DMA"}</p></td><td data-label="Run by" className="px-4 py-3"><p>{item.created_by_name || "System"}</p><p className="text-xs capitalize text-slate-500">{(item.created_by_role || "automated").replaceAll("_", " ")}</p></td><td data-label="Status" className="px-4 py-3"><span className={cn("rounded-full border px-2 py-1 text-xs font-semibold", statusClass(item.scenario_status))}>{(item.scenario_status || "Unknown").toUpperCase()}</span></td><td data-label="Min / Avg pressure" className="px-4 py-3">{formatNumber(item.pressure_min_m)} / {formatNumber(item.pressure_avg_m)} m</td><td data-label="NRW" className="px-4 py-3 font-semibold">{item.nrw_pct == null ? "N/A" : `${formatNumber(item.nrw_pct)}%`}</td><td data-label="Completed" className="px-4 py-3">{formatDate(item.completed_at || item.created_at)}</td><td data-label="Open" className="px-4 py-3 text-right"><Button asChild size="sm"><Link href={`/dashboard/hydraulic-reports/${item.report_reference || item.id}`}>View scenario</Link></Button></td></tr>)}</tbody></table></div>
         )}
-        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-700"><p className="text-sm text-slate-500">Page {data.page} of {data.pages}</p><div className="flex gap-2"><Button variant="outline" size="icon" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></Button><Button variant="outline" size="icon" disabled={page >= data.pages || loading} onClick={() => setPage((value) => value + 1)} aria-label="Next page"><ChevronRight className="h-4 w-4" /></Button></div></div>
+        <div className="content-table-header flex items-center justify-between px-4 py-3"><p className="text-sm text-slate-500">Page {data.page} of {data.pages}</p><div className="flex gap-2"><Button variant="outline" size="icon" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></Button><Button variant="outline" size="icon" disabled={page >= data.pages || loading} onClick={() => setPage((value) => value + 1)} aria-label="Next page"><ChevronRight className="h-4 w-4" /></Button></div></div>
       </section>
     </div>
   )

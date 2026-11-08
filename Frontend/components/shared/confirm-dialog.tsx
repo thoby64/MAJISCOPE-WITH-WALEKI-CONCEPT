@@ -22,7 +22,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   onConfirm: () => void | Promise<void>
-  variant?: "default" | "destructive"
+  variant?: "default" | "warning" | "destructive"
   isLoading?: boolean
 }
 
@@ -40,40 +40,45 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="bg-white/95 backdrop-blur-xl border-slate-200/50 shadow-2xl shadow-slate-200/50 rounded-2xl max-w-md">
+      <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-3 text-xl">
-            <div className={cn(
-              "h-10 w-10 rounded-xl flex items-center justify-center shadow-lg",
-              variant === "destructive" 
-                ? "bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/20" 
-                : "bg-gradient-to-br from-cyan-500 to-sky-600 shadow-cyan-500/20"
-            )}>
+            <div
+              className={cn(
+                "dashboard-modal-accent flex h-10 w-10 items-center justify-center rounded-xl",
+                variant === "destructive" && "dashboard-modal-accent-destructive",
+                variant === "warning" && "dashboard-modal-accent-warning",
+              )}
+            >
               {variant === "destructive" ? (
-                <Trash2 className="h-5 w-5 text-white" />
+                <Trash2 className="dashboard-modal-trash-icon h-5 w-5" />
+              ) : variant === "warning" ? (
+                <AlertTriangle className="h-5 w-5 text-white" />
               ) : (
                 <Info className="h-5 w-5 text-white" />
               )}
             </div>
             {title}
           </AlertDialogTitle>
-          <AlertDialogDescription className="text-slate-600 text-base pt-2">
+          <AlertDialogDescription className="dashboard-modal-description text-base pt-2">
             {description}
           </AlertDialogDescription>
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
-          <AlertDialogCancel disabled={isLoading} className="rounded-xl border-slate-200 hover:bg-slate-50">
+          <AlertDialogCancel disabled={isLoading} className="dashboard-modal-cancel rounded-xl">
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isLoading}
             className={cn(
-              "rounded-xl text-white shadow-lg transition-all duration-300 disabled:pointer-events-none disabled:opacity-60",
+              "dashboard-modal-submit rounded-xl text-white transition-colors duration-200 disabled:pointer-events-none disabled:opacity-60",
               variant === "destructive"
-                ? "bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-red-500/25 hover:shadow-red-500/40"
-                : "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 shadow-cyan-500/25 hover:shadow-cyan-500/40"
+                ? "dashboard-modal-submit-destructive"
+                : variant === "warning"
+                  ? "dashboard-modal-submit-warning"
+                  : ""
             )}
           >
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth-store"
 import { usePageAccess } from "@/hooks/use-page-access"
 import { CONFIG } from "@/lib/config"
 import { EntityStatusBadge } from "@/components/shared/status-badge"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 import type { EntityStatus } from "@/lib/types"
 import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
@@ -94,6 +95,7 @@ export default function UtilityManagersPage() {
   const { utilities, dmas, dmaManagers, engineers, reports, fetchUtilities, fetchDMAs, fetchDMAManagers, fetchEngineers, fetchReports } = useDataStore()
   const [managers, setManagers] = useState<Manager[]>([])
   const [search, setSearch] = useState("")
+  const [searchInputEnabled, setSearchInputEnabled] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingManager, setEditingManager] = useState<Manager | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -238,6 +240,9 @@ export default function UtilityManagersPage() {
   }
 
   function openEditDialog(manager: Manager) {
+    // Opening a manager email field can trigger browser credential autofill.
+    // Start the list filter clean so that autofill cannot hide every row.
+    setSearch("")
     setEditingManager(manager)
     setFormEmail(manager.email)
     setFormUtilityId(manager.utilityId ?? "")
@@ -248,6 +253,19 @@ export default function UtilityManagersPage() {
     setFormConfirmPassword("")
     setShowPassword(false)
     setDialogOpen(true)
+  }
+
+  function closeEditor() {
+    setDialogOpen(false)
+    setEditingManager(null)
+    setFormName("")
+    setFormEmail("")
+    setFormPhone("")
+    setFormUtilityId("")
+    setFormPassword("")
+    setFormConfirmPassword("")
+    setShowPassword(false)
+    // Keep the current list intact when the editor is dismissed without saving.
   }
 
   async function handleSubmit() {
@@ -430,42 +448,10 @@ export default function UtilityManagersPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <Users className="h-8 w-8 shrink-0 text-primary" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Managers</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalManagers}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300 bg-gradient-to-br from-emerald-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <CheckCircle2 className="h-8 w-8 shrink-0 text-emerald-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Active Managers</p>
-                  <p className="text-2xl font-bold text-slate-800">{activeManagers}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 bg-gradient-to-br from-cyan-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <WaterUtilityIcon className="h-8 w-8 shrink-0 text-primary" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Assigned to Utilities</p>
-                  <p className="text-2xl font-bold text-slate-800">{assignedManagers}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="content-metric-grid grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SummaryMetricCard label="Total Managers" value={totalManagers} icon={Users} tone="slate" />
+          <SummaryMetricCard label="Active Managers" value={activeManagers} icon={CheckCircle2} tone="blue" />
+          <SummaryMetricCard label="Assigned to Utilities" value={assignedManagers} icon={WaterUtilityIcon} tone="slate" />
         </div>
       </div>
 
@@ -475,10 +461,15 @@ export default function UtilityManagersPage() {
           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/10 to-sky-500/10 blur-lg opacity-0 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
           <Input
+            type="search"
+            name="utility-manager-list-filter"
+            autoComplete="off"
+            readOnly={!searchInputEnabled}
+            onFocus={() => setSearchInputEnabled(true)}
             placeholder="Search by name, email, phone, utility..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-11 h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15 shadow-sm"
+            className="pl-11 h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15 shadow-sm"
           />
         </div>
         <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -556,34 +547,31 @@ export default function UtilityManagersPage() {
             })}
           </div>
           <div className="hidden md:block">
-            <Table className="table-fixed">
+            <Table className="reports-data-table table-fixed min-w-[860px]">
               <TableHeader>
-                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/80 hover:from-slate-50 hover:to-slate-100/80 border-b border-slate-200/60">
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6">
+                <TableRow >
+                  <TableHead className="w-[20%] py-4 px-4">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4" />
                       Manager
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6">
+                  <TableHead className="w-[31%] py-4 px-4">
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
                       Contact
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6">
-                    <div className="flex items-center gap-2">
-                      <WaterUtilityIcon className="h-4 w-4" />
-                      Assigned Utility
-                    </div>
+                  <TableHead className="w-[23%] py-4 px-4">
+                    Assigned Utility
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6">
+                  <TableHead className="w-[18%] py-4 px-4">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4" />
                       Status
                     </div>
                   </TableHead>
-                  <TableHead className="font-semibold text-slate-600 py-4 px-6 text-right">Actions</TableHead>
+                  <TableHead className="w-14 min-w-14 max-w-14 py-4 px-1 text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -613,80 +601,51 @@ export default function UtilityManagersPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredManagers.map((manager, index) => {
+                  filteredManagers.map((manager) => {
                     const utility = utilities.find((u) => u.id === manager.utilityId)
-                    const isInactive = manager.status === "inactive"
                     
                     return (
                       <TableRow 
                         key={manager.id} 
-                        className={cn(
-                          "border-b border-slate-100 transition-all duration-200",
-                          isInactive 
-                            ? "bg-red-50/30 hover:bg-red-50/50" 
-                            : "hover:bg-cyan-50/50"
-                        )}
+                        
                       >
-                        {/* Manager Info with Avatar */}
-                        <TableCell className="py-4 px-6">
-                          <div className="flex items-center gap-3">
-                            <Avatar className={cn(
-                              "h-10 w-10 shadow-lg transition-all duration-300",
-                              isInactive 
-                                ? "ring-2 ring-red-200" 
-                                : "ring-2 ring-cyan-200"
-                            )}>
-                              <AvatarFallback className={cn(
-                                "text-sm font-semibold",
-                                isInactive
-                                  ? "bg-gradient-to-br from-red-400 to-rose-500 text-white"
-                                  : "bg-primary text-white"
-                              )}>
-                                {getInitials(manager.name)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
+                        {/* Manager identity */}
+                        <TableCell className="py-4 px-4">
+                          <div className="min-w-0">
                               <p className="font-semibold text-slate-800">{manager.name}</p>
                               <p className="text-xs text-slate-500">Utility Manager</p>
-                            </div>
                           </div>
                         </TableCell>
 
                         {/* Contact Info */}
-                        <TableCell className="py-4 px-6">
+                        <TableCell className="py-4 px-4">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2 text-sm text-slate-600">
                               <Mail className="h-3.5 w-3.5 text-slate-400" />
-                              <span className="break-all">{manager.email}</span>
+                              <span className="min-w-0 truncate" title={manager.email}>{manager.email}</span>
                             </div>
                             {manager.phone && (
                               <div className="flex items-center gap-2 text-sm text-slate-500">
                                 <Phone className="h-3.5 w-3.5 text-slate-400" />
-                                <span>{manager.phone}</span>
+                                <span className="truncate" title={manager.phone}>{manager.phone}</span>
                               </div>
                             )}
                           </div>
                         </TableCell>
 
                         {/* Assigned Utility */}
-                        <TableCell className="py-4 px-6">
+                        <TableCell className="py-4 px-4">
                           {utility ? (
-                            <div className="flex items-center gap-2">
-                              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-cyan-100 to-cyan-200 flex items-center justify-center">
-                                <WaterUtilityIcon className="h-4 w-4 text-primary" />
-                              </div>
-                              <span className="font-medium text-slate-700">{utility.name}</span>
-                            </div>
+                            <span className="font-medium text-slate-700">{utility.name}</span>
                           ) : (
                             <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 hover:bg-amber-100">
-                              <MapPin className="h-3 w-3 mr-1" />
                               Unassigned
                             </Badge>
                           )}
                         </TableCell>
 
                         {/* Status */}
-                        <TableCell className="py-4 px-6">
+                        <TableCell className="py-4 px-4">
                           <div className="flex flex-col items-start gap-2">
                             <EntityStatusBadge status={(manager.status as EntityStatus) ?? "active"} />
                             {renderOnboardingBadge(manager.onboardingStatus)}
@@ -694,7 +653,7 @@ export default function UtilityManagersPage() {
                         </TableCell>
 
                         {/* Actions */}
-                        <TableCell className="py-4 px-6 text-right">
+                        <TableCell className="w-14 min-w-14 max-w-14 py-4 px-1 text-center">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button 
@@ -708,7 +667,7 @@ export default function UtilityManagersPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent 
                               align="end" 
-                              className="w-48 rounded-xl shadow-md shadow-slate-900/10 border-slate-200/60"
+                              className="w-48 rounded-xl border-slate-200/60"
                             >
                               <DropdownMenuItem 
                                 onClick={() => setViewingManager(manager)} 
@@ -763,8 +722,8 @@ export default function UtilityManagersPage() {
       </Card>
 
       {/* Modern Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (open) setDialogOpen(true); else closeEditor() }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2 text-xl">
               <div className="dashboard-modal-accent h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
@@ -779,14 +738,16 @@ export default function UtilityManagersPage() {
           </DialogHeader>
           <div className="flex flex-col gap-5 py-4 overflow-y-auto flex-1 min-h-0">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="manager-email" className="text-sm font-medium text-slate-700">Email</Label>
+              <Label htmlFor="utility-manager-email" className="text-sm font-medium text-slate-700">Email</Label>
               <Input
-                id="manager-email"
+                id="utility-manager-email"
+                name="utility-manager-contact-email"
                 type="email"
+                autoComplete="new-password"
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="e.g., john@example.com"
-                className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
+                className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15"
               />
             </div>
             {editingManager && (
@@ -798,7 +759,7 @@ export default function UtilityManagersPage() {
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="e.g., John Smith"
-                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
+                    className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -809,7 +770,7 @@ export default function UtilityManagersPage() {
                     value={formPhone}
                     onChange={(e) => setFormPhone(e.target.value)}
                     placeholder="e.g., +255 22 211 0001"
-                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
+                    className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
               </>
@@ -817,10 +778,10 @@ export default function UtilityManagersPage() {
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Assigned Utility</Label>
               <Select value={formUtilityId} onValueChange={setFormUtilityId}>
-                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl">
+                <SelectTrigger className="h-11  rounded-xl">
                   <SelectValue placeholder={availableUtilities.length === 0 ? "No unassigned utilities available" : "Select a utility"} />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
+                <SelectContent className="rounded-xl">
                   {availableUtilities.length === 0 ? (
                     <SelectItem value="_none" disabled>
                       No unassigned utilities
@@ -843,10 +804,10 @@ export default function UtilityManagersPage() {
             <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-slate-700">Status</Label>
               <Select value={formStatus} onValueChange={setFormStatus}>
-                <SelectTrigger className="h-11 bg-secondary border-border rounded-xl">
+                <SelectTrigger className="h-11  rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl shadow-md shadow-slate-900/10">
+                <SelectContent className="rounded-xl">
                   <SelectItem value="active" className="rounded-lg">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
@@ -876,7 +837,7 @@ export default function UtilityManagersPage() {
                       value={formPassword}
                       onChange={(e) => setFormPassword(e.target.value)}
                       placeholder="Enter new password (optional)"
-                      className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15 pr-10"
+                      className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15 pr-10"
                     />
                     <Button
                       type="button"
@@ -893,7 +854,7 @@ export default function UtilityManagersPage() {
                     value={formConfirmPassword}
                     onChange={(e) => setFormConfirmPassword(e.target.value)}
                     placeholder="Confirm password"
-                    className="h-11 bg-secondary border-border rounded-xl focus:border-primary/50 focus:ring-primary/15"
+                    className="h-11  rounded-xl focus:border-primary/50 focus:ring-primary/15"
                   />
                 </div>
               </div>
@@ -904,7 +865,7 @@ export default function UtilityManagersPage() {
             )}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDialogOpen(false)} className="rounded-xl">
+            <Button type="button" variant="outline" onClick={closeEditor} className="rounded-xl">
               Cancel
             </Button>
             <Button 
@@ -939,7 +900,7 @@ export default function UtilityManagersPage() {
 
       {/* View Details Modal */}
       <Dialog open={!!viewingManager} onOpenChange={() => setViewingManager(null)}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-card backdrop-blur-xl border-border/60 shadow-md shadow-slate-900/10 rounded-2xl">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-xl">
               <div className="dashboard-modal-accent h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -951,7 +912,7 @@ export default function UtilityManagersPage() {
           {viewingManager && (
             <div className="flex flex-col gap-6 py-4">
               {/* Manager Profile Card */}
-              <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 bg-gradient-to-r from-cyan-50/50 to-sky-50/50">
+              <Card className="dashboard-modal-panel dashboard-modal-profile">
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">
                     <Avatar className="h-16 w-16 shadow-lg ring-2 ring-cyan-200">
@@ -992,7 +953,7 @@ export default function UtilityManagersPage() {
                 return (
                   <div className="flex flex-col gap-4">
                     {/* Utility Card */}
-                    <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+                    <Card className="dashboard-modal-panel">
                       <CardContent className="p-5">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
@@ -1008,28 +969,28 @@ export default function UtilityManagersPage() {
                           <p className="text-sm text-slate-600 mb-4">{utility.description}</p>
                         )}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                          <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="dashboard-modal-subpanel p-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                               <Layers className="h-3.5 w-3.5" />
                               DMAs
                             </div>
                             <p className="text-lg font-bold text-slate-800">{utilityDMAs.length}</p>
                           </div>
-                          <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="dashboard-modal-subpanel p-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                               <UserCog className="h-3.5 w-3.5" />
                               DMA Managers
                             </div>
                             <p className="text-lg font-bold text-slate-800">{utilityManagers.length}</p>
                           </div>
-                          <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="dashboard-modal-subpanel p-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                               <Users className="h-3.5 w-3.5" />
                               Engineers
                             </div>
                             <p className="text-lg font-bold text-slate-800">{utilityEngineers.length}</p>
                           </div>
-                          <div className="rounded-xl bg-slate-50 p-3">
+                          <div className="dashboard-modal-subpanel p-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                               <FileText className="h-3.5 w-3.5" />
                               Reports
@@ -1042,7 +1003,7 @@ export default function UtilityManagersPage() {
 
                     {/* DMAs under this utility */}
                     {utilityDMAs.length > 0 && (
-                      <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+                      <Card className="dashboard-modal-panel">
                         <CardContent className="p-5">
                           <div className="flex items-center gap-2 mb-4">
                             <Layers className="h-5 w-5 text-cyan-500" />
@@ -1054,7 +1015,7 @@ export default function UtilityManagersPage() {
                               const dmaEngineers = engineers.filter(e => e.dmaId === dma.id)
                               const dmaReports = reports.filter(r => r.dmaId === dma.id)
                               return (
-                                <div key={dma.id} className="rounded-xl border border-border bg-gradient-to-r from-slate-50/50 to-white p-4">
+                                <div key={dma.id} className="dashboard-modal-subpanel p-4">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                       <MapPin className="h-4 w-4 text-cyan-500" />

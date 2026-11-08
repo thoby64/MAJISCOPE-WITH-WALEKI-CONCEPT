@@ -1,9 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Droplets, FlaskConical, Loader2, Waves } from "lucide-react"
+import { FlaskConical, Loader2, Waves } from "lucide-react"
 import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import { apiClient } from "@/lib/api-client"
@@ -266,33 +267,30 @@ export default function SensorsPage() {
             aria-label="Filter sensors by parent asset name"
             className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm"
           />
-          <select value={utilityFilter} onChange={(event) => { setUtilityFilter(event.target.value); setDmaFilter("") }} aria-label="Filter sensors by utility" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-            <option value="">All utilities</option>
-            {utilities.map((utility) => <option key={utility.id} value={utility.id}>{utility.name}</option>)}
-          </select>
-          <select value={dmaFilter} onChange={(event) => setDmaFilter(event.target.value)} aria-label="Filter sensors by DMA" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-            <option value="">All DMAs</option>
-            <option value="unassigned">Unassigned DMA</option>
-            {dmas.filter((dma) => !utilityFilter || dma.utilityId === utilityFilter).map((dma) => <option key={dma.id} value={dma.id}>{dma.name}</option>)}
-          </select>
-          <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value as typeof assetFilter)} aria-label="Filter sensors by parent asset type" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-            <option value="all">All parent types</option>
-            <option value="water_source">Water-source sensors</option>
-            <option value="storage_facility">Storage-facility sensors</option>
-          </select>
-          <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} aria-label="Filter sensors by category" className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm">
-            <option value="all">All categories</option>
-            <option value="water_level">Water-level sensors</option>
-            <option value="water_quality">Water-quality sensors</option>
-          </select>
+          <Select value={utilityFilter || "__all_utilities__"} onValueChange={(value) => { setUtilityFilter(value === "__all_utilities__" ? "" : value); setDmaFilter("") }}>
+            <SelectTrigger aria-label="Filter sensors by utility" className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All utilities" /></SelectTrigger>
+            <SelectContent><SelectItem value="__all_utilities__">All utilities</SelectItem>{utilities.map((utility) => <SelectItem key={utility.id} value={utility.id}>{utility.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={dmaFilter || "__all_dmas__"} onValueChange={(value) => setDmaFilter(value === "__all_dmas__" ? "" : value)}>
+            <SelectTrigger aria-label="Filter sensors by DMA" className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All DMAs" /></SelectTrigger>
+            <SelectContent><SelectItem value="__all_dmas__">All DMAs</SelectItem><SelectItem value="unassigned">Unassigned DMA</SelectItem>{dmas.filter((dma) => !utilityFilter || dma.utilityId === utilityFilter).map((dma) => <SelectItem key={dma.id} value={dma.id}>{dma.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={assetFilter} onValueChange={(value) => setAssetFilter(value as typeof assetFilter)}>
+            <SelectTrigger aria-label="Filter sensors by parent asset type" className="h-10 rounded-xl px-3 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All parent types</SelectItem><SelectItem value="water_source">Water-source sensors</SelectItem><SelectItem value="storage_facility">Storage-facility sensors</SelectItem></SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value as typeof categoryFilter)}>
+            <SelectTrigger aria-label="Filter sensors by category" className="h-10 rounded-xl px-3 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">All categories</SelectItem><SelectItem value="water_level">Water-level sensors</SelectItem><SelectItem value="water_quality">Water-quality sensors</SelectItem></SelectContent>
+          </Select>
         </div>
       </div>
 
       <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm">
         <CardContent className="p-0">
-          <Table>
+          <Table className="reports-data-table min-w-[1100px]">
             <TableHeader>
-              <TableRow className="bg-slate-50">
+              <TableRow>
                 <TableHead className="px-6 py-4">Device ID</TableHead>
                 <TableHead className="px-6 py-4">Category</TableHead>
                 <TableHead className="px-6 py-4">Parent type</TableHead>
@@ -317,13 +315,12 @@ export default function SensorsPage() {
                   const waterSource = waterSources.find((source) => source.id === sensor.waterSourceId)
                   return (
                     <TableRow key={sensor.id}>
-                      <TableCell className="px-6 py-4">
+                      <TableCell data-label="Device ID" className="px-6 py-4">
                         <span className="flex items-center gap-2 font-medium text-slate-800">
-                          <Droplets className="h-4 w-4 shrink-0 text-cyan-600" />
                           {sensor.deviceId}
                         </span>
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell data-label="Category" className="px-6 py-4">
                         <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
                           sensor.category === "water_quality"
                             ? "bg-cyan-50 text-cyan-700"
@@ -337,31 +334,31 @@ export default function SensorsPage() {
                           {sensor.category === "water_quality" ? "Quality" : "Level"}
                         </span>
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-sm text-slate-600">
+                      <TableCell data-label="Parent type" className="px-6 py-4 text-sm text-slate-600">
                         {sensor.assetType === "water_source" ? "Water source" : "Storage facility"}
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-sm text-slate-600">
+                      <TableCell data-label="Attached to" className="px-6 py-4 text-sm text-slate-600">
                         {sensor.assetType === "water_source"
                           ? waterSource?.name || waterSource?.sourceKey || sensor.waterSourceName || sensor.waterSourceId
                           : storageFacility?.name || storageFacility?.sourceKey || sensor.storageFacilityName || sensor.storageFacilityId}
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-sm text-slate-600">
+                      <TableCell data-label="Utility" className="px-6 py-4 text-sm text-slate-600">
                         {utilityNameById.get(sensor.utilityId) || "—"}
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-sm text-slate-600">
+                      <TableCell data-label="DMA" className="px-6 py-4 text-sm text-slate-600">
                         {sensor.dmaId ? dmaNameById.get(sensor.dmaId) || "—" : "Unassigned"}
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell data-label="Status" className="px-6 py-4">
                         <WaterStatusPill status={sensor.status} />
                       </TableCell>
-                      <TableCell className="px-6 py-4 text-xs text-slate-500">
+                      <TableCell data-label="Last reading" className="px-6 py-4 text-xs text-slate-500">
                         {sensor.lastReading
                           ? sensor.lastReading.category === "water_quality"
                             ? `${Object.values(sensor.lastReading.parameters ?? {}).length} param(s) · ${sensor.lastReading.occurredAt}`
                             : `${(sensor.lastReading.waterLevelM ?? 0).toFixed(2)} m · ${sensor.lastReading.occurredAt}`
                           : "No readings"}
                       </TableCell>
-                      <TableCell className="px-6 py-4">
+                      <TableCell data-label="Activation" className="px-6 py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${sensor.activated ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
                           {sensor.activated ? "Active" : "Inactive"}
                         </span>

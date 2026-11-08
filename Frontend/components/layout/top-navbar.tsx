@@ -25,7 +25,6 @@ import { useTheme } from "next-themes"
 import { useTopbarTitle } from "@/components/layout/topbar-title-context"
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +62,9 @@ export function TopNavbar() {
   const [uiPreferences, setUiPreferences] = useState(DEFAULT_WEB_UI_PREFERENCES)
 
   const unreadCount = getUnreadNotificationCount()
+  const fullUserName = currentUser?.name?.trim() || "User"
+  const firstUserName = fullUserName.split(/\s+/)[0] || "User"
+  const dropdownUserName = fullUserName.length > 32 ? firstUserName : fullUserName
   const recentNotifications = useMemo(() => notifications.slice(0, 5), [notifications])
   const isDarkMode = mounted && resolvedTheme === "dark"
   const isHydraulicWorkspace = pathname === "/dashboard/hydraulic-model/workspace"
@@ -200,7 +202,7 @@ export function TopNavbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 overflow-hidden transition-[margin,width] duration-200 ease-linear",
+        "sticky top-0 z-30 w-full overflow-visible transition-[margin,width] duration-200 ease-linear",
         shouldOffsetForHydraulicSidebar ? "ml-0" : "w-full"
       )}
       style={
@@ -212,24 +214,24 @@ export function TopNavbar() {
           : undefined
       }
     >
-      {/* Calm command bar */}
-      <div className="relative flex h-16 w-full items-center justify-between gap-4 border-b border-[#c5d3cb] bg-[#dfe8e2] px-4 text-[#203642] backdrop-blur-xl dark:border-[#284650] dark:bg-[#102a32] dark:text-slate-100 sm:px-6">
+      {/* Water-slate command rail */}
+      <div className="relative flex h-16 w-full items-center justify-between gap-3 bg-[linear-gradient(112deg,#172a39_0%,#142f3f_55%,#173546_100%)] px-3 text-slate-100 shadow-[0_8px_24px_-20px_rgba(5,20,31,0.75)] before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-56 before:bg-[radial-gradient(ellipse_at_-10%_0%,rgba(85,164,192,0.14),transparent_72%)] dark:bg-[linear-gradient(112deg,#172a39_0%,#101d29_55%,#111e2a_100%)] dark:shadow-[0_8px_24px_-20px_rgba(0,0,0,0.8)] dark:before:bg-[radial-gradient(ellipse_at_-10%_0%,rgba(85,164,192,0.09),transparent_72%)] sm:gap-4 sm:px-6">
 
         <div className="relative z-10 flex min-w-0 items-center gap-3 sm:gap-4">
           {/* Sidebar Trigger with Glow */}
           {isMobile || state === "collapsed" ? (
             <div className="relative shrink-0">
-              <SidebarTrigger className="-ml-1 h-10 w-10 rounded-xl border border-[#b9d1c9] bg-gradient-to-br from-[#eff5f0] to-[#dce9e2] text-[#315861] shadow-sm shadow-[#18313c]/[0.08] transition-all hover:border-[#76aaa3] hover:from-[#e5f1eb] hover:to-[#cfe4dc] hover:text-[#087e83] focus-visible:ring-[#258f91]/45 dark:border-[#45656a] dark:bg-gradient-to-br dark:from-[#214853] dark:to-[#173640] dark:text-[#b6ded9] dark:hover:border-[#70aaa4] dark:hover:from-[#2b6269] dark:hover:to-[#1d4651] dark:hover:text-white [&_svg]:drop-shadow-[0_1px_2px_rgba(45,156,151,0.25)]" />
+              <SidebarTrigger className="-ml-1 h-10 w-10 rounded-2xl border border-white/10 bg-white/[0.055] text-[#c1d4dd] shadow-none transition-colors hover:border-white/20 hover:bg-white/[0.11] hover:text-white focus-visible:ring-2 focus-visible:ring-[#62c4d0]/45 dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.09] [&_svg]:drop-shadow-none" />
             </div>
           ) : null}
 
           <div className="hidden min-w-0 items-center gap-2.5 md:flex">
             {activeNavItem ? (
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#c7d9d2] bg-[#e7f0ea] text-[#23787c] shadow-sm shadow-[#18313c]/[0.04] dark:border-[#31535b] dark:bg-[#193942] dark:text-[#86ccc5]">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-[#83c9d2] shadow-none">
                 <activeNavItem.icon className="h-[17px] w-[17px]" />
               </span>
             ) : null}
-            <span className="truncate text-sm font-semibold leading-none tracking-[-0.01em] text-[#203642] dark:text-slate-100">
+            <span className="truncate text-sm font-semibold leading-none tracking-[-0.01em] text-[#f0f5f7]">
               {pageTitle}
             </span>
           </div>
@@ -237,7 +239,7 @@ export function TopNavbar() {
           {/* Styled MajiScope Name - Mobile Only */}
           <div className="flex min-w-0 items-center gap-2.5 md:hidden">
             <div className="relative shrink-0">
-                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-[#17313b] ring-1 ring-[#3a6870]">
+                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-[#203e4c]">
                 <Image
                   src="/logo1.png"
                   alt="MajiScope Logo"
@@ -249,24 +251,23 @@ export function TopNavbar() {
             </div>
             <BrandWordmark
               size="sm"
-              theme={isDarkMode ? "dark" : "light"}
+              theme="dark"
               wordClassName="leading-none"
               className="shrink min-w-0"
             />
           </div>
         </div>
 
-        {/* Center Content - Theme, Help, Notifications */}
-        <div className="relative z-10 flex flex-1 items-center justify-end">
-          <div className="flex items-center gap-0.5 rounded-2xl border border-[#c6d5cd] bg-[#e8efe9]/85 p-1 shadow-inner shadow-[#18313c]/[0.04] dark:border-[#2d4c54] dark:bg-[#17343c]/85 dark:shadow-black/10">
-          {/* Theme Toggle MORDERN */}
+        {/* Separate circular actions and an open profile identity replace the old capsule navigation. */}
+        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-1.5">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setTheme(isDarkMode ? "light" : "dark")}
-                className="relative h-9 w-9 rounded-lg text-[#536b73] transition-colors hover:bg-[#e2e9e6] hover:text-[#203642] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                className="relative h-10 w-10 rounded-full border border-white/10 bg-white/[0.045] text-[#c2d5de] shadow-none transition-colors hover:border-white/20 hover:bg-white/[0.11] hover:text-white focus-visible:ring-2 focus-visible:ring-[#62c4d0]/45"
                 aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -284,7 +285,7 @@ export function TopNavbar() {
                 variant="ghost"
                 size="icon"
                 onClick={handleHelp}
-                className="relative hidden h-9 w-9 rounded-lg text-[#536b73] transition-colors hover:bg-[#e2e9e6] hover:text-[#203642] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white sm:flex"
+                className="relative hidden h-10 w-10 rounded-full border border-white/10 bg-white/[0.045] text-[#c2d5de] shadow-none transition-colors hover:border-white/20 hover:bg-white/[0.11] hover:text-white focus-visible:ring-2 focus-visible:ring-[#62c4d0]/45 sm:flex"
                 aria-label="Open help and support"
               >
                 <HelpCircle className="h-4 w-4" />
@@ -303,13 +304,13 @@ export function TopNavbar() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="relative h-9 w-9 rounded-lg text-[#536b73] transition-colors hover:bg-[#e2e9e6] hover:text-[#203642] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#258f91]/40 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                      className="relative h-10 w-10 rounded-full border border-white/10 bg-white/[0.045] text-[#c2d5de] shadow-none transition-colors hover:border-white/20 hover:bg-white/[0.11] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62c4d0]/45"
                       aria-label="Open notifications"
                     >
                       <Bell className="h-4 w-4" />
                       {unreadCount > 0 ? (
                         <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center">
-                          <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#087e83] px-1 text-[9px] font-bold text-white">
+                          <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#36a5b6] px-1 text-[9px] font-bold text-[#08202b] shadow-[0_0_0_2px_#173546]">
                             {unreadCount > 9 ? "9+" : unreadCount}
                           </span>
                         </span>
@@ -324,15 +325,15 @@ export function TopNavbar() {
             <DropdownMenuContent
               align="end"
               onCloseAutoFocus={(e) => e.preventDefault()}
-              className="z-[9999] w-80 rounded-xl border border-[#d4ddd9] bg-[#f4f4ef] p-0 shadow-lg shadow-[#203642]/10 dark:border-slate-700 dark:bg-slate-900"
+              className="z-[9999] w-80 rounded-xl border border-[#aebbc5] bg-[#cbd6de] p-0 shadow-lg shadow-[#1e3040]/10 dark:border-[#344555] dark:bg-[#17222e]"
             >
               <div className="flex items-center justify-between border-b px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-[#087e83] dark:text-[#65c7c2]" />
+                  <Bell className="h-4 w-4 text-[#167c95] dark:text-[#83c5d6]" />
                   <span className="font-semibold text-slate-900 dark:text-white">Notifications</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-[#dfebe8] px-2 py-0.5 text-xs font-medium text-[#176b70] dark:bg-emerald-500/15 dark:text-emerald-300">
+                  <span className="rounded-full bg-[#c4d1da] px-2 py-0.5 text-xs font-medium text-[#246d82] dark:bg-[#264150] dark:text-[#a0d6e2]">
                     {unreadCount} unread
                   </span>
                   {unreadCount > 0 ? (
@@ -341,7 +342,7 @@ export function TopNavbar() {
                       size="sm"
                       onClick={() => void handleMarkAllRead()}
                       disabled={markingAllRead}
-                      className="h-7 rounded-lg px-2 text-xs text-[#087e83] hover:bg-[#dfebe8] hover:text-[#18313c] dark:text-emerald-300 dark:hover:text-emerald-200"
+                      className="h-7 rounded-lg px-2 text-xs text-[#247d94] hover:bg-[#c1ced7] hover:text-[#18384b] dark:text-[#a0d6e2] dark:hover:text-white"
                     >
                       {markingAllRead ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}
                     </Button>
@@ -360,26 +361,26 @@ export function TopNavbar() {
                       key={notification.id}
                       type="button"
                       onClick={() => void handleOpenNotification(notification.id, notification.title, notification.type, notification.link, notification.data)}
-                      className={`flex w-full gap-3 rounded-lg p-3 text-left transition-colors hover:bg-[#e8eeeb] dark:hover:bg-white/5 ${
-                        notification.read ? "" : "bg-[#e6efec] dark:bg-emerald-500/5"
+                      className={`flex w-full gap-3 rounded-lg p-3 text-left transition-colors hover:bg-[#c1ced7] dark:hover:bg-white/5 ${
+                        notification.read ? "" : "bg-[#c0ced8] dark:bg-[#203544]"
                       }`}
                     >
                       <div
                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                          notification.read ? "bg-slate-100 dark:bg-slate-500/20" : "bg-[#dce9e5] dark:bg-emerald-500/15"
+                          notification.read ? "bg-slate-100 dark:bg-slate-500/20" : "bg-[#c7d4dd] dark:bg-[#284757]"
                         }`}
                       >
                         {notification.read ? (
                           <Clock className="h-4 w-4 text-slate-500 dark:text-slate-300" />
                         ) : (
-                          <Bell className="h-4 w-4 text-[#087e83] dark:text-emerald-300" />
+                          <Bell className="h-4 w-4 text-[#247d94] dark:text-[#a0d6e2]" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="truncate text-sm font-medium text-slate-900 dark:text-white">{notification.title}</p>
                           {!notification.read ? (
-                            <span className="rounded-full bg-[#dfebe8] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#176b70] dark:bg-emerald-500/15 dark:text-emerald-200">
+                            <span className="rounded-full bg-[#c4d1da] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#246d82] dark:bg-[#264150] dark:text-[#a0d6e2]">
                               New
                             </span>
                           ) : null}
@@ -406,7 +407,7 @@ export function TopNavbar() {
                 <Button
                   variant="ghost"
                   onClick={handleOpenNotificationsPage}
-                  className="w-full justify-center rounded-lg text-sm text-[#087e83] hover:bg-[#dfebe8] hover:text-[#18313c] dark:text-emerald-300 dark:hover:text-emerald-200"
+                  className="w-full justify-center rounded-lg text-sm text-[#247d94] hover:bg-[#c1ced7] hover:text-[#18384b] dark:text-[#a0d6e2] dark:hover:text-white"
                 >
                   View all notifications
                 </Button>
@@ -414,73 +415,48 @@ export function TopNavbar() {
             </DropdownMenuContent>
           </DropdownMenu>
           </div>
-        </div>
 
-        <div className="relative z-10 ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
-          {/* Divider */}
-                <div className="hidden h-8 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
+          <div className="mx-0.5 hidden h-8 w-px bg-white/15 sm:block" />
 
           {/* User Profile Dropdown - Always at Right */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="relative flex h-auto items-center gap-3 rounded-xl px-2 py-1.5 transition-colors hover:bg-[#e4ebe1] hover:text-slate-900 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:hover:bg-slate-800 dark:hover:text-white sm:px-3"
+                className="relative flex h-9 items-center gap-2 rounded-full px-2 py-1.5 text-left transition-colors hover:bg-white/[0.075] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#62c4d0]/45 sm:h-auto sm:rounded-2xl sm:px-3"
               >
-                <div className="relative">
-                  <Avatar className="relative h-10 w-10 rounded-lg ring-1 ring-[#63a7a0]/45 ring-offset-2 ring-offset-[#dfe8e2] dark:ring-[#6dc8bd]/45 dark:ring-offset-[#102a32]">
-                  <AvatarFallback className="rounded-lg bg-[#087e83] text-base font-semibold text-white">
-                      {currentUser?.name
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-
+                <User className="h-4 w-4 text-[#c2d5de] sm:hidden" aria-hidden="true" />
                 {/* User Info - Desktop */}
                 <div className="hidden flex-col items-start sm:flex">
-                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    {currentUser?.name || "User"}
+                  <span className="text-sm font-semibold text-[#f0f5f7]">
+                    {firstUserName}
                   </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-[#c7d9d6] bg-[#dfebe8] px-2 py-0.5 text-[10px] font-medium text-[#176b70]">
-                    <Shield className="h-2 w-2" />
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[#a5c1cc]">
+                    <Shield className="h-3 w-3 text-[#71c2ce]" />
                     {getRoleLabel(currentUser?.role || "")}
                   </span>
                 </div>
 
-                <ChevronDown className="hidden h-4 w-4 text-slate-500 transition-transform duration-200 group-data-[state=open]:rotate-180 dark:text-slate-400 sm:block" />
+                <ChevronDown className="hidden h-4 w-4 text-[#9eb6c2] transition-transform duration-200 group-data-[state=open]:rotate-180 sm:block" />
               </Button>
             </DropdownMenuTrigger>
 
             <DropdownMenuContent
               align="end"
               onCloseAutoFocus={(e) => e.preventDefault()}
-              className="z-[9999] w-72 rounded-xl border border-[#d4ddd9] bg-[#f4f4ef] p-0 shadow-lg shadow-[#203642]/10 dark:border-slate-700 dark:bg-slate-900"
+              className="z-[9999] w-72 rounded-xl border border-[#aebbc5] bg-[#cbd6de] p-0 shadow-lg shadow-[#1e3040]/10 dark:border-[#344555] dark:bg-[#17222e]"
             >
               {/* Profile Header */}
-              <div className="relative overflow-hidden border-b p-4">
-                <div className="relative flex items-center gap-3">
-                  <div className="relative">
-                    <Avatar className="relative h-8 w-8 rounded-xl">
-                      <AvatarFallback className="rounded-xl bg-[#087e83] text-sm font-semibold text-white">
-                        {currentUser?.name
-                          ?.split(" ")
-                          .map((n) => n[0])
-                          .join("")
-                          .toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
+              <div className="relative overflow-hidden border-b border-[#cbd5dd] p-4 dark:border-[#2b3b4a]">
+                <div className="relative flex items-center gap-2">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-slate-900 dark:text-white">
-                      {currentUser?.name || "User"}
+                    <span className="max-w-[240px] truncate font-semibold text-slate-900 dark:text-white" title={fullUserName}>
+                      {dropdownUserName}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {currentUser?.email || "Email unavailable"}
                     </span>
-                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-[#c7d9d6] bg-[#dfebe8] px-2 py-0.5 text-[10px] font-medium text-[#176b70]">
+                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-[#afbec9] bg-[#c7d4dd] px-2 py-0.5 text-[10px] font-medium text-[#246d82]">
                       <Shield className="h-2.5 w-2.5" />
                       {getRoleLabel(currentUser?.role || "")}
                     </span>
@@ -493,10 +469,10 @@ export function TopNavbar() {
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     onClick={handleProfile}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-[#c1ced7] hover:text-slate-900 focus:bg-[#c1ced7] focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#dfebe8] dark:bg-emerald-500/15">
-                      <User className="h-4 w-4 text-[#087e83] dark:text-emerald-300" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#c7d4dd] dark:bg-[#284757]">
+                      <User className="h-4 w-4 text-[#247d94] dark:text-[#a0d6e2]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">View Profile</span>
@@ -506,10 +482,10 @@ export function TopNavbar() {
 
                   <DropdownMenuItem
                     onClick={handleSettings}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-[#c1ced7] hover:text-slate-900 focus:bg-[#c1ced7] focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#dfebe8] dark:bg-emerald-500/15">
-                      <Settings className="h-4 w-4 text-[#087e83] dark:text-emerald-300" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#c7d4dd] dark:bg-[#284757]">
+                      <Settings className="h-4 w-4 text-[#247d94] dark:text-[#a0d6e2]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">Settings</span>
@@ -519,10 +495,10 @@ export function TopNavbar() {
 
                   <DropdownMenuItem
                     onClick={handleOpenNotificationsPage}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-slate-700 transition-colors hover:bg-[#c1ced7] hover:text-slate-900 focus:bg-[#c1ced7] focus:text-slate-900 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus:bg-white/5 dark:focus:text-white"
                   >
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15">
-                      <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#c7d4dd] dark:bg-[#284757]">
+                      <Activity className="h-4 w-4 text-[#247d94] dark:text-[#a0d6e2]" />
                     </div>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">Notifications</span>

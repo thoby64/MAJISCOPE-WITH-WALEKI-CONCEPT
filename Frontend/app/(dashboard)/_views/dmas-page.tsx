@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -228,7 +229,7 @@ export default function DMAsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="content-metric-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
@@ -343,38 +344,16 @@ export default function DMAsPage() {
             </div>
 
             {/* Utility dropdown */}
-            <select
-              value={utilityFilter}
-              onChange={(e) => setUtilityFilter(e.target.value)}
-              className={cn(
-                "h-10 rounded-xl border bg-slate-50/60 text-xs font-medium shadow-sm focus:outline-none focus:border-cyan-400 focus:ring-cyan-400/20 px-3 max-w-[180px]",
-                utilityFilter
-                  ? "border-cyan-400/70 text-cyan-700"
-                  : "border-slate-200/80 text-slate-500"
-              )}
-            >
-              <option value="">All utilities</option>
-              {utilityOptions.map((utility) => (
-                <option key={utility} value={utility}>{utility}</option>
-              ))}
-            </select>
+            <Select value={utilityFilter || "__all_utilities__"} onValueChange={(value) => setUtilityFilter(value === "__all_utilities__" ? "" : value)}>
+              <SelectTrigger className="h-10 w-auto min-w-[9rem] max-w-[11.25rem] rounded-xl px-3 text-xs font-medium shadow-none"><SelectValue placeholder="All utilities" /></SelectTrigger>
+              <SelectContent><SelectItem value="__all_utilities__">All utilities</SelectItem>{utilityOptions.map((utility) => <SelectItem key={utility} value={utility}>{utility}</SelectItem>)}</SelectContent>
+            </Select>
 
             {/* Manager dropdown */}
-            <select
-              value={managerFilter}
-              onChange={(e) => setManagerFilter(e.target.value)}
-              className={cn(
-                "h-10 rounded-xl border bg-slate-50/60 text-xs font-medium shadow-sm focus:outline-none focus:border-cyan-400 focus:ring-cyan-400/20 px-3 max-w-[160px]",
-                managerFilter
-                  ? "border-cyan-400/70 text-cyan-700"
-                  : "border-slate-200/80 text-slate-500"
-              )}
-            >
-              <option value="">All managers</option>
-              {managerOptions.map((manager) => (
-                <option key={manager} value={manager}>{manager}</option>
-              ))}
-            </select>
+            <Select value={managerFilter || "__all_managers__"} onValueChange={(value) => setManagerFilter(value === "__all_managers__" ? "" : value)}>
+              <SelectTrigger className="h-10 w-auto min-w-[9.5rem] max-w-[10rem] rounded-xl px-3 text-xs font-medium shadow-none"><SelectValue placeholder="All managers" /></SelectTrigger>
+              <SelectContent><SelectItem value="__all_managers__">All managers</SelectItem>{managerOptions.map((manager) => <SelectItem key={manager} value={manager}>{manager}</SelectItem>)}</SelectContent>
+            </Select>
 
             {hasActiveFilters && (
               <Button
@@ -506,7 +485,7 @@ export default function DMAsPage() {
                             className={cn(
                               "rounded-lg",
                               dma.status === "active"
-                                ? "text-slate-600 focus:text-slate-700"
+                                ? "menu-action-deactivate"
                                 : "text-emerald-700 focus:text-emerald-800 focus:bg-emerald-50"
                             )}
                           >

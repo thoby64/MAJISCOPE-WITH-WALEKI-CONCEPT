@@ -320,24 +320,24 @@ button[data-next-mark="true"] {
     --chart-4: 2 59% 45%;
     --chart-5: 166 21% 40%;
     --radius: 0.625rem;
-    --sidebar-background: 202 38% 18%;
-    --sidebar-foreground: 198 24% 92%;
-    --sidebar-primary: 179 48% 44%;
+    --sidebar-background: 207 35% 18%;
+    --sidebar-foreground: 211 25% 93%;
+    --sidebar-primary: 190 55% 54%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 200 28% 24%;
-    --sidebar-accent-foreground: 198 24% 96%;
-    --sidebar-border: 201 22% 27%;
-    --sidebar-ring: 179 48% 50%;
+    --sidebar-accent: 207 28% 25%;
+    --sidebar-accent-foreground: 211 25% 97%;
+    --sidebar-border: 207 24% 28%;
+    --sidebar-ring: 190 60% 58%;
     --chart-axis-text: #63777b;
-    --content-canvas: 148 22% 79%;
-    --content-panel: 148 24% 82%;
-    --content-panel-raised: 150 28% 84%;
-    --content-inset: 150 21% 76%;
-    --content-border: 150 18% 70%;
+    --content-canvas: 210 20% 80%;
+    --content-panel: 210 20% 82%;
+    --content-panel-raised: 210 22% 85%;
+    --content-inset: 210 18% 77%;
+    --content-border: 210 16% 70%;
     --content-ink: 204 28% 16%;
     --content-muted: 202 12% 36%;
-    --content-action: 184 72% 30%;
-    --content-action-hover: 184 72% 26%;
+    --content-action: 198 58% 36%;
+    --content-action-hover: 198 58% 31%;
     --content-action-foreground: 0 0% 100%;
   }
 
@@ -375,17 +375,17 @@ button[data-next-mark="true"] {
     --sidebar-border: 217 25% 20%;
     --sidebar-ring: 187 92% 45%;
     --chart-axis-text: #ffffff;
-    --content-canvas: 204 43% 9%;
-    --content-panel: 194 20% 13%;
-    --content-panel-raised: 190 20% 15%;
-    --content-inset: 196 18% 11%;
-    --content-border: 190 14% 25%;
-    --content-ink: 190 13% 83%;
-    --content-muted: 190 10% 66%;
-    --content-action: 177 32% 33%;
-    --content-action-hover: 177 32% 29%;
-    --content-action-ink: 177 22% 68%;
-    --content-action-foreground: 190 12% 82%;
+    --content-canvas: 210 26% 9%;
+    --content-panel: 210 22% 13%;
+    --content-panel-raised: 210 22% 16%;
+    --content-inset: 210 21% 11%;
+    --content-border: 210 15% 25%;
+    --content-ink: 210 16% 84%;
+    --content-muted: 210 12% 66%;
+    --content-action: 198 38% 43%;
+    --content-action-hover: 198 38% 38%;
+    --content-action-ink: 198 34% 70%;
+    --content-action-foreground: 210 18% 91%;
   }
 }
 
@@ -1033,6 +1033,29 @@ button[data-next-mark="true"] {
   color: hsl(38 34% 70%);
 }
 
+/* Audit-log detail uses a custom overlay rather than Radix Dialog. Keep it on
+   the same mineral modal surface as the shared dialogs. */
+html[data-dashboard-content-theme="active"] .logs-detail-overlay {
+  background: rgb(12 23 32 / 0.58) !important;
+  backdrop-filter: blur(3px);
+}
+.logs-detail-modal {
+  border: 1px solid #afbec9 !important;
+  border-radius: 1.35rem !important;
+  background: linear-gradient(145deg, #d1dbe2 0%, #c4d0d9 100%) !important;
+  color: #263b4c !important;
+  box-shadow: 0 26px 68px -38px rgb(20 42 60 / 0.48), 0 10px 24px -18px rgb(20 42 60 / 0.28) !important;
+}
+html.dark[data-dashboard-content-theme="active"] .logs-detail-overlay {
+  background: rgb(3 8 13 / 0.68) !important;
+}
+html.dark .logs-detail-modal {
+  border-color: #344453 !important;
+  background: linear-gradient(145deg, #192734 0%, #141e29 100%) !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 26px 68px -38px rgb(0 0 0 / 0.82) !important;
+}
+
 .dark .content-control:hover {
   border-color: transparent;
   background: hsl(var(--content-panel-raised));
@@ -1061,51 +1084,51 @@ button[data-next-mark="true"] {
 
 /* Shared MajiScope content theme, inherited by dashboard content and portals. */
 html[data-dashboard-content-theme="active"] {
-  --background: 148 22% 79%;
+  --background: 210 23% 90%;
   --foreground: 204 28% 16%;
-  --card: 148 24% 82%;
+  --card: 210 25% 94%;
   --card-foreground: 204 28% 16%;
-  --popover: 148 24% 84%;
+  --popover: 210 25% 95%;
   --popover-foreground: 204 28% 16%;
-  --primary: 184 66% 30%;
+  --primary: 198 68% 34%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 148 18% 76%;
+  --secondary: 210 23% 88%;
   --secondary-foreground: 204 28% 19%;
-  --muted: 148 16% 75%;
-  --muted-foreground: 202 12% 36%;
-  --accent: 184 66% 30%;
+  --muted: 210 20% 87%;
+  --muted-foreground: 207 15% 40%;
+  --accent: 198 68% 34%;
   --accent-foreground: 0 0% 100%;
-  --border: 148 15% 66%;
-  --input: 148 15% 65%;
-  --ring: 184 66% 30%;
-  --content-action: 184 66% 30%;
-  --content-action-hover: 184 66% 26%;
-  --content-action-ink: 184 66% 30%;
+  --border: 210 18% 80%;
+  --input: 210 18% 80%;
+  --ring: 198 60% 42%;
+  --content-action: 198 68% 34%;
+  --content-action-hover: 198 68% 29%;
+  --content-action-ink: 198 68% 34%;
   --content-action-foreground: 0 0% 100%;
 }
 
 .dark[data-dashboard-content-theme="active"] {
   --background: 202 20% 9%;
   --foreground: 190 13% 83%;
-  --card: 194 20% 13%;
+  --card: 213 23% 14%;
   --card-foreground: 190 13% 83%;
-  --popover: 196 18% 15%;
+  --popover: 213 22% 16%;
   --popover-foreground: 190 13% 83%;
-  --primary: 177 32% 33%;
-  --primary-foreground: 190 12% 82%;
-  --secondary: 194 20% 16%;
-  --secondary-foreground: 190 13% 83%;
-  --muted: 196 18% 15%;
-  --muted-foreground: 190 10% 66%;
-  --accent: 177 24% 24%;
-  --accent-foreground: 190 13% 83%;
-  --border: 190 14% 25%;
-  --input: 190 14% 25%;
-  --ring: 177 32% 33%;
-  --content-action: 177 32% 33%;
-  --content-action-hover: 177 32% 29%;
-  --content-action-ink: 177 22% 68%;
-  --content-action-foreground: 190 12% 82%;
+  --primary: 198 48% 43%;
+  --primary-foreground: 210 22% 96%;
+  --secondary: 213 20% 19%;
+  --secondary-foreground: 210 18% 87%;
+  --muted: 213 18% 17%;
+  --muted-foreground: 211 14% 68%;
+  --accent: 202 28% 23%;
+  --accent-foreground: 210 18% 90%;
+  --border: 213 16% 28%;
+  --input: 213 16% 28%;
+  --ring: 198 48% 48%;
+  --content-action: 198 48% 43%;
+  --content-action-hover: 198 48% 37%;
+  --content-action-ink: 198 48% 68%;
+  --content-action-foreground: 210 22% 96%;
 }
 
 .dashboard-content-area [class~="bg-white"],
@@ -1224,8 +1247,19 @@ html[data-dashboard-content-theme="active"] {
 .dashboard-content-area a[class*="hover:bg-sky-"]:hover,
 .dashboard-content-area a[class*="hover:bg-blue-"]:hover {
   background-image: none !important;
-  background-color: hsl(var(--primary) / 0.92) !important;
-  color: hsl(var(--primary-foreground)) !important;
+  background-color: hsl(var(--secondary)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-amber-"]:hover,
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-orange-"]:hover,
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-emerald-"]:hover,
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-green-"]:hover,
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-red-"]:hover,
+.dashboard-content-area :is(button, a, [role="button"])[class*="hover:bg-rose-"]:hover {
+  background-image: none !important;
+  background-color: hsl(var(--secondary)) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .dashboard-content-area [class~="text-slate-900"],
@@ -1393,7 +1427,7 @@ html[data-dashboard-content-theme="active"] :is([role="dialog"], [role="alertdia
   box-shadow: 0 16px 36px -30px hsl(194 35% 8% / 0.42) !important;
 }
 
-html[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+[data-radix-portal] :is(
   [role="dialog"] input:not([type="checkbox"]):not([type="radio"]),
   [role="dialog"] textarea,
   [role="dialog"] select,
@@ -1422,7 +1456,7 @@ html.dark[data-dashboard-content-theme="active"] [data-sidebar="sidebar"][data-m
   -webkit-text-fill-color: transparent !important;
 }
 
-html[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+[data-radix-portal] :is(
   [role="dialog"] input,
   [role="dialog"] textarea,
   [role="dialog"] [role="combobox"],
@@ -1453,29 +1487,85 @@ html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal
 }
 
 html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit {
-  background-color: hsl(var(--primary)) !important;
+  background-color: #315d73 !important;
   background-image: none !important;
   color: hsl(var(--primary-foreground)) !important;
-  box-shadow: 0 8px 18px -14px hsl(var(--primary) / 0.55) !important;
+  box-shadow: none !important;
 }
 
 html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit:hover {
-  background-color: hsl(var(--content-action-hover)) !important;
+  background-color: #284e62 !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-destructive {
+  background-color: #925b58 !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-destructive:hover {
+  background-color: #7f4d4b !important;
+}
+
+/* Legacy cyan gradient submit actions in portal dialogs use the same quiet
+   mineral-blue action treatment as the updated modal submit buttons. */
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+  button[type="submit"],
+  input[type="submit"],
+  [role="dialog"] button[class*="from-cyan-"],
+  [role="dialog"] button[class*="from-sky-"],
+  [role="dialog"] button[class*="from-blue-"]
+) {
+  background-color: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+  box-shadow: none !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+  button[type="submit"],
+  input[type="submit"],
+  [role="dialog"] button[class*="from-cyan-"],
+  [role="dialog"] button[class*="from-sky-"],
+  [role="dialog"] button[class*="from-blue-"]
+):hover {
+  background-color: #284e62 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+  .dashboard-modal-submit,
+  button[type="submit"],
+  input[type="submit"],
+  [role="dialog"] button[class*="from-cyan-"],
+  [role="dialog"] button[class*="from-sky-"],
+  [role="dialog"] button[class*="from-blue-"]
+) {
+  background-color: #426a7d !important;
+  color: #eef3f6 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-destructive {
+  background-color: #815653 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-destructive:hover {
+  background-color: #935f5b !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is(
+  .dashboard-modal-submit,
+  button[type="submit"],
+  input[type="submit"],
+  [role="dialog"] button[class*="from-cyan-"],
+  [role="dialog"] button[class*="from-sky-"],
+  [role="dialog"] button[class*="from-blue-"]
+):hover {
+  background-color: #4d7789 !important;
 }
 
 @keyframes intro-ripple {
   0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scale(0.94); }
   50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.04); }
-}
-
-@keyframes intro-dot-drift {
-  0%, 100% { transform: translateY(0); opacity: 0.75; }
-  50% { transform: translateY(-5px); opacity: 1; }
-}
-
-@keyframes intro-status-pulse {
-  0%, 100% { transform: scale(0.8); opacity: 0.5; }
-  50% { transform: scale(1.65); opacity: 0; }
 }
 
 @keyframes intro-progress {
@@ -1485,14 +1575,1678 @@ html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal
 
 .intro-ripple { animation: intro-ripple 5.6s ease-in-out infinite; }
 .intro-ripple-delay { animation-delay: -2.8s; }
-.intro-orbit-dot { animation: intro-dot-drift 2.3s ease-in-out infinite; }
-.intro-orbit-dot-delay { animation-delay: -1.15s; }
-.intro-status-pulse { animation: intro-status-pulse 1.8s ease-out infinite; }
 .intro-progress-segment { animation: intro-progress 1.2s ease-in-out infinite; }
+
+/* Keep browser credential autofill from painting over login placeholders. */
+.login-page input:is(#email, #password):-webkit-autofill,
+.login-page input:is(#email, #password):-webkit-autofill:hover,
+.login-page input:is(#email, #password):-webkit-autofill:focus,
+.login-page input:is(#email, #password):autofill {
+  -webkit-text-fill-color: rgb(255 255 255 / 0.92) !important;
+  caret-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px rgb(255 255 255 / 0.05) inset !important;
+  transition: background-color 9999s ease-out 0s;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .intro-ripple,
-  .intro-orbit-dot,
-  .intro-status-pulse,
   .intro-progress-segment { animation: none !important; }
+}
+
+/* Dashboard-wide modal and portal surfaces. Keep dialogs, their form fields,
+   and their dropdowns on the same muted mineral palette in both themes. */
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) {
+  border: 1px solid #afbec9 !important;
+  border-radius: 1.25rem !important;
+  background: linear-gradient(145deg, #d1dbe2 0%, #c4d0d9 100%) !important;
+  color: #263b4c !important;
+  box-shadow: 0 24px 64px -40px rgb(20 42 60 / 0.5), 0 10px 24px -18px rgb(20 42 60 / 0.3) !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #aebdc7 !important;
+  background-color: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) :is(input, textarea, select, [role="combobox"]):focus-visible {
+  outline: 2px solid rgb(49 110 133 / 0.34) !important;
+  outline-offset: 1px !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) button.absolute.right-4.top-4 {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid #aebfca;
+  border-radius: 9999px;
+  background: #c3d0d9;
+  color: #52697c;
+  opacity: 1;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) button.absolute.right-4.top-4:hover {
+  border-color: #7eaebd;
+  background: #b4c7d2;
+  color: #1c586d;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) {
+  border-color: #344555 !important;
+  background: linear-gradient(145deg, #192734 0%, #141e29 100%) !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 24px 64px -40px rgb(0 0 0 / 0.86) !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #344453 !important;
+  background-color: #17232f !important;
+  color: #dce6ed !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) button.absolute.right-4.top-4 {
+  border-color: #3b5264;
+  background: #223442;
+  color: #b6c7d2;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is([role="dialog"], [role="alertdialog"]) button.absolute.right-4.top-4:hover {
+  border-color: #567486;
+  background: #2b4352;
+  color: #e1edf2;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] :is([data-radix-select-content], [role="listbox"], [role="menu"]) {
+  border-color: #afbec9 !important;
+  background-color: #cbd6de !important;
+  color: #263b4c !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] :is([data-radix-select-content], [role="listbox"], [role="menu"]) {
+  border-color: #344453 !important;
+  background-color: #17232f !important;
+  color: #dce6ed !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] [role="dialog"] :is([class~="bg-white"], [class~="bg-slate-50"], [class*="bg-slate-50/"], [class~="bg-slate-100"]) {
+  background-color: #cbd6de !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] [role="dialog"] :is([class~="bg-white"], [class~="bg-slate-50"], [class*="bg-slate-50/"], [class~="bg-slate-100"]) {
+  background-color: #1d2b37 !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-scope-select-content {
+  background-color: #cbd6de !important;
+  border: 1px solid #afbec9 !important;
+  color: #263b4c !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-scope-select-content {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-scope-select-content [data-highlighted] {
+  background-color: #b7c6d0 !important;
+  color: #203747 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-scope-select-content [data-highlighted] {
+  background-color: #263b4b !important;
+  color: #eef4f7 !important;
+}
+
+/* Keep Select and Popover primitives tied directly to the shared dashboard
+   surface. This also works when their Radix portal wrapper differs by route. */
+html[data-dashboard-content-theme="active"] :is(.app-select-content, .app-popover-content) {
+  border: 1px solid #afbec9 !important;
+  border-radius: 0.9rem !important;
+  background: #cbd6de !important;
+  color: #263b4c !important;
+  box-shadow: 0 14px 30px -20px rgb(20 42 60 / 0.38) !important;
+  backdrop-filter: none !important;
+}
+html[data-dashboard-content-theme="active"] :is(.app-select-content, .app-popover-content)
+  :is([data-highlighted], [data-state="checked"], [aria-selected="true"]) {
+  background: #b7c6d0 !important;
+  color: #203747 !important;
+}
+html.dark[data-dashboard-content-theme="active"] :is(.app-select-content, .app-popover-content) {
+  border-color: #344453 !important;
+  background: #17222e !important;
+  color: #dce6ed !important;
+  box-shadow: 0 16px 32px -22px rgb(0 0 0 / 0.68) !important;
+}
+html.dark[data-dashboard-content-theme="active"] :is(.app-select-content, .app-popover-content)
+  :is([data-highlighted], [data-state="checked"], [aria-selected="true"]) {
+  background: #263b4b !important;
+  color: #eef4f7 !important;
+}
+
+/* Deactivation is a caution action: keep it amber and subdued in menus. */
+html[data-dashboard-content-theme="active"] [data-radix-portal] .menu-action-deactivate {
+  color: #8e5c32 !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .menu-action-deactivate[data-highlighted] {
+  background: #e4d7c7 !important;
+  color: #7a4e2b !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .menu-action-deactivate {
+  color: #c38d55 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .menu-action-deactivate[data-highlighted] {
+  background: #3b332b !important;
+  color: #d5a46b !important;
+}
+
+/* Shared table baseline; reports can add its tighter, responsive row layout. */
+.dashboard-content-area .content-data-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+/* Include hand-written tables too, so a route cannot escape the shared table
+   treatment simply because it has not migrated to the Table primitive yet. */
+.dashboard-content-area table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-content-area .content-table-scroll {
+  overflow-x: auto;
+  border: 1px solid #afbec9;
+  border-radius: 1rem;
+  background: #cbd6de;
+  scrollbar-color: #9eafbb transparent;
+}
+.dashboard-content-area .content-data-table thead th {
+  height: 2.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+.dashboard-content-area table thead th {
+  padding: 0.8rem 1rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.065em;
+  text-align: left;
+  text-transform: uppercase;
+  background: #bac8d2 !important;
+  background-image: none !important;
+  color: #52697c !important;
+  border-bottom: 1px solid rgb(104 126 145 / 0.2);
+}
+.dashboard-content-area table tbody tr {
+  background: #cbd6de !important;
+  background-image: none !important;
+  transition: background-color 150ms ease;
+}
+.dashboard-content-area table tbody tr:hover {
+  background: #c1ced7 !important;
+}
+.dashboard-content-area table tbody td {
+  border-bottom-color: rgb(104 126 145 / 0.14);
+}
+.dashboard-content-area .content-data-table tbody tr {
+  border-color: rgb(104 126 145 / 0.18);
+  background: #cbd6de;
+  transition: background-color 150ms ease;
+}
+.dashboard-content-area .content-data-table thead th {
+  background: #bac8d2 !important;
+  color: #52697c !important;
+}
+.dashboard-content-area .content-data-table tbody tr:hover {
+  background: #c1ced7 !important;
+}
+.dashboard-content-area .content-data-table td {
+  vertical-align: middle;
+  border-bottom-color: rgb(104 126 145 / 0.14);
+}
+.dashboard-content-area .content-data-table th {
+  border-bottom: 1px solid rgb(104 126 145 / 0.2);
+}
+.dashboard-content-area .content-table-header {
+  border-bottom: 1px solid rgb(104 126 145 / 0.2);
+  background: #bac8d2 !important;
+  color: #52697c !important;
+}
+.dashboard-content-area .content-table-rows { background: #cbd6de; }
+.dashboard-content-area .content-table-row {
+  border-bottom: 1px solid rgb(104 126 145 / 0.14);
+  background: #cbd6de;
+  transition: background-color 150ms ease;
+}
+.dashboard-content-area .content-table-row:hover { background: #c1ced7; }
+html.dark .dashboard-content-area .content-data-table tbody tr {
+  border-color: rgb(142 163 181 / 0.12);
+  background: #17232f;
+}
+html.dark .dashboard-content-area .content-data-table thead th {
+  background: #1d2b38 !important;
+  color: #a8b8c6 !important;
+}
+html.dark .dashboard-content-area table thead th {
+  background: #1d2b38 !important;
+  background-image: none !important;
+  color: #a8b8c6 !important;
+  border-bottom-color: rgb(142 163 181 / 0.16);
+}
+html.dark .dashboard-content-area table tbody tr {
+  background: #17232f !important;
+  background-image: none !important;
+}
+html.dark .dashboard-content-area table tbody tr:hover {
+  background: #20313e !important;
+}
+html.dark .dashboard-content-area table tbody td {
+  border-bottom-color: rgb(142 163 181 / 0.1);
+}
+html.dark .dashboard-content-area .content-data-table tbody tr:hover {
+  background: #20313e !important;
+}
+html.dark .dashboard-content-area .content-table-scroll {
+  border-color: #2b3b4a;
+  background: #17232f;
+  scrollbar-color: #465967 transparent;
+}
+html.dark .dashboard-content-area .content-data-table th {
+  border-bottom-color: rgb(142 163 181 / 0.16);
+}
+html.dark .dashboard-content-area .content-data-table td {
+  border-bottom-color: rgb(142 163 181 / 0.1);
+}
+html.dark .dashboard-content-area .content-table-header {
+  border-bottom-color: rgb(142 163 181 / 0.16);
+  background: #1d2b38 !important;
+  color: #a8b8c6 !important;
+}
+html.dark .dashboard-content-area .content-table-rows { background: #17232f; }
+html.dark .dashboard-content-area .content-table-row {
+  border-bottom-color: rgb(142 163 181 / 0.1);
+  background: #17232f;
+}
+html.dark .dashboard-content-area .content-table-row:hover { background: #20313e; }
+
+/* Apply the dashboard select surface directly to the shared menu component,
+   including Radix portals opened from pages with different content scopes. */
+.dashboard-scope-select-content {
+  background-color: #cbd6de !important;
+  border: 1px solid #afbec9 !important;
+  color: #263b4c !important;
+  backdrop-filter: none !important;
+}
+.dark .dashboard-scope-select-content {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+}
+.dashboard-scope-select-content [data-highlighted] {
+  background-color: #b7c6d0 !important;
+  color: #203747 !important;
+}
+.dark .dashboard-scope-select-content [data-highlighted] {
+  background-color: #263b4b !important;
+  color: #eef4f7 !important;
+}
+
+/* Shared MajiScope workspace: use the approved mineral blue-gray surfaces on every page. */
+html[data-dashboard-content-theme="active"] main.dashboard-content-area {
+  --card: 210 17% 82%;
+  --card-foreground: 204 28% 16%;
+  --popover: 210 17% 84%;
+  --secondary: 210 17% 77%;
+  --secondary-foreground: 204 28% 19%;
+  --muted: 210 15% 76%;
+  --muted-foreground: 207 15% 40%;
+  --border: 210 16% 68%;
+  --input: 210 16% 68%;
+  --chart-axis-text: #687e90;
+  --dashboard-chart-grid: rgba(111, 132, 150, 0.22);
+  --dashboard-chart-axis: rgba(104, 126, 145, 0.5);
+  --dashboard-chart-surface: #cbd6de;
+  --dashboard-chart-border: #b4c2cc;
+  --dashboard-chart-text: #263c4d;
+  --dashboard-chart-legend: #52697c;
+  background-color: #c0ccd5 !important;
+  background-image:
+    radial-gradient(ellipse at 76% 0%, rgba(79, 145, 177, 0.035), transparent 37%),
+    linear-gradient(145deg, #c6d1d9 0%, #c0ccd5 58%, #c3cfd7 100%);
+  color: #1e3040;
+}
+
+html.dark[data-dashboard-content-theme="active"] main.dashboard-content-area {
+  --chart-axis-text: #9cabb9;
+  --dashboard-chart-grid: rgba(142, 163, 181, 0.14);
+  --dashboard-chart-axis: rgba(142, 163, 181, 0.34);
+  --dashboard-chart-surface: #17232f;
+  --dashboard-chart-border: #344555;
+  --dashboard-chart-text: #d5e0e8;
+  --dashboard-chart-legend: #a8b8c6;
+  background-color: #0c141e !important;
+  background-image:
+    radial-gradient(ellipse at 78% 0%, rgba(53, 111, 143, 0.12), transparent 38%),
+    linear-gradient(145deg, #101a26 0%, #0c141e 58%, #101923 100%);
+  color: #e4ebf1;
+}
+
+.dashboard-chart-dialog {
+  --chart-axis-text: #687e90;
+  --dashboard-chart-grid: rgba(111, 132, 150, 0.22);
+  --dashboard-chart-axis: rgba(104, 126, 145, 0.5);
+  --dashboard-chart-surface: #cbd6de;
+  --dashboard-chart-border: #b4c2cc;
+  --dashboard-chart-text: #263c4d;
+  --dashboard-chart-legend: #52697c;
+}
+
+.dark .dashboard-chart-dialog {
+  --chart-axis-text: #9cabb9;
+  --dashboard-chart-grid: rgba(142, 163, 181, 0.14);
+  --dashboard-chart-axis: rgba(142, 163, 181, 0.34);
+  --dashboard-chart-surface: #17232f;
+  --dashboard-chart-border: #344555;
+  --dashboard-chart-text: #d5e0e8;
+  --dashboard-chart-legend: #a8b8c6;
+}
+
+html[data-dashboard-content-theme="active"] .dashboard-chart-dialog[role="dialog"] {
+  border-color: #b4c2cc !important;
+  background: linear-gradient(145deg, #d1dbe2 0%, #c4d0d9 100%) !important;
+  color: #263c4d !important;
+  box-shadow: 0 28px 80px -38px rgb(14 31 45 / 0.48), 0 12px 28px -18px rgb(14 31 45 / 0.28) !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] .dashboard-chart-dialog[role="dialog"] {
+  border-color: #344555 !important;
+  background: linear-gradient(145deg, #192734 0%, #141e29 100%) !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 28px 80px -38px rgb(0 0 0 / 0.82), 0 12px 28px -18px rgb(0 0 0 / 0.52) !important;
+}
+
+.dashboard-chart-dialog > button.absolute.right-4.top-4 {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid #aebfca;
+  border-radius: 9999px;
+  background: #c3d0d9;
+  color: #52697c;
+  opacity: 1;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.dashboard-chart-dialog > button.absolute.right-4.top-4:hover {
+  border-color: #7eaebd;
+  background: #b4c7d2;
+  color: #1c586d;
+}
+
+.dark .dashboard-chart-dialog > button.absolute.right-4.top-4 {
+  border-color: #3b5264;
+  background: #223442;
+  color: #b6c7d2;
+}
+
+.dark .dashboard-chart-dialog > button.absolute.right-4.top-4:hover {
+  border-color: #567486;
+  background: #2b4352;
+  color: #e1edf2;
+}
+
+/* Shared compact metrics used by the dashboard and reports workspace. */
+.content-metric-card {
+  --metric-accent: #617d91;
+  --metric-value: #1d3040;
+  --metric-icon-fg: #536c80;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  overflow: hidden;
+  border: 1px solid #afbec9;
+  border-radius: 14px;
+  padding: 0.375rem 0.625rem;
+  background: linear-gradient(142deg, #ccd7df 0%, #c5d1da 100%);
+  box-shadow: 0 8px 20px -18px rgb(20 42 60 / 0.46);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.content-metric-card:hover {
+  transform: translateY(-1px);
+  border-color: #9bb7c7;
+  box-shadow: 0 12px 24px -20px rgb(20 42 60 / 0.42);
+}
+
+.content-metric-card--slate { --metric-accent: #617d91; --metric-value: #1d3040; --metric-icon-fg: #536c80; }
+.content-metric-card--blue { --metric-accent: #147b91; --metric-value: #147b91; --metric-icon-fg: #147b91; }
+.content-metric-card--amber { --metric-accent: #a66b25; --metric-value: #a66b25; --metric-icon-fg: #a66b25; }
+.content-metric-card--red { --metric-accent: #b44d49; --metric-value: #b44d49; --metric-icon-fg: #b44d49; }
+
+.content-metric-card__accent {
+  position: absolute;
+  inset-block: 0.5rem;
+  left: 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--metric-accent);
+}
+
+.content-metric-card__copy { min-width: 0; }
+.content-metric-card__label {
+  max-width: 9rem;
+  color: #637689;
+  font-size: 0.57rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.content-metric-card__value {
+  margin-top: 0.125rem;
+  color: var(--metric-value);
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+.content-metric-card__icon {
+  display: flex;
+  width: auto;
+  height: auto;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--metric-icon-fg);
+}
+.content-metric-card__icon svg { width: 1.2rem; height: 1.2rem; }
+
+/* Water quality parameter tiles keep their measurement-specific colors while
+   matching the compact footprint of the shared dashboard summary cards. */
+.sensor-quality-metric-card {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid #afbec9;
+  border-radius: 14px;
+  padding: 0.5rem 0.7rem;
+  background: linear-gradient(142deg, #d3dde4 0%, #cbd6de 100%);
+  box-shadow: 0 8px 20px -18px rgb(20 42 60 / 0.4);
+}
+.sensor-quality-metric-icon {
+  display: flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  font-size: 0.72rem;
+}
+.sensor-quality-metric-label {
+  color: #637689;
+  font-size: 0.65rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.sensor-quality-metric-value {
+  margin-top: 0.2rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+}
+.dark .sensor-quality-metric-card {
+  border-color: #2b3b4a;
+  background: linear-gradient(142deg, #1b2936 0%, #151f2b 100%);
+  box-shadow: none;
+}
+.dark .sensor-quality-metric-label { color: #9cabb9; }
+
+/* Legacy metric grids opt into the same compact presentation as the shared
+   dashboard/report KPI cards without changing their page-specific data. */
+main.dashboard-content-area .content-metric-grid { gap: 0.65rem; }
+main.dashboard-content-area .content-metric-grid > .content-panel-card {
+  min-height: 68px;
+  padding: 0.15rem;
+  border-radius: 0.9rem !important;
+}
+main.dashboard-content-area .content-metric-grid > .content-panel-card > div {
+  width: 100%;
+  padding: 0.65rem 0.8rem !important;
+}
+main.dashboard-content-area .content-metric-grid > .content-panel-card > div > div {
+  gap: 0.65rem;
+}
+main.dashboard-content-area .content-metric-grid > .content-panel-card :is(.h-8.w-8, .h-8.w-8.shrink-0) {
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+}
+main.dashboard-content-area .content-metric-grid > .content-panel-card :is(p.text-sm, p.text-xs) {
+  color: #687e90 !important;
+  font-size: 0.62rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+main.dashboard-content-area .content-metric-grid > .content-panel-card p.text-2xl,
+main.dashboard-content-area .content-metric-grid > .content-panel-card p.text-3xl {
+  margin-top: 0.12rem !important;
+  color: #263b4c !important;
+  font-size: 1.45rem !important;
+  line-height: 1 !important;
+}
+html.dark main.dashboard-content-area .content-metric-grid > .content-panel-card :is(p.text-sm, p.text-xs) {
+  color: #9cabb9 !important;
+}
+html.dark main.dashboard-content-area .content-metric-grid > .content-panel-card p.text-2xl,
+html.dark main.dashboard-content-area .content-metric-grid > .content-panel-card p.text-3xl {
+  color: #e0e8ee !important;
+}
+
+.dark .content-metric-card {
+  border-color: #2b3b4a;
+  background: linear-gradient(142deg, #1b2936 0%, #151f2b 100%);
+  box-shadow: none;
+}
+.dark .content-metric-card:hover {
+  border-color: #486477;
+  box-shadow: 0 12px 24px -20px rgb(0 0 0 / 0.5);
+}
+.dark .content-metric-card--slate { --metric-value: #e5edf3; --metric-icon-fg: #a8c2d5; }
+.dark .content-metric-card--blue { --metric-value: #74c7d7; --metric-icon-fg: #74c7d7; }
+.dark .content-metric-card--amber { --metric-value: #ddb06a; --metric-icon-fg: #ddb06a; }
+.dark .content-metric-card--red { --metric-value: #e58c83; --metric-icon-fg: #e58c83; }
+.dark .content-metric-card__label { color: #9cabb9; }
+
+/* Keep report tables and controls on the same calm mineral surface as the dashboard. */
+.reports-workspace [class~="text-slate-800"] { color: #263c4d; }
+.reports-workspace [class~="text-slate-700"] { color: #314b5d; }
+.reports-workspace [class~="text-slate-600"] { color: #52697c; }
+.reports-workspace [class~="text-slate-500"] { color: #687e90; }
+.reports-workspace [class~="text-slate-400"] { color: #7d91a1; }
+.dark .reports-workspace [class~="text-slate-800"] { color: #e0e8ee; }
+.dark .reports-workspace [class~="text-slate-700"] { color: #d0dbe3; }
+.dark .reports-workspace [class~="text-slate-600"] { color: #b6c4cf; }
+.dark .reports-workspace [class~="text-slate-500"] { color: #9cabb9; }
+.dark .reports-workspace [class~="text-slate-400"] { color: #8395a4; }
+
+/* Priority remains easy to scan without the sharp, saturated default fills. */
+.priority-badge--moderate { background-color: #eee4cf !important; border-color: #c9b17f !important; color: #725a2c !important; }
+.priority-badge--high { background-color: #eadbd3 !important; border-color: #c99b89 !important; color: #784334 !important; }
+.priority-badge--critical { background-color: #e8d7df !important; border-color: #bd8fa1 !important; color: #703d52 !important; }
+.dark .priority-badge--moderate { background-color: #332e23 !important; border-color: #6b5b3d !important; color: #d7c18d !important; }
+.dark .priority-badge--high { background-color: #332723 !important; border-color: #68493e !important; color: #d0a18f !important; }
+.dark .priority-badge--critical { background-color: #30232a !important; border-color: #674455 !important; color: #d4a1b4 !important; }
+
+.reports-table-container > div { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #91a5b4 transparent; }
+.reports-data-table { width: 100%; min-width: 980px; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 0.82rem; }
+.reports-data-table th { height: 2.75rem; padding: 0.75rem 0.8rem; background: #c5d1da; color: #52697c; font-size: 0.67rem; font-weight: 700; letter-spacing: 0.075em; text-transform: uppercase; }
+.reports-data-table td { max-width: 0; padding: 0.7rem 0.8rem; vertical-align: middle; }
+.reports-data-table tbody tr { transition: background-color 150ms ease; }
+.reports-data-table tbody tr:nth-child(even) { background: rgb(123 148 166 / 0.07); }
+.reports-data-table tbody tr:hover { background: rgb(20 123 145 / 0.09); }
+.dark .reports-data-table th { background: #1b2936; color: #9cabb9; }
+.dark .reports-data-table tbody tr:nth-child(even) { background: rgb(174 196 211 / 0.035); }
+.dark .reports-data-table tbody tr:hover { background: rgb(116 199 215 / 0.075); }
+.reports-cell-truncate { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 767px) {
+  .reports-table-container > div { overflow: visible; }
+  .reports-data-table { min-width: 0; border-spacing: 0; }
+  .reports-data-table thead { display: none; }
+  .reports-data-table,
+  .reports-data-table tbody { display: block; width: 100%; }
+  .reports-data-table tbody { padding: 0.55rem; }
+  .reports-data-table tbody tr:not(.reports-empty-row) {
+    display: block;
+    margin: 0 0 0.65rem;
+    overflow: hidden;
+    border: 1px solid #afbec9;
+    border-radius: 0.9rem;
+    background: #cbd6de;
+  }
+  .dark .reports-data-table tbody tr:not(.reports-empty-row) { border-color: #2b3b4a; background: #192633; }
+  .reports-data-table tbody tr:nth-child(even) { background: transparent; }
+  .reports-data-table tbody tr:hover { background: transparent; }
+  .reports-data-table tbody tr:not(.reports-empty-row) { background: #cbd6de; }
+  .dark .reports-data-table tbody tr:not(.reports-empty-row) { background: #192633; }
+  .reports-data-table td {
+    display: grid;
+    width: 100%;
+    max-width: none;
+    grid-template-columns: minmax(5.7rem, 0.38fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.55rem;
+    border-bottom: 1px solid rgb(111 132 150 / 0.16);
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+  }
+  .dark .reports-data-table td { border-color: rgb(142 163 181 / 0.12); }
+  .reports-data-table td:last-child { border-bottom: 0; }
+  .reports-data-table td::before {
+    content: attr(data-label);
+    color: #71879a;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .dark .reports-data-table td::before { color: #91a1af; }
+  .reports-data-table td > * { min-width: 0; }
+  .reports-data-table td [class~="whitespace-nowrap"] { white-space: normal; }
+  .reports-data-table td[colspan] { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content-metric-card { transition: none; }
+}
+
+@keyframes dashboard-rise-in {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+.dashboard-command-center > header,
+.dashboard-kpi-strip > div,
+.dashboard-workspace > section,
+.dashboard-workspace > aside {
+  animation: dashboard-rise-in 460ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.dashboard-kpi-strip > div:nth-child(1) { animation-delay: 35ms; }
+.dashboard-kpi-strip > div:nth-child(2) { animation-delay: 75ms; }
+.dashboard-kpi-strip > div:nth-child(3) { animation-delay: 115ms; }
+.dashboard-kpi-strip > div:nth-child(4) { animation-delay: 155ms; }
+.dashboard-workspace > section { animation-delay: 120ms; }
+.dashboard-workspace > aside { animation-delay: 190ms; }
+
+.dashboard-status-dot {
+  position: relative;
+}
+
+.dashboard-status-dot::after {
+  position: absolute;
+  inset: -3px;
+  border: 1px solid #2b9aaa;
+  border-radius: 9999px;
+  content: "";
+  animation: dashboard-signal-pulse 2.4s ease-out infinite;
+}
+
+/* Keep dropdown surfaces consistent across pages, including Radix portals. */
+ [data-radix-portal] :is(
+  .app-select-content,
+  .dashboard-scope-select-content,
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [role="menu"],
+  [role="listbox"]
+) {
+  background-color: #cbd6de !important;
+  background-image: none !important;
+  border-color: #afbec9 !important;
+  color: #263b4c !important;
+  box-shadow: 0 12px 24px -20px rgb(20 42 60 / 0.38) !important;
+  backdrop-filter: none !important;
+}
+
+ [data-radix-portal] :is(
+  .app-select-content,
+  .dashboard-scope-select-content,
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [role="menu"],
+  [role="listbox"]
+) :is([data-highlighted], [data-state="checked"], [aria-selected="true"]) {
+  background-color: #b7c6d0 !important;
+  color: #203747 !important;
+}
+
+html.dark [data-radix-portal] :is(
+  .app-select-content,
+  .dashboard-scope-select-content,
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [role="menu"],
+  [role="listbox"]
+) {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+  box-shadow: 0 14px 30px -22px rgb(0 0 0 / 0.62) !important;
+}
+
+html.dark [data-radix-portal] :is(
+  .app-select-content,
+  .dashboard-scope-select-content,
+  [data-radix-select-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-popover-content],
+  [role="menu"],
+  [role="listbox"]
+) :is([data-highlighted], [data-state="checked"], [aria-selected="true"]) {
+  background-color: #263b4b !important;
+  color: #eef4f7 !important;
+}
+
+/* Radix dropdown menus can render without the portal marker used by the old
+   global selector. Target the shared component directly so action menus match
+   Select dropdowns on every dashboard route. */
+html[data-dashboard-content-theme="active"] .app-dropdown-content {
+  border: 1px solid #afbec9 !important;
+  border-radius: 0.9rem !important;
+  background: #cbd6de !important;
+  color: #263b4c !important;
+  box-shadow: 0 14px 30px -20px rgb(20 42 60 / 0.38) !important;
+  backdrop-filter: none !important;
+}
+html[data-dashboard-content-theme="active"] .app-dropdown-content :is([data-highlighted], [data-state="checked"], :focus-visible) {
+  background: #b7c6d0 !important;
+  color: #203747 !important;
+}
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-cyan-500"],
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-cyan-600"],
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-sky-500"],
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-sky-600"] {
+  color: #287f91 !important;
+}
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-amber-600"] {
+  color: #8b6738 !important;
+}
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-red-600"] {
+  color: #985451 !important;
+}
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class*="focus:bg-amber-"]:is([data-highlighted], :focus-visible),
+html[data-dashboard-content-theme="active"] .app-dropdown-content [class*="focus:bg-red-"]:is([data-highlighted], :focus-visible) {
+  background: #b7c6d0 !important;
+  color: #263b4c !important;
+}
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content {
+  border-color: #344453 !important;
+  background: #17222e !important;
+  color: #dce6ed !important;
+  box-shadow: 0 16px 32px -22px rgb(0 0 0 / 0.68) !important;
+}
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content :is([data-highlighted], [data-state="checked"], :focus-visible) {
+  background: #263b4b !important;
+  color: #eef4f7 !important;
+}
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-cyan-500"],
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-cyan-600"],
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-sky-500"],
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-sky-600"] { color: #83aeba !important; }
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-amber-600"] { color: #c4a477 !important; }
+html.dark[data-dashboard-content-theme="active"] .app-dropdown-content [class~="text-red-600"] { color: #c58b86 !important; }
+
+select {
+  background-color: #cbd6de !important;
+  border-color: #afbec9 !important;
+  border-radius: 0.75rem !important;
+  color: #263b4c !important;
+  color-scheme: light;
+}
+
+select option {
+  background-color: #cbd6de;
+  color: #263b4c;
+}
+
+html.dark select {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+  color-scheme: dark;
+}
+
+html.dark select option {
+  background-color: #17222e;
+  color: #dce6ed;
+}
+
+/* Native selects used by the hydraulic scenario archive share the same
+   mineral surface as the Radix dropdowns used throughout the dashboard. */
+.dashboard-content-area .dashboard-native-select,
+.dashboard-content-area .hydraulic-reports-filters select,
+main.dashboard-content-area select {
+  border: 1px solid #afbec9 !important;
+  border-radius: 0.8rem !important;
+  background-color: #cbd6de !important;
+  color: #263b4c !important;
+  color-scheme: light;
+}
+.dashboard-content-area .dashboard-native-select option,
+.dashboard-content-area .hydraulic-reports-filters select option,
+main.dashboard-content-area select option {
+  background-color: #cbd6de !important;
+  color: #263b4c !important;
+}
+html.dark .dashboard-content-area .dashboard-native-select,
+html.dark .dashboard-content-area .hydraulic-reports-filters select,
+html.dark main.dashboard-content-area select {
+  border-color: #344453 !important;
+  background-color: #17222e !important;
+  color: #dce6ed !important;
+  color-scheme: dark;
+}
+html.dark .dashboard-content-area .dashboard-native-select option,
+html.dark .dashboard-content-area .hydraulic-reports-filters select option,
+html.dark main.dashboard-content-area select option {
+  background-color: #17222e !important;
+  color: #dce6ed !important;
+}
+
+/* Radix select triggers inside shared dialogs are portaled outside main, so
+   style those controls at the global dashboard layer as well. */
+html[data-dashboard-content-theme="active"] [data-radix-portal] [role="combobox"] {
+  background-color: #cbd6de !important;
+  border-color: #afbec9 !important;
+  color: #263b4c !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] [role="combobox"] {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+}
+
+main.dashboard-content-area [role="combobox"] {
+  background-color: #cbd6de !important;
+  border-color: #afbec9 !important;
+  color: #263b4c !important;
+}
+
+html.dark main.dashboard-content-area [role="combobox"] {
+  background-color: #17222e !important;
+  border-color: #344453 !important;
+  color: #dce6ed !important;
+}
+
+/* Cards built with the shared Card primitive use the same calm surface across
+   every dashboard route, even when legacy pages pass older color utilities. */
+main.dashboard-content-area .content-panel-card {
+  border-color: #afbec9 !important;
+  border-radius: 1.1rem !important;
+  background: #cbd6de !important;
+  color: #263b4c !important;
+  box-shadow: 0 10px 24px -22px rgb(20 42 60 / 0.4) !important;
+}
+main.dashboard-content-area .content-panel-card:hover {
+  border-color: #9bb1bf !important;
+  box-shadow: 0 14px 28px -24px rgb(20 42 60 / 0.42) !important;
+}
+html.dark main.dashboard-content-area .content-panel-card {
+  border-color: #2b3b4a !important;
+  background: #17232f !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 12px 28px -26px rgb(0 0 0 / 0.72) !important;
+}
+html.dark main.dashboard-content-area .content-panel-card:hover {
+  border-color: #3b5264 !important;
+  box-shadow: 0 14px 30px -26px rgb(0 0 0 / 0.76) !important;
+}
+
+/* Submit actions use a crisp surface without the colored halo used by older styles. */
+html :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+) {
+  box-shadow: none !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+  filter: none !important;
+}
+
+html[data-dashboard-content-theme="active"] .dashboard-content-area :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+) {
+  background-color: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+}
+
+html[data-dashboard-content-theme="active"] .dashboard-content-area :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+):hover {
+  background-color: #284e62 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] .dashboard-content-area :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+) {
+  background-color: #426a7d !important;
+  color: #eef3f6 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] .dashboard-content-area :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+):hover {
+  background-color: #4d7789 !important;
+}
+
+html :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+):is(:hover, :active, :focus-visible) {
+  box-shadow: none !important;
+  --tw-shadow: 0 0 #0000 !important;
+  --tw-shadow-colored: 0 0 #0000 !important;
+}
+
+html :is(
+  button[type="submit"],
+  input[type="submit"],
+  .dashboard-modal-submit,
+  .content-accent-button,
+  .btn-primary
+):focus-visible {
+  outline: 2px solid hsl(var(--muted-foreground) / 0.55) !important;
+  outline-offset: 2px;
+}
+
+main.dashboard-content-area :is(button, a, [role="button"])[class*="hover:from-"]:hover {
+  filter: saturate(0.8) brightness(0.93);
+}
+
+/* Shared modal treatment for utility/DMA managers and other dashboard dialogs. */
+html[data-dashboard-content-theme="active"] .app-dialog-overlay {
+  background-color: rgb(12 23 32 / 0.58) !important;
+  backdrop-filter: blur(3px);
+}
+
+html.dark[data-dashboard-content-theme="active"] .app-dialog-overlay {
+  background-color: rgb(3 8 13 / 0.68) !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content:not(.dashboard-chart-dialog) {
+  border: 1px solid #afbec9 !important;
+  border-radius: 1.35rem !important;
+  background-color: #cbd6de !important;
+  color: #263b4c !important;
+  box-shadow: 0 26px 68px -38px rgb(20 42 60 / 0.48), 0 10px 24px -18px rgb(20 42 60 / 0.28) !important;
+  backdrop-filter: none !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content:not(.dashboard-chart-dialog) {
+  border-color: #344453 !important;
+  background-color: #17222e !important;
+  color: #dce6ed !important;
+  box-shadow: 0 28px 72px -40px rgb(0 0 0 / 0.78), 0 10px 24px -18px rgb(0 0 0 / 0.46) !important;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content > button.absolute.right-4.top-4 {
+  border-radius: 9999px;
+  color: #52697c;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+html[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content > button.absolute.right-4.top-4:hover {
+  background-color: #b7c6d0 !important;
+  color: #203747 !important;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content > button.absolute.right-4.top-4 {
+  color: #aab9c5;
+}
+
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .app-dialog-content > button.absolute.right-4.top-4:hover {
+  background-color: #263b4b !important;
+  color: #eef4f7 !important;
+}
+
+/* Reusable modal details surfaces, shared by manager detail dialogs and
+   confirmation dialogs across the dashboard. */
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-accent-destructive {
+  background: #925b58 !important;
+  color: #f8eeee !important;
+  box-shadow: none !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-trash-icon {
+  color: #f0c0bd !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-accent-warning,
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-warning {
+  background: #956239 !important;
+  color: #fbf4e9 !important;
+  box-shadow: none !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-warning:hover {
+  background: #80532f !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-description {
+  color: #52697c !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-cancel {
+  border-color: #aebdc7 !important;
+  background: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-cancel:hover {
+  background: #b2c0ca !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel {
+  border: 1px solid #afbec9 !important;
+  border-radius: 1rem !important;
+  background: #c4d0d9 !important;
+  color: #263b4c !important;
+  box-shadow: 0 10px 24px -20px rgb(20 42 60 / 0.42) !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-profile {
+  background: linear-gradient(135deg, #d2dce3 0%, #c0cdd6 100%) !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-subpanel {
+  border: 1px solid #b2c0ca !important;
+  border-radius: 0.8rem !important;
+  background: #bdc9d2 !important;
+  color: #3e5668 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-accent-destructive {
+  background: #754b4c !important;
+  color: #f1dddd !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-trash-icon {
+  color: #e6aaa7 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-accent-warning,
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-warning {
+  background: #715338 !important;
+  color: #f1e6d3 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-submit-warning:hover {
+  background: #80603f !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-status-icon {
+  background: #e0d5c4 !important;
+  color: #80623c !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-status-icon {
+  background: #3a342b !important;
+  color: #c9ad7c !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-description {
+  color: #aebdc8 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-cancel {
+  border-color: #3b4b59 !important;
+  background: #22313e !important;
+  color: #d5e0e8 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-cancel:hover {
+  background: #2a3b49 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel {
+  border-color: #344555 !important;
+  background: #1d2b37 !important;
+  color: #d5e0e8 !important;
+  box-shadow: none !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-profile {
+  background: linear-gradient(135deg, #223442 0%, #1b2935 100%) !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-subpanel {
+  border-color: #344555 !important;
+  background: #17232f !important;
+  color: #b8c6d0 !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel :is(.text-slate-800, .text-slate-700) {
+  color: #263b4c !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel :is(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: #52697c !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel :is(.text-slate-800, .text-slate-700) {
+  color: #d5e0e8 !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel :is(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: #aebdc8 !important;
+}
+html[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel .ring-cyan-200 {
+  --tw-ring-color: #8baebb !important;
+}
+html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-modal-panel .ring-cyan-200 {
+  --tw-ring-color: #426477 !important;
+}
+
+/* Report details: one clear record header, quiet facts, and compact workflow panels. */
+.report-detail-hero,
+.report-detail-panel {
+  border: 1px solid #afbec9 !important;
+  border-radius: 1.35rem !important;
+  background: #cbd6de !important;
+  color: #263b4c;
+  box-shadow: 0 12px 28px -24px rgb(20 42 60 / 0.42) !important;
+}
+
+.report-detail-hero { padding: clamp(1.15rem, 2.5vw, 1.8rem); }
+.report-detail-panel { overflow: hidden; }
+.report-detail-eyebrow {
+  color: #657d8e;
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.report-detail-eyebrow span { margin: 0 0.3rem; color: #9aabb7; }
+.report-detail-title {
+  overflow-wrap: anywhere;
+  color: #203747;
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  font-weight: 760;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+.report-detail-back { color: #52697c !important; }
+.report-detail-back:hover { background: #b7c6d0 !important; color: #203747 !important; }
+.report-detail-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.report-detail-fact-item {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.17);
+  padding: 0.75rem 0.85rem;
+}
+.report-detail-fact-icon,
+.report-detail-section-icon { width: 1.05rem; height: 1.05rem; flex: 0 0 auto; color: #287f91; }
+.report-detail-fact-item > div { min-width: 0; }
+.report-detail-fact-item span {
+  display: block;
+  color: #71879a;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.report-detail-fact-item strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 0.2rem;
+  color: #263b4c;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.report-detail-section-heading { display: flex; align-items: flex-start; gap: 0.7rem; }
+.report-detail-section-heading h2 { color: #263b4c; font-size: 1rem; font-weight: 700; letter-spacing: -0.015em; }
+.report-detail-section-heading p { margin-top: 0.18rem; color: #71879a; font-size: 0.78rem; line-height: 1.4; }
+.report-detail-note {
+  border: 1px solid rgb(111 132 150 / 0.2);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.13);
+  padding: 0.85rem 1rem;
+}
+.report-detail-note h3 { color: #52697c; font-size: 0.67rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
+.report-detail-note p { margin-top: 0.35rem; color: #354c5d; font-size: 0.86rem; line-height: 1.55; white-space: pre-wrap; }
+.report-detail-media-section {
+  min-width: 0;
+  border: 1px solid rgb(111 132 150 / 0.2);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 0.11);
+  padding: 1rem;
+}
+.report-detail-media-section > div:first-child { color: #287f91; }
+.report-detail-media-section > div:first-child p:first-child { color: #354c5d; font-weight: 700; }
+.report-detail-media-tile { border-color: rgb(111 132 150 / 0.2); background: rgb(255 255 255 / 0.16); }
+.report-detail-media-tile:hover { border-color: #91aab8; background: rgb(255 255 255 / 0.24); }
+.report-detail-media-tile .space-y-2 p:first-child { color: #354c5d; }
+.report-detail-media-tile .space-y-2 p:last-child { color: #71879a; }
+.report-detail-activity-row { position: relative; display: flex; gap: 0.8rem; }
+.report-detail-activity-row:not(:last-child)::before {
+  position: absolute;
+  top: 1rem;
+  bottom: 0;
+  left: 0.29rem;
+  width: 1px;
+  background: rgb(111 132 150 / 0.25);
+  content: "";
+}
+.report-detail-activity-marker { z-index: 1; width: 0.62rem; height: 0.62rem; flex: 0 0 auto; margin-top: 0.25rem; border: 2px solid #cbd6de; border-radius: 50%; background: #287f91; box-shadow: 0 0 0 1px #287f91; }
+.report-detail-owner-row { border-color: rgb(111 132 150 / 0.2); }
+.report-detail-action { min-height: 2.65rem; justify-content: flex-start; border-radius: 0.85rem !important; box-shadow: none !important; }
+.report-detail-action:hover { filter: saturate(0.82) brightness(0.95); box-shadow: none !important; }
+.report-detail-action-primary { border-color: transparent !important; background: #287f91 !important; color: #fff !important; }
+.report-detail-action-primary:hover { background: #236f80 !important; }
+.report-detail-action-danger { border-color: #b88787 !important; background: rgb(151 82 82 / 0.08) !important; color: #895252 !important; }
+.report-detail-action-danger:hover { background: rgb(151 82 82 / 0.15) !important; }
+.report-detail-empty { border-radius: 0.85rem; background: rgb(255 255 255 / 0.13); padding: 0.9rem; color: #71879a; font-size: 0.82rem; line-height: 1.5; }
+
+.dark .report-detail-hero,
+.dark .report-detail-panel {
+  border-color: #344453 !important;
+  background: #17222e !important;
+  color: #dce6ed;
+  box-shadow: 0 16px 34px -30px rgb(0 0 0 / 0.68) !important;
+}
+.dark .report-detail-eyebrow { color: #91a7b5; }
+.dark .report-detail-eyebrow span { color: #536776; }
+.dark .report-detail-title,
+.dark .report-detail-section-heading h2 { color: #e0e8ee; }
+.dark .report-detail-back { color: #aabac6 !important; }
+.dark .report-detail-back:hover { background: #263b4b !important; color: #eef4f7 !important; }
+.dark .report-detail-fact-item { background: rgb(255 255 255 / 0.035); }
+.dark .report-detail-fact-icon,
+.dark .report-detail-section-icon { color: #83aeba; }
+.dark .report-detail-fact-item span,
+.dark .report-detail-section-heading p,
+.dark .report-detail-note h3 { color: #91a1af; }
+.dark .report-detail-fact-item strong,
+.dark .report-detail-note p,
+.dark .report-detail-media-section > div:first-child p:first-child,
+.dark .report-detail-media-tile .space-y-2 p:first-child { color: #d6e0e7; }
+.dark .report-detail-note,
+.dark .report-detail-media-section { border-color: rgb(142 163 181 / 0.12); background: rgb(255 255 255 / 0.025); }
+.dark .report-detail-media-tile { border-color: #2a3b49; background: #1d2b37; }
+.dark .report-detail-media-tile:hover { border-color: #405766; background: #223340; }
+.dark .report-detail-media-tile .space-y-2 p:last-child,
+.dark .report-detail-empty { color: #91a1af; }
+.dark .report-detail-activity-row:not(:last-child)::before { background: rgb(142 163 181 / 0.17); }
+.dark .report-detail-activity-marker { border-color: #17222e; background: #83aeba; box-shadow: 0 0 0 1px #83aeba; }
+.dark .report-detail-action-primary { background: #386f7d !important; color: #edf4f7 !important; }
+.dark .report-detail-action-primary:hover { background: #427b89 !important; }
+.dark .report-detail-action-danger { border-color: #68494b !important; background: rgb(145 82 82 / 0.1) !important; color: #d6a4a2 !important; }
+.dark .report-detail-action-danger:hover { background: rgb(145 82 82 / 0.17) !important; }
+.dark .report-detail-empty { background: rgb(255 255 255 / 0.03); }
+
+@media (max-width: 900px) {
+  .report-detail-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .report-detail-facts { grid-template-columns: minmax(0, 1fr); }
+  .report-detail-hero { border-radius: 1.1rem !important; }
+}
+
+@keyframes dashboard-signal-pulse {
+  0% { opacity: 0.55; transform: scale(0.72); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-command-center > header,
+  .dashboard-kpi-strip > div,
+  .dashboard-workspace > section,
+  .dashboard-workspace > aside,
+  .dashboard-status-dot::after {
+    animation: none !important;
+  }
+}
+
+/* Final dashboard select tokens: override legacy per-page utilities so every
+   filter trigger and opened menu uses the same restrained surface. */
+html[data-dashboard-content-theme="active"] {
+  --dashboard-select-surface: #cbd6de;
+  --dashboard-select-surface-hover: #b7c6d0;
+  --dashboard-select-ink: #263b4c;
+  --dashboard-select-border: #afbec9;
+}
+html.dark[data-dashboard-content-theme="active"] {
+  --dashboard-select-surface: #17222e;
+  --dashboard-select-surface-hover: #263b4b;
+  --dashboard-select-ink: #dce6ed;
+  --dashboard-select-border: #344453;
+}
+
+html[data-dashboard-content-theme="active"] :is(
+  main.dashboard-content-area select,
+  main.dashboard-content-area [role="combobox"],
+  [data-radix-portal] [role="combobox"]
+) {
+  border-color: var(--dashboard-select-border) !important;
+  border-radius: 0.8rem !important;
+  background-color: var(--dashboard-select-surface) !important;
+  background-image: none !important;
+  color: var(--dashboard-select-ink) !important;
+  color-scheme: light;
+  box-shadow: none !important;
+}
+html.dark[data-dashboard-content-theme="active"] :is(
+  main.dashboard-content-area select,
+  main.dashboard-content-area [role="combobox"],
+  [data-radix-portal] [role="combobox"]
+) { color-scheme: dark; }
+
+html[data-dashboard-content-theme="active"] main.dashboard-content-area select option {
+  background-color: var(--dashboard-select-surface) !important;
+  color: var(--dashboard-select-ink) !important;
+}
+html[data-dashboard-content-theme="active"] main.dashboard-content-area select option:is(:checked, :hover, :focus) {
+  background: var(--dashboard-select-surface-hover) linear-gradient(0deg, var(--dashboard-select-surface-hover), var(--dashboard-select-surface-hover)) !important;
+  color: var(--dashboard-select-ink) !important;
+}
+
+html[data-dashboard-content-theme="active"] :is(
+  [data-radix-portal] .app-select-content,
+  [data-radix-portal] .dashboard-scope-select-content,
+  [data-radix-portal] [data-radix-select-content],
+  [data-radix-portal] [role="listbox"]
+) {
+  border: 1px solid var(--dashboard-select-border) !important;
+  border-radius: 0.9rem !important;
+  background: var(--dashboard-select-surface) !important;
+  color: var(--dashboard-select-ink) !important;
+  box-shadow: 0 14px 30px -20px rgb(20 42 60 / 0.38) !important;
+  backdrop-filter: none !important;
+}
+html[data-dashboard-content-theme="active"] :is(
+  [data-radix-portal] .app-select-content,
+  [data-radix-portal] .dashboard-scope-select-content,
+  [data-radix-portal] [data-radix-select-content],
+  [data-radix-portal] [role="listbox"]
+) :is([data-highlighted], [data-state="checked"], [aria-selected="true"]) {
+  background: var(--dashboard-select-surface-hover) !important;
+  color: var(--dashboard-select-ink) !important;
+}
+html.dark[data-dashboard-content-theme="active"] :is(
+  [data-radix-portal] .app-select-content,
+  [data-radix-portal] .dashboard-scope-select-content,
+  [data-radix-portal] [data-radix-select-content],
+  [data-radix-portal] [role="listbox"]
+) { box-shadow: 0 16px 32px -22px rgb(0 0 0 / 0.68) !important; }
+
+html[data-dashboard-content-theme="active"] :is(
+  main.dashboard-content-area [role="combobox"],
+  [data-radix-portal] [role="combobox"],
+  main.dashboard-content-area select
+):focus-visible {
+  outline: 2px solid #7893a3 !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+/* Dashboard modal surfaces use the same mineral finish as the chart modal.
+   Keep these rules unconditional so every Radix dialog (including alert
+   confirmations) stays styled even before the content-theme effect runs. */
+html [data-radix-portal] .app-dialog-content:not(.dashboard-chart-dialog) {
+  border: 1px solid #b4c2cc !important;
+  border-radius: 1.35rem !important;
+  background: linear-gradient(145deg, #d1dbe2 0%, #c4d0d9 100%) !important;
+  color: #263c4d !important;
+  box-shadow: 0 28px 80px -38px rgb(14 31 45 / 0.48), 0 12px 28px -18px rgb(14 31 45 / 0.28) !important;
+  backdrop-filter: none !important;
+}
+html.dark [data-radix-portal] .app-dialog-content:not(.dashboard-chart-dialog) {
+  border-color: #344555 !important;
+  background: linear-gradient(145deg, #192734 0%, #141e29 100%) !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 28px 80px -38px rgb(0 0 0 / 0.82), 0 12px 28px -18px rgb(0 0 0 / 0.52) !important;
+}
+html [data-radix-portal] .app-dialog-content :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #aebdc7 !important;
+  border-radius: 0.8rem !important;
+  background: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+html.dark [data-radix-portal] .app-dialog-content :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #344453 !important;
+  background: #17232f !important;
+  color: #dce6ed !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-accent {
+  background: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+  box-shadow: none !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-accent-destructive {
+  background: #925b58 !important;
+  color: #f8eeee !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-trash-icon {
+  color: #f0c0bd !important;
+}
+html [data-radix-portal] .app-dialog-content :is(.dashboard-modal-accent-warning, .dashboard-modal-submit-warning) {
+  background: #956239 !important;
+  color: #fbf4e9 !important;
+  box-shadow: none !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-submit-warning:hover {
+  background: #80532f !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-submit {
+  background: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+  box-shadow: none !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-submit-destructive {
+  background: #925b58 !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-submit-destructive:hover {
+  background: #7f4d4b !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-accent-destructive,
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-submit-destructive {
+  background: #815653 !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-trash-icon {
+  color: #e6aaa7 !important;
+}
+html.dark [data-radix-portal] .app-dialog-content :is(.dashboard-modal-accent-warning, .dashboard-modal-submit-warning) {
+  background: #715338 !important;
+  color: #f1e6d3 !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-submit-warning:hover {
+  background: #80603f !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-description {
+  color: #52697c !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-description {
+  color: #aebdc8 !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-cancel {
+  border-color: #aebdc7 !important;
+  background: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-cancel {
+  border-color: #3b4b59 !important;
+  background: #22313e !important;
+  color: #d5e0e8 !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-panel {
+  border-color: #afbec9 !important;
+  border-radius: 1rem !important;
+  background: #c4d0d9 !important;
+  color: #263b4c !important;
+  box-shadow: 0 10px 24px -20px rgb(20 42 60 / 0.42) !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-panel {
+  border-color: #344555 !important;
+  background: #1d2b37 !important;
+  color: #d5e0e8 !important;
+  box-shadow: none !important;
+}
+html [data-radix-portal] .app-dialog-content .dashboard-modal-subpanel {
+  border-color: #b2c0ca !important;
+  background: #bdc9d2 !important;
+  color: #3e5668 !important;
+}
+html.dark [data-radix-portal] .app-dialog-content .dashboard-modal-subpanel {
+  border-color: #344555 !important;
+  background: #17232f !important;
+  color: #b8c6d0 !important;
+}
+
+/* Radix may render portal content without a portal wrapper in some versions.
+   Target the shared dialog class directly so modal styling is never dependent
+   on portal markup or the dashboard theme effect. */
+html body .app-dialog-content:not(.dashboard-chart-dialog) {
+  border: 1px solid #b4c2cc !important;
+  border-radius: 1.35rem !important;
+  background: linear-gradient(145deg, #d1dbe2 0%, #c4d0d9 100%) !important;
+  color: #263c4d !important;
+  box-shadow: 0 28px 80px -38px rgb(14 31 45 / 0.48), 0 12px 28px -18px rgb(14 31 45 / 0.28) !important;
+  backdrop-filter: none !important;
+}
+html.dark body .app-dialog-content:not(.dashboard-chart-dialog) {
+  border-color: #344555 !important;
+  background: linear-gradient(145deg, #192734 0%, #141e29 100%) !important;
+  color: #d5e0e8 !important;
+  box-shadow: 0 28px 80px -38px rgb(0 0 0 / 0.82), 0 12px 28px -18px rgb(0 0 0 / 0.52) !important;
+}
+html body .app-dialog-content :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #aebdc7 !important;
+  border-radius: 0.8rem !important;
+  background: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+html.dark body .app-dialog-content :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, [role="combobox"]) {
+  border-color: #344453 !important;
+  background: #17232f !important;
+  color: #dce6ed !important;
+}
+html body .app-dialog-content .dashboard-modal-accent {
+  background: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+  box-shadow: none !important;
+}
+html body .app-dialog-content .dashboard-modal-accent-destructive {
+  background: #925b58 !important;
+  color: #f8eeee !important;
+}
+html body .app-dialog-content .dashboard-modal-trash-icon {
+  color: #f0c0bd !important;
+}
+html body .app-dialog-content .dashboard-modal-accent-warning,
+html body .app-dialog-content .dashboard-modal-submit-warning {
+  background: #956239 !important;
+  color: #fbf4e9 !important;
+  box-shadow: none !important;
+}
+html body .app-dialog-content .dashboard-modal-submit {
+  background: #315d73 !important;
+  background-image: none !important;
+  color: #f4f7f9 !important;
+  box-shadow: none !important;
+}
+html body .app-dialog-content .dashboard-modal-submit-destructive {
+  background: #925b58 !important;
+}
+html body .app-dialog-content .dashboard-modal-submit-destructive:hover {
+  background: #7f4d4b !important;
+}
+html body .app-dialog-content .dashboard-modal-submit-warning {
+  background: #956239 !important;
+}
+html body .app-dialog-content .dashboard-modal-submit-warning:hover {
+  background: #80532f !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-accent-destructive,
+html.dark body .app-dialog-content .dashboard-modal-submit-destructive {
+  background: #815653 !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-trash-icon {
+  color: #e6aaa7 !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-accent-warning,
+html.dark body .app-dialog-content .dashboard-modal-submit-warning {
+  background: #715338 !important;
+  color: #f1e6d3 !important;
+}
+html body .app-dialog-content .dashboard-modal-cancel {
+  border-color: #aebdc7 !important;
+  background: #bdc9d2 !important;
+  color: #263b4c !important;
+  box-shadow: none !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-cancel {
+  border-color: #3b4b59 !important;
+  background: #22313e !important;
+  color: #d5e0e8 !important;
+}
+html body .app-dialog-content .dashboard-modal-description {
+  color: #52697c !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-description {
+  color: #aebdc8 !important;
+}
+html body .app-dialog-content .dashboard-modal-panel :is(.text-slate-800, .text-slate-700) {
+  color: #263b4c !important;
+}
+html body .app-dialog-content .dashboard-modal-panel :is(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: #52697c !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-panel :is(.text-slate-800, .text-slate-700) {
+  color: #d5e0e8 !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-panel :is(.text-slate-600, .text-slate-500, .text-slate-400) {
+  color: #aebdc8 !important;
+}
+html body .app-dialog-content .dashboard-modal-panel {
+  border-color: #afbec9 !important;
+  background: #c4d0d9 !important;
+  color: #263b4c !important;
+  box-shadow: 0 10px 24px -20px rgb(20 42 60 / 0.42) !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-panel {
+  border-color: #344555 !important;
+  background: #1d2b37 !important;
+  color: #d5e0e8 !important;
+  box-shadow: none !important;
+}
+html body .app-dialog-content .dashboard-modal-profile {
+  background: linear-gradient(135deg, #d2dce3 0%, #c0cdd6 100%) !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-profile {
+  background: linear-gradient(135deg, #223442 0%, #1b2935 100%) !important;
+}
+html body .app-dialog-content .dashboard-modal-subpanel {
+  border-color: #b2c0ca !important;
+  background: #bdc9d2 !important;
+  color: #3e5668 !important;
+}
+html.dark body .app-dialog-content .dashboard-modal-subpanel {
+  border-color: #344555 !important;
+  background: #17232f !important;
+  color: #b8c6d0 !important;
 }

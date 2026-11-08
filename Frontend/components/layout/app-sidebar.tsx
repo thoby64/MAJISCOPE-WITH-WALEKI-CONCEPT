@@ -79,17 +79,17 @@ export function AppSidebar() {
     <Sidebar
       collapsible="icon"
       overlayExpandedDesktop={isHydraulicWorkspace}
-      className="border-r border-[#2b424e] bg-sidebar text-sidebar-foreground shadow-[8px_0_28px_-28px_rgba(18,39,28,0.7)]"
+      className="border-r-0 group-data-[side=left]:border-r-0 bg-sidebar text-sidebar-foreground shadow-none"
     >
       <SidebarHeader className={cn(
-        "relative flex-row items-center justify-between gap-2 border-b border-sidebar-border bg-[#192f3b] px-3 py-4",
+        "relative flex-row items-center justify-between gap-2 overflow-hidden border-b border-sidebar-border bg-[#172a39] px-3 py-4 before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_88%_0%,rgba(85,164,192,0.16),transparent_58%)] after:pointer-events-none after:absolute after:bottom-0 after:left-5 after:right-5 after:h-px after:bg-gradient-to-r after:from-transparent after:via-[#5f9baa]/45 after:to-transparent",
         isCollapsed && "items-center px-2 py-4"
       )}>
         <Link
           href="/dashboard"
           onClick={(event) => void handleWorkspaceNavigation(event, "/dashboard")}
           aria-label="MajiScope home"
-          className={cn("flex min-w-0 items-center", isCollapsed ? "flex-1 justify-center" : "gap-3")}
+          className={cn("relative z-10 flex min-w-0 items-center", isCollapsed ? "flex-1 justify-center" : "gap-3")}
         >
           <span className={cn(
             "flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#e9efec] shadow-sm",
@@ -112,7 +112,7 @@ export function AppSidebar() {
           ) : null}
         </Link>
         {!isMobile && !isCollapsed ? (
-          <SidebarTrigger className="h-9 w-9 shrink-0 rounded-xl border border-[#4b7478] bg-gradient-to-br from-[#2a5860] to-[#203f4b] text-[#b8ded9] shadow-[0_5px_14px_-8px_rgba(0,0,0,0.8)] transition-all hover:border-[#78bdb5] hover:from-[#34717a] hover:to-[#28545f] hover:text-white focus-visible:ring-[#66c6bf]/55 [&_svg]:drop-shadow-[0_1px_2px_rgba(87,207,191,0.4)]" />
+          <SidebarTrigger className="relative z-10 h-9 w-9 shrink-0 rounded-xl border border-[#4b7478] bg-gradient-to-br from-[#2a5860] to-[#203f4b] text-[#b8ded9] shadow-[0_5px_14px_-8px_rgba(0,0,0,0.8)] transition-all hover:border-[#78bdb5] hover:from-[#34717a] hover:to-[#28545f] hover:text-white focus-visible:ring-[#66c6bf]/55 [&_svg]:drop-shadow-[0_1px_2px_rgba(87,207,191,0.4)]" />
         ) : null}
       </SidebarHeader>
 
@@ -152,8 +152,8 @@ export function AppSidebar() {
                             "group relative h-10 rounded-lg text-[13px] font-medium transition-all duration-200 ease-out",
                             isCollapsed ? "mx-auto w-10 justify-center px-0" : "w-full justify-start gap-3 px-3",
                             isActive
-                              ? "bg-[#294b58] text-white shadow-[inset_3px_0_0_#68c8c1,0_5px_14px_-12px_rgba(104,200,193,0.65)] hover:bg-[#315966] hover:text-white"
-                              : "text-[#d2e0e1] hover:translate-x-0.5 hover:bg-white/[0.075] hover:text-white"
+                              ? "bg-[#2b4356] text-white shadow-[inset_3px_0_0_#65c8d0] hover:bg-[#344f63] hover:text-white"
+                              : "text-[#d2dce5] hover:translate-x-0.5 hover:bg-white/[0.075] hover:text-white"
                           )}
                         >
                           <Link
@@ -164,8 +164,8 @@ export function AppSidebar() {
                             <span className={cn(
                               "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors duration-200",
                               isActive
-                                ? "bg-white/[0.09] text-[#86d6d0]"
-                                : "text-[#a9c4c7] group-hover:bg-white/[0.055] group-hover:text-[#d5eeeb]"
+                                ? "bg-white/[0.09] text-[#80d4dc]"
+                                : "text-[#aabac8] group-hover:bg-white/[0.055] group-hover:text-[#dbe9f2]"
                             )}>
                               <item.icon className="h-[17px] w-[17px]" />
                             </span>

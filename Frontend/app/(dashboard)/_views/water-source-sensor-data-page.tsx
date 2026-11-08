@@ -6,6 +6,7 @@ import { Activity, ArrowLeft, Droplets, MapPin, Search, Waves } from "lucide-rea
 import { PageHeader } from "@/components/shared/page-header"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore } from "@/store/data-store"
@@ -87,25 +88,20 @@ export default function WaterSourceSensorDataPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, DMA, or utility" className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm" />
           </label>
-          <select value={utilityFilter} onChange={(event) => { setUtilityFilter(event.target.value); setDmaFilter("") }} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" aria-label="Filter water sources by utility">
-            <option value="">All utilities</option>
-            {allowedUtilities.map((utility) => <option key={utility.id} value={utility.id}>{utility.name}</option>)}
-          </select>
-          <select value={dmaFilter} onChange={(event) => setDmaFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" aria-label="Filter water sources by DMA">
-            <option value="">All DMAs</option>
-            <option value="unassigned">Unassigned DMA</option>
-            {allowedDmas.map((dma) => <option key={dma.id} value={dma.id}>{dma.name}</option>)}
-          </select>
-          <select value={sensorFilter} onChange={(event) => setSensorFilter(event.target.value)} className="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm" aria-label="Filter water sources by installed sensors">
-            <option value="all">All sensor configurations</option>
-            <option value="with_sensors">With sensors</option>
-            <option value="without_sensors">Without sensors</option>
-            <option value="water_quality">With water-quality sensor</option>
-            <option value="water_level">With water-level sensor</option>
-            <option value="water_quality_only">Water-quality sensor only</option>
-            <option value="water_level_only">Water-level sensor only</option>
-            <option value="both">Both sensor types</option>
-          </select>
+          <Select value={utilityFilter || "__all_utilities__"} onValueChange={(value) => { setUtilityFilter(value === "__all_utilities__" ? "" : value); setDmaFilter("") }}>
+            <SelectTrigger aria-label="Filter water sources by utility" className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All utilities" /></SelectTrigger>
+            <SelectContent><SelectItem value="__all_utilities__">All utilities</SelectItem>{allowedUtilities.map((utility) => <SelectItem key={utility.id} value={utility.id}>{utility.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={dmaFilter || "__all_dmas__"} onValueChange={(value) => setDmaFilter(value === "__all_dmas__" ? "" : value)}>
+            <SelectTrigger aria-label="Filter water sources by DMA" className="h-10 rounded-xl px-3 text-sm"><SelectValue placeholder="All DMAs" /></SelectTrigger>
+            <SelectContent><SelectItem value="__all_dmas__">All DMAs</SelectItem><SelectItem value="unassigned">Unassigned DMA</SelectItem>{allowedDmas.map((dma) => <SelectItem key={dma.id} value={dma.id}>{dma.name}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={sensorFilter} onValueChange={setSensorFilter}>
+            <SelectTrigger aria-label="Filter water sources by installed sensors" className="h-10 rounded-xl px-3 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All sensor configurations</SelectItem><SelectItem value="with_sensors">With sensors</SelectItem><SelectItem value="without_sensors">Without sensors</SelectItem><SelectItem value="water_quality">With water-quality sensor</SelectItem><SelectItem value="water_level">With water-level sensor</SelectItem><SelectItem value="water_quality_only">Water-quality sensor only</SelectItem><SelectItem value="water_level_only">Water-level sensor only</SelectItem><SelectItem value="both">Both sensor types</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {filteredGroups.length === 0 ? (
           <Card><CardContent className="py-12 text-center text-sm text-slate-500">No water sources match these filters.</CardContent></Card>

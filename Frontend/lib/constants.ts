@@ -241,8 +241,8 @@ export const PRIORITY_CONFIG: Record<
   },
   critical: {
     label: "Critical",
-    color: "text-red-900",
-    bgColor: "bg-red-100 border-red-300",
+    color: "text-rose-800",
+    bgColor: "bg-rose-100 border-rose-300",
   },
 }
 

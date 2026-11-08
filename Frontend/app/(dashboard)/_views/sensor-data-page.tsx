@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/shared/page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { WaterStatusPill } from "@/components/water-level/status-pill"
 import {
   WATER_LEVEL_POLL_INTERVAL_MS,
@@ -250,63 +251,21 @@ export default function SensorDataPage() {
           aria-label="Search storage facilities by name, DMA, or utility"
           className="h-10 min-w-56 rounded-xl border border-slate-200/80 bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none"
         />
-        <select
-          value={utilityFilter}
-          onChange={(e) => {
-            setUtilityFilter(e.target.value)
-            setDmaFilter("")
-          }}
-          disabled={role === "utility_manager" || role === "dma_manager"}
-          className={cn(
-            "h-10 rounded-xl border bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-cyan-400/20",
-            utilityFilter ? "border-cyan-400/70 text-cyan-700" : "border-slate-200/80 text-slate-500",
-            (role === "utility_manager" || role === "dma_manager") && "cursor-not-allowed opacity-70"
-          )}
-        >
-          <option value="">All Utilities</option>
-          {utilityOptions.map((utility) => (
-            <option key={utility.id} value={utility.id}>
-              {utility.name}
-            </option>
-          ))}
-        </select>
+        <Select value={utilityFilter || "__all_utilities__"} onValueChange={(value) => { setUtilityFilter(value === "__all_utilities__" ? "" : value); setDmaFilter("") }} disabled={role === "utility_manager" || role === "dma_manager"}>
+          <SelectTrigger className="h-10 w-auto rounded-xl px-3 text-xs font-medium"><SelectValue placeholder="All Utilities" /></SelectTrigger>
+          <SelectContent><SelectItem value="__all_utilities__">All Utilities</SelectItem>{utilityOptions.map((utility) => <SelectItem key={utility.id} value={utility.id}>{utility.name}</SelectItem>)}</SelectContent>
+        </Select>
 
-        <select
-          value={dmaFilter}
-          onChange={(e) => setDmaFilter(e.target.value)}
-          disabled={role === "dma_manager"}
-          className={cn(
-            "h-10 rounded-xl border bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-cyan-400/20",
-            dmaFilter ? "border-cyan-400/70 text-cyan-700" : "border-slate-200/80 text-slate-500",
-            role === "dma_manager" && "cursor-not-allowed opacity-70"
-          )}
-        >
-          <option value="">All DMAs</option>
-          <option value="unassigned">Unassigned</option>
-          {dmaOptions.map((dma) => (
-            <option key={dma.id} value={dma.id}>
-              {dma.utilityName || utilityFilter ? dma.name : `${dma.name}${dma.utilityName ? ` · ${dma.utilityName}` : ""}`}
-            </option>
-          ))}
-        </select>
-        <select
-          value={sensorFilter}
-          onChange={(event) => setSensorFilter(event.target.value)}
-          aria-label="Filter storage facilities by installed sensors"
-          className={cn(
-            "h-10 rounded-xl border bg-slate-50/60 px-3 text-xs font-medium shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-cyan-400/20",
-            sensorFilter !== "all" ? "border-cyan-400/70 text-cyan-700" : "border-slate-200/80 text-slate-500"
-          )}
-        >
-          <option value="all">All sensor configurations</option>
-          <option value="with_sensors">With sensors</option>
-          <option value="without_sensors">Without sensors</option>
-          <option value="water_quality">With water-quality sensor</option>
-          <option value="water_level">With water-level sensor</option>
-          <option value="water_quality_only">Water-quality sensor only</option>
-          <option value="water_level_only">Water-level sensor only</option>
-          <option value="both">Both sensor types</option>
-        </select>
+        <Select value={dmaFilter || "__all_dmas__"} onValueChange={(value) => setDmaFilter(value === "__all_dmas__" ? "" : value)} disabled={role === "dma_manager"}>
+          <SelectTrigger className="h-10 w-auto rounded-xl px-3 text-xs font-medium"><SelectValue placeholder="All DMAs" /></SelectTrigger>
+          <SelectContent><SelectItem value="__all_dmas__">All DMAs</SelectItem><SelectItem value="unassigned">Unassigned</SelectItem>{dmaOptions.map((dma) => <SelectItem key={dma.id} value={dma.id}>{dma.utilityName || utilityFilter ? dma.name : `${dma.name}${dma.utilityName ? ` · ${dma.utilityName}` : ""}`}</SelectItem>)}</SelectContent>
+        </Select>
+        <Select value={sensorFilter} onValueChange={setSensorFilter}>
+          <SelectTrigger aria-label="Filter storage facilities by installed sensors" className="h-10 w-auto rounded-xl px-3 text-xs font-medium"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All sensor configurations</SelectItem><SelectItem value="with_sensors">With sensors</SelectItem><SelectItem value="without_sensors">Without sensors</SelectItem><SelectItem value="water_quality">With water-quality sensor</SelectItem><SelectItem value="water_level">With water-level sensor</SelectItem><SelectItem value="water_quality_only">Water-quality sensor only</SelectItem><SelectItem value="water_level_only">Water-level sensor only</SelectItem><SelectItem value="both">Both sensor types</SelectItem>
+          </SelectContent>
+        </Select>
 
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-1.5 text-sm text-slate-500">

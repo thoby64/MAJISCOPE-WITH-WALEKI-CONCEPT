@@ -262,7 +262,7 @@ export default function ActivityLogsPage() {
 
   if (!isAdmin) {
     return (
-      <Card className="border-slate-200/70 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <Card className="shadow-sm">
         <CardContent className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center">
           <ShieldCheck className="h-10 w-10 text-slate-500" />
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Admin Access Required</h1>
@@ -291,8 +291,8 @@ export default function ActivityLogsPage() {
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card className="border-slate-200/70 bg-white/90 dark:border-slate-800 dark:bg-slate-900">
+      <div className="content-metric-grid grid gap-3 md:grid-cols-4">
+        <Card className="">
           <CardContent className="p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
               <Activity className="h-4 w-4 text-sky-600 dark:text-sky-300" />
@@ -301,7 +301,7 @@ export default function ActivityLogsPage() {
             <p className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">{logs.length}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-200/70 bg-white/90 dark:border-slate-800 dark:bg-slate-900">
+        <Card className="">
           <CardContent className="p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -310,7 +310,7 @@ export default function ActivityLogsPage() {
             <p className="mt-2 text-3xl font-bold text-emerald-600">{stats.successful}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-200/70 bg-white/90 dark:border-slate-800 dark:bg-slate-900">
+        <Card className="">
           <CardContent className="p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
               <XCircle className="h-4 w-4 text-rose-600" />
@@ -319,7 +319,7 @@ export default function ActivityLogsPage() {
             <p className="mt-2 text-3xl font-bold text-rose-600">{stats.failed}</p>
           </CardContent>
         </Card>
-        <Card className="border-slate-200/70 bg-white/90 dark:border-slate-800 dark:bg-slate-900">
+        <Card className="">
           <CardContent className="p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400">
               <ShieldCheck className="h-4 w-4 text-sky-600 dark:text-sky-300" />
@@ -330,7 +330,7 @@ export default function ActivityLogsPage() {
         </Card>
       </div>
 
-      <Card className="border-slate-200/70 bg-white/90 dark:border-slate-800 dark:bg-slate-900">
+      <Card className="">
         <CardContent className="space-y-4 p-4">
           <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr_1fr_1fr_auto]">
             <Input
@@ -371,45 +371,34 @@ export default function ActivityLogsPage() {
             </Select>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-            <div className="grid grid-cols-[150px_1fr_150px_130px_130px_90px] gap-3 bg-slate-100 px-4 py-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-800 dark:text-white">
-              <span>Time</span>
-              <span>Action</span>
-              <span>Actor</span>
-              <span>Entity</span>
-              <span>Status</span>
-              <span>Open</span>
-            </div>
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+          <div className="reports-table-container content-table-scroll">
+            <table className="reports-data-table min-w-[940px]">
+              <thead><tr>
+                <th>Time</th><th>Action</th><th>Actor</th><th>Entity</th><th>Status</th><th>Open</th>
+              </tr></thead>
+              <tbody>
               {logs.length === 0 ? (
-                <div className="flex min-h-48 items-center justify-center text-slate-500 dark:text-slate-400">
-                  {loading ? "Loading activity logs..." : "No logs match the selected filters."}
-                </div>
+                <tr className="reports-empty-row"><td colSpan={6} className="py-16 text-center text-slate-500 dark:text-slate-400">{loading ? "Loading activity logs..." : "No logs match the selected filters."}</td></tr>
               ) : (
                 logs.map((log) => {
                   const EventIcon = eventIcon(log.event_type)
                   return (
-                  <div key={log.id} className="grid grid-cols-[150px_1fr_150px_130px_130px_90px] gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">{formatDate(log.timestamp)}</span>
-                    <div className="flex min-w-0 items-start gap-2">
-                      <EventIcon className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" />
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-slate-950 dark:text-white">{prettyLabel(log.action)}</p>
-                        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{log.target_name || log.details || log.request_path || "No target"}</p>
-                      </div>
-                    </div>
-                    <span className="truncate">{log.user_name}</span>
-                    <span className="truncate capitalize">{prettyLabel(log.entity)}</span>
-                    <span className={cn("inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold", normalizedStatus(log.status) === "failed" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200")}>
+                  <tr key={log.id}>
+                    <td data-label="Time" className="text-xs text-slate-500 dark:text-slate-400">{formatDate(log.timestamp)}</td>
+                    <td data-label="Action"><div className="flex min-w-0 items-start gap-2"><EventIcon className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-300" /><div className="min-w-0"><p className="truncate font-semibold text-slate-950 dark:text-white">{prettyLabel(log.action)}</p><p className="truncate text-xs text-slate-500 dark:text-slate-400" title={log.target_name || log.details || log.request_path || "No target"}>{log.target_name || log.details || log.request_path || "No target"}</p></div></div></td>
+                    <td data-label="Actor"><span className="reports-cell-truncate" title={log.user_name}>{log.user_name}</span></td>
+                    <td data-label="Entity"><span className="reports-cell-truncate capitalize" title={prettyLabel(log.entity)}>{prettyLabel(log.entity)}</span></td>
+                    <td data-label="Status"><span className={cn("inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold", normalizedStatus(log.status) === "failed" ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200")}>
                       {normalizedStatus(log.status) === "failed" ? <XCircle className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                       {normalizedStatus(log.status)}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>Details</Button>
-                  </div>
+                    </span></td>
+                    <td data-label="Open" className="text-right"><Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>Details</Button></td>
+                  </tr>
                   )
                 })
               )}
-            </div>
+              </tbody>
+            </table>
           </div>
 
           <div className="flex items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-300">
@@ -424,8 +413,8 @@ export default function ActivityLogsPage() {
       </Card>
 
       {selectedLog ? (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm" onClick={() => setSelectedLog(null)}>
-          <div className="max-h-[90vh] w-full max-w-6xl overflow-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-950" onClick={(event) => event.stopPropagation()}>
+        <div className="logs-detail-overlay fixed inset-0 z-[10000] flex items-center justify-center p-4" onClick={() => setSelectedLog(null)}>
+          <div className="logs-detail-modal max-h-[90vh] w-full max-w-6xl overflow-auto p-5" onClick={(event) => event.stopPropagation()}>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="flex min-w-0 items-start gap-3">
                 <SelectedEventIcon className="mt-1 h-6 w-6 shrink-0 text-sky-600 dark:text-sky-300" />

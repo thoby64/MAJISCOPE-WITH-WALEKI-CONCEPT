@@ -115,7 +115,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black">
+    <div className="login-page relative flex min-h-screen items-center justify-center overflow-hidden bg-black">
       {/* Dynamic Background Images */}
       {BACKGROUND_IMAGES.map((img, index) => (
         <div
@@ -213,13 +213,14 @@ export default function LoginPage() {
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <form onSubmit={handleSubmit} autoComplete="off" className="flex flex-col gap-5">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="email" className="text-sm font-medium text-white/70">
                   Email address
                 </Label>
                 <Input
                   id="email"
+                  name="login-email"
                   type="email"
                   placeholder="user@majiscope.go.tz"
                   value={email}
@@ -227,8 +228,8 @@ export default function LoginPage() {
                     setEmail(e.target.value)
                     clearError?.()
                   }}
-                  className="h-12 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/30 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
-                  autoComplete="email"
+                  className="h-12 rounded-xl border-white/10 bg-white/5 text-white placeholder:text-white/55 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
+                  autoComplete="off"
                 />
               </div>
 
@@ -239,6 +240,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <Input
                     id="password"
+                    name="login-password"
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
@@ -246,8 +248,8 @@ export default function LoginPage() {
                       setPassword(e.target.value)
                       clearError?.()
                     }}
-                    className="h-12 rounded-xl border-white/10 bg-white/5 pr-12 text-white placeholder:text-white/30 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
-                    autoComplete="current-password"
+                    className="h-12 rounded-xl border-white/10 bg-white/5 pr-12 text-white placeholder:text-white/55 focus:border-[#56c6ba]/55 focus:ring-[#56c6ba]/20"
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"

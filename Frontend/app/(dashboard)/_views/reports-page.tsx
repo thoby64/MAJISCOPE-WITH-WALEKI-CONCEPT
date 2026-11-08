@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/auth-store"
 import { useDataStore } from "@/store/data-store"
 import { ReportStatusBadge, PriorityBadge } from "@/components/shared/status-badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -25,22 +26,21 @@ import {
 import {
   Search,
   Filter,
-  MapPin,
   Loader2,
   FileText,
   CheckCircle2,
   Clock,
   Siren,
-  Calendar,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ChevronLeft,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { formatTanzaniaDateTime } from "@/lib/date-time"
 import { LeakageTypeBadge } from "@/components/shared/leakage-type-badge"
 import { ReportTypeBadge } from "@/components/shared/report-type-badge"
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import { faArrowUpRightFromSquare, faCalendarDays, faFileLines, faLocationDot } from "@fortawesome/free-solid-svg-icons"
 
 type ReportStatus = "new" | "assigned" | "in_progress" | "pending_approval" | "approved" | "rejected" | "closed"
 type ReportPriority = "low" | "medium" | "high" | "critical"
@@ -285,8 +285,8 @@ export default function ReportsPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6">
-        <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20">
+      <div className="reports-workspace flex min-h-full flex-col gap-4">
+        <Card className="rounded-[20px] border-[#afbec9] bg-[#cbd6de] shadow-none dark:border-[#2b3b4a] dark:bg-[#17222e]">
           <CardContent className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </CardContent>
@@ -296,16 +296,16 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="reports-workspace flex min-h-full flex-col gap-4">
       {/* Modern Header with Stats */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-              <FileText className="h-7 w-7 text-rose-600" />
+            <h1 className="flex items-center gap-3 text-[1.7rem] font-semibold leading-tight tracking-[-0.05em] text-[#172b3a] dark:text-[#edf3f7] sm:text-[2rem]">
+              <FileText className="h-6 w-6 text-[#147b91] dark:text-[#74c7d7]" />
               Reports
             </h1>
-            <p className="text-slate-500 mt-1">
+            <p className="mt-1 text-[13px] text-[#627587] dark:text-[#a0afbd]">
               {isDMA
                 ? "Assign and manage report items in your DMA"
                 : isUtility
@@ -316,79 +316,35 @@ export default function ReportsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-rose-500/10 transition-all duration-300 bg-gradient-to-br from-rose-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <FileText className="h-8 w-8 shrink-0 text-rose-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Reports</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalReports}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-blue-500/10 transition-all duration-300 bg-gradient-to-br from-blue-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <Siren className="h-8 w-8 shrink-0 text-sky-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">New Reports</p>
-                  <p className="text-2xl font-bold text-slate-800">{newReports}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-300 bg-gradient-to-br from-amber-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <Clock className="h-8 w-8 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">In Progress</p>
-                  <p className="text-2xl font-bold text-slate-800">{inProgressReports}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden group hover:shadow-xl hover:shadow-amber-500/10 transition-all duration-300 bg-gradient-to-br from-amber-50/30 to-white">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <CheckCircle2 className="h-8 w-8 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Awaiting DMA Approval</p>
-                  <p className="text-2xl font-bold text-slate-800">{pendingApproval}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <SummaryMetricCard label="Total Reports" value={totalReports} icon={FileText} tone="slate" />
+          <SummaryMetricCard label="New Reports" value={newReports} icon={Siren} tone="blue" />
+          <SummaryMetricCard label="In Progress" value={inProgressReports} icon={Clock} tone="amber" />
+          <SummaryMetricCard label="Awaiting DMA Approval" value={pendingApproval} icon={CheckCircle2} tone="red" />
         </div>
       </div>
 
       {/* Modern Search & Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           {/* Search */}
-          <div className="relative w-full sm:w-80">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-rose-400/10 to-pink-500/10 blur-lg opacity-0 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <div className="relative w-full sm:w-72">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71879a] dark:text-[#93a7b6]" />
             <Input
               placeholder="Search by tracking ID, address..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-11 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-rose-400 focus:ring-rose-400/20 shadow-sm"
+              className="h-10 rounded-xl border-[#afbec9] bg-[#cbd6de] pl-10 text-[#263c4d] shadow-none placeholder:text-[#71879a] focus-visible:ring-[#147b91]/25 dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed] dark:placeholder:text-[#8295a5]"
             />
           </div>
           
           {/* Status Filter */}
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-            <SelectTrigger className="w-full sm:w-44 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl">
+            <SelectTrigger className="h-10 w-full rounded-xl border-[#afbec9] bg-[#cbd6de] text-[#263c4d] shadow-none dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed] sm:w-44">
               <Filter className="h-4 w-4 mr-2 text-slate-400" />
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+            <SelectContent className="dashboard-scope-select-content rounded-xl shadow-xl shadow-slate-900/15">
               {STATUS_FILTERS.map((s) => (
                 <SelectItem key={s.value} value={s.value} className="rounded-lg">
                   {s.label}
@@ -399,10 +355,10 @@ export default function ReportsPage() {
           
           {/* Priority Filter */}
           <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as typeof priorityFilter)}>
-            <SelectTrigger className="w-full sm:w-36 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl">
+            <SelectTrigger className="h-10 w-full rounded-xl border-[#afbec9] bg-[#cbd6de] text-[#263c4d] shadow-none dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed] sm:w-36">
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+            <SelectContent className="dashboard-scope-select-content rounded-xl shadow-xl shadow-slate-900/15">
               {PRIORITY_FILTERS.map((p) => (
                 <SelectItem key={p.value} value={p.value} className="rounded-lg">
                   {p.label}
@@ -412,10 +368,10 @@ export default function ReportsPage() {
           </Select>
 
           <Select value={reportTypeFilter} onValueChange={(v) => setReportTypeFilter(v as typeof reportTypeFilter)}>
-            <SelectTrigger className="h-11 w-full rounded-xl border-slate-200/80 bg-slate-50/80 sm:w-44">
+            <SelectTrigger className="h-10 w-full rounded-xl border-[#afbec9] bg-[#cbd6de] text-[#263c4d] shadow-none dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed] sm:w-44">
               <SelectValue placeholder="Report type" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl shadow-lg shadow-slate-200/50">
+            <SelectContent className="dashboard-scope-select-content rounded-xl shadow-xl shadow-slate-900/15">
               {REPORT_TYPE_FILTERS.map((type) => (
                 <SelectItem key={type.value} value={type.value} className="rounded-lg">
                   {type.label}
@@ -432,9 +388,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Modern Table */}
-      <Card className="border-slate-200/60 shadow-lg shadow-slate-200/20 overflow-hidden">
+      <Card className="overflow-hidden rounded-[20px] border border-[#afbec9] bg-[#cbd6de] shadow-[0_12px_28px_-24px_rgba(20,42,60,0.46)] dark:border-[#2b3b4a] dark:bg-[#17222e] dark:shadow-none">
         <CardContent className="p-0">
-          <div className="border-b border-slate-200/60 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+          <div className="border-b border-[#afbec9] bg-[#c5d1da] px-4 py-3.5 dark:border-[#2b3b4a] dark:bg-[#192633] sm:px-5">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-800">Live Report Queue</p>
@@ -454,10 +410,10 @@ export default function ReportsPage() {
                     value={String(pageSize)}
                     onValueChange={(value) => setPageSize(Number(value) as typeof pageSize)}
                   >
-                    <SelectTrigger className="h-8 w-24 rounded-lg border-slate-200 bg-white text-xs">
+                    <SelectTrigger className="h-8 w-24 rounded-lg border-[#afbec9] bg-[#cbd6de] text-xs text-[#263c4d] shadow-none dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed]">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="z-[5000]">
+                    <SelectContent className="dashboard-scope-select-content z-[5000] rounded-xl">
                       {PAGE_SIZE_OPTIONS.map((size) => (
                         <SelectItem key={size} value={String(size)}>
                           {size}
@@ -469,41 +425,38 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-          <div>
-            <Table className="w-full">
+          <div className="reports-table-container">
+            <Table className="reports-data-table w-full min-w-[980px]">
               <TableHeader>
-                <TableRow className="bg-gradient-to-r from-slate-50 to-slate-100/80 hover:from-slate-50 hover:to-slate-100/80 border-b border-slate-200/60">
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">
+                <TableRow className="border-b border-[#afbec9] bg-[#c5d1da] hover:bg-[#c5d1da] dark:border-[#2b3b4a] dark:bg-[#1b2936] dark:hover:bg-[#1b2936]">
+                  <TableHead className="w-[17%] whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
+                      <FontAwesomeIcon icon={faFileLines} className="h-3.5 w-3.5" />
                       Tracking ID
                     </div>
                   </TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">
-                    Description
-                  </TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">
+                  <TableHead className="w-[20%] whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
+                      <FontAwesomeIcon icon={faLocationDot} className="h-3.5 w-3.5" />
                       Location
                     </div>
                   </TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">Report Type</TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">Leakage Type</TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">Status</TableHead>
-                  <TableHead className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">
+                  <TableHead className="w-[12%] whitespace-nowrap">Report Type</TableHead>
+                  <TableHead className="w-[14%] whitespace-nowrap">Leakage Type</TableHead>
+                  <TableHead className="w-[12%] whitespace-nowrap">Status</TableHead>
+                  <TableHead className="w-[17%] whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
+                      <FontAwesomeIcon icon={faCalendarDays} className="h-3.5 w-3.5" />
                       Created
                     </div>
                   </TableHead>
-                  <TableHead className="px-4 py-4 text-right font-semibold text-slate-600 whitespace-nowrap">Open</TableHead>
+                  <TableHead className="w-[8%] whitespace-nowrap text-right">Open</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedReports.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="py-16 text-center">
+                  <TableRow className="reports-empty-row">
+                    <TableCell colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-4">
                         <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
                           <FileText className="h-8 w-8 text-slate-400" />
@@ -521,69 +474,42 @@ export default function ReportsPage() {
                   </TableRow>
                 ) : (
                   paginatedReports.map((report) => {
-                    const isPending = report.status === "pending_approval"
-                    const isNew = report.status === "new"
-                    
                     return (
                       <TableRow
                         key={report.id}
                         onClick={() => openDetail(report)}
-                        className={cn(
-                          "cursor-pointer border-b border-slate-100 transition-all duration-200",
-                          isNew
-                            ? "bg-blue-50/30 hover:bg-blue-50/60"
-                            : isPending
-                              ? "bg-amber-50/30 hover:bg-amber-50/60"
-                              : "hover:bg-rose-50/60"
-                        )}
+                        className="cursor-pointer border-b border-[#afbec9]/65 dark:border-[#2b3b4a]"
                       >
                         {/* Tracking ID */}
-                        <TableCell className="px-4 py-4 align-top">
+                        <TableCell data-label="Tracking ID">
                           <div className="flex items-start gap-3">
-                            <FileText
-                              className={cn(
-                                "mt-0.5 h-5 w-5 shrink-0",
-                                isNew ? "text-sky-600" : isPending ? "text-amber-600" : "text-rose-600"
-                              )}
-                            />
-                            <div className="space-y-1">
-                              <span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1 font-sans text-xs font-extrabold tracking-[0.045em] text-slate-700 whitespace-nowrap">
+                            <FontAwesomeIcon icon={faFileLines} className="mt-0.5 h-4 w-4 shrink-0 text-[#147b91] dark:text-[#74c7d7]" />
+                            <div className="min-w-0 space-y-1">
+                              <span className="reports-cell-truncate font-mono text-[0.7rem] font-semibold tracking-[0.015em] text-[#314b5d] dark:text-[#dce6ed]">
                                 {report.trackingId}
                               </span>
                               {!isDMA && report.dmaName ? (
-                                <p className="text-xs text-slate-500">{report.dmaName}</p>
+                                <p className="reports-cell-truncate text-xs text-slate-500" title={report.dmaName}>{report.dmaName}</p>
                               ) : null}
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        {/* Description */}
-                        <TableCell className="px-4 py-4 align-top">
-                          <div className="space-y-1.5">
-                            <p className="line-clamp-2 text-sm font-medium leading-6 text-slate-800">
-                              {report.description || "No description"}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <PriorityBadge priority={report.priority} />
-                              <span className="text-xs text-slate-500">Updated {formatReportTime(report.updatedAt)}</span>
+                              <PriorityBadge priority={report.priority} className="!px-2 !py-0.5 !text-[0.65rem]" />
                             </div>
                           </div>
                         </TableCell>
 
                         {/* Location */}
-                        <TableCell className="px-4 py-4 align-top">
-                          <div className="flex items-start gap-2">
-                            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                            <div className="space-y-1">
-                              <p className="text-sm font-medium leading-snug text-slate-700">
+                        <TableCell data-label="Location">
+                          <div className="flex min-w-0 items-start gap-2">
+                            <FontAwesomeIcon icon={faLocationDot} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#147b91] dark:text-[#74c7d7]" />
+                            <div className="min-w-0 space-y-1">
+                              <p className="reports-cell-truncate text-sm font-medium text-slate-700" title={getReportLocationLabel(report)}>
                                 {getReportLocationLabel(report)}
                               </p>
                               {report.address && Number.isFinite(report.latitude) && Number.isFinite(report.longitude) ? (
-                                <p className="font-mono text-xs text-slate-400">
+                                <p className="reports-cell-truncate font-mono text-[0.65rem] text-slate-400" title={`${report.latitude.toFixed(5)}, ${report.longitude.toFixed(5)}`}>
                                   {report.latitude.toFixed(5)}, {report.longitude.toFixed(5)}
                                 </p>
                               ) : report.utilityName ? (
-                                <p className="text-xs text-slate-400">
+                                <p className="reports-cell-truncate text-xs text-slate-400" title={report.utilityName}>
                                   {report.utilityName}
                                 </p>
                               ) : null}
@@ -592,12 +518,12 @@ export default function ReportsPage() {
                         </TableCell>
 
                         {/* Report Type */}
-                        <TableCell className="px-4 py-4 align-top">
+                        <TableCell data-label="Report type">
                           <ReportTypeBadge type={report.reportType} />
                         </TableCell>
 
                         {/* Leakage Type */}
-                        <TableCell className="px-4 py-4 align-top">
+                        <TableCell data-label="Leakage type">
                           {(report.reportType || "leakage") === "leakage" ? (
                             <LeakageTypeBadge type={report.leakageType} />
                           ) : (
@@ -606,14 +532,14 @@ export default function ReportsPage() {
                         </TableCell>
 
                         {/* Status */}
-                        <TableCell className="px-4 py-4 align-top">
+                        <TableCell data-label="Status">
                           <ReportStatusBadge status={report.status} />
                         </TableCell>
 
                         {/* Created Time */}
-                        <TableCell className="px-4 py-4 align-top">
-                          <div className="flex items-start gap-2 text-sm text-slate-600">
-                            <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                        <TableCell data-label="Created">
+                          <div className="flex min-w-0 items-start gap-2 text-sm text-slate-600">
+                            <FontAwesomeIcon icon={faCalendarDays} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
                             <div className="space-y-1">
                               <p className="whitespace-nowrap text-sm font-medium text-slate-700" title={formatTanzaniaDateTime(report.createdAt)}>
                                 {formatReportDateLabel(report.createdAt)}
@@ -625,10 +551,10 @@ export default function ReportsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className="px-4 py-4 align-top text-right">
-                          <div className="inline-flex items-center gap-1 text-sm font-medium text-slate-400">
+                        <TableCell data-label="Open" className="text-right">
+                          <div className="inline-flex items-center gap-1 text-sm font-medium text-[#147b91] dark:text-[#74c7d7]">
                             Open
-                            <ChevronRight className="h-4 w-4" />
+                            <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="h-3 w-3" />
                           </div>
                         </TableCell>
                       </TableRow>
@@ -638,7 +564,7 @@ export default function ReportsPage() {
               </TableBody>
             </Table>
           </div>
-          <div className="flex flex-col gap-3 border-t border-slate-200/60 bg-slate-50/70 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-[#afbec9] bg-[#c5d1da] px-4 py-3.5 dark:border-[#2b3b4a] dark:bg-[#192633] sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <p className="text-sm text-slate-500">
               {totalFilteredReports
                 ? `Showing ${pageStartIndex + 1}-${pageEndIndex} of ${totalFilteredReports} reports`
@@ -649,7 +575,7 @@ export default function ReportsPage() {
                 type="button"
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#afbec9] bg-[#cbd6de] text-[#52697c] transition hover:bg-[#b9c8d2] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#344453] dark:bg-[#192633] dark:text-[#a8b8c6] dark:hover:bg-[#243544]"
                 aria-label="First page"
               >
                 <ChevronsLeft className="h-4 w-4" />
@@ -658,19 +584,19 @@ export default function ReportsPage() {
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                 disabled={currentPage === 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#afbec9] bg-[#cbd6de] text-[#52697c] transition hover:bg-[#b9c8d2] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#344453] dark:bg-[#192633] dark:text-[#a8b8c6] dark:hover:bg-[#243544]"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <div className="min-w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-700">
+              <div className="min-w-28 rounded-xl border border-[#afbec9] bg-[#cbd6de] px-3 py-2 text-center text-sm font-semibold text-[#314b5d] dark:border-[#344453] dark:bg-[#192633] dark:text-[#dce6ed]">
                 Page {currentPage} / {totalPages}
               </div>
               <button
                 type="button"
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 disabled={currentPage === totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#afbec9] bg-[#cbd6de] text-[#52697c] transition hover:bg-[#b9c8d2] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#344453] dark:bg-[#192633] dark:text-[#a8b8c6] dark:hover:bg-[#243544]"
                 aria-label="Next page"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -679,7 +605,7 @@ export default function ReportsPage() {
                 type="button"
                 onClick={() => setCurrentPage(totalPages)}
                 disabled={currentPage === totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#afbec9] bg-[#cbd6de] text-[#52697c] transition hover:bg-[#b9c8d2] disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#344453] dark:bg-[#192633] dark:text-[#a8b8c6] dark:hover:bg-[#243544]"
                 aria-label="Last page"
               >
                 <ChevronsRight className="h-4 w-4" />
