@@ -896,15 +896,6 @@ export function OperationsDashboard() {
   const preferTanzaniaMapView =
     isAdmin && selectedUtilityId === "all" && selectedDMAId === "all" && dashboardLevel === "national"
 
-  const hierarchyLabel =
-    dashboardLevel === "national"
-      ? "National summary"
-      : dashboardLevel === "utility"
-        ? "Utility summary"
-        : dashboardLevel === "dma"
-          ? "DMA summary"
-          : "Report detail"
-
   const handleMapViewChange = useCallback((view: OperationsMapViewState) => {
     setMapZoom(view.zoom)
     setMapViewCenter(view.center)
@@ -935,15 +926,6 @@ export function OperationsDashboard() {
         <div>
           <h1 className="text-[1.7rem] font-semibold leading-tight tracking-[-0.05em] text-[#172b3a] dark:text-[#edf3f7] sm:text-[2rem]">Network overview</h1>
           <p className="mt-1 text-[13px] text-[#627587] dark:text-[#a0afbd]">Reports, network coverage, and response status in one operational view.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#afbec9] bg-[#cbd6de] px-3 py-1.5 text-[11px] font-medium text-[#40596d] dark:border-[#2d3d4d] dark:bg-[#17222e] dark:text-[#bac8d4]">
-            <span className="dashboard-status-dot h-1.5 w-1.5 rounded-full bg-[#2b9aaa] shadow-[0_0_0_3px_rgba(43,154,170,0.12)]" />
-            {hierarchyLabel}
-          </span>
-          <span className="rounded-full border border-[#afbec9] bg-[#cbd6de] px-3 py-1.5 text-[11px] font-semibold tabular-nums text-[#29485c] dark:border-[#2d3d4d] dark:bg-[#17222e] dark:text-[#d7e4ed]">
-            {kpis.total.toLocaleString()} reports
-          </span>
         </div>
       </header>
 

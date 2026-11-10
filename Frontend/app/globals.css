@@ -604,7 +604,7 @@ button[data-next-mark="true"] {
   * {
     @apply border-border;
   }
-  
+
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
@@ -1704,9 +1704,9 @@ html.dark[data-dashboard-content-theme="active"] [data-radix-portal] .dashboard-
 /* Keep Select and Popover primitives tied directly to the shared dashboard
    surface. This also works when their Radix portal wrapper differs by route. */
 html[data-dashboard-content-theme="active"] :is(.app-select-content, .app-popover-content) {
-  border: 1px solid #afbec9 !important;
+  border: 1px solid var(--dashboard-panel-border) !important;
   border-radius: 0.9rem !important;
-  background: #cbd6de !important;
+  background: var(--dashboard-panel-surface) !important;
   color: #263b4c !important;
   box-shadow: 0 14px 30px -20px rgb(20 42 60 / 0.38) !important;
   backdrop-filter: none !important;
@@ -2427,30 +2427,30 @@ html.dark select option {
 .dashboard-content-area .dashboard-native-select,
 .dashboard-content-area .hydraulic-reports-filters select,
 main.dashboard-content-area select {
-  border: 1px solid #afbec9 !important;
+  border: 1px solid var(--dashboard-panel-border) !important;
   border-radius: 0.8rem !important;
-  background-color: #cbd6de !important;
+  background-color: var(--dashboard-panel-surface) !important;
   color: #263b4c !important;
   color-scheme: light;
 }
 .dashboard-content-area .dashboard-native-select option,
 .dashboard-content-area .hydraulic-reports-filters select option,
 main.dashboard-content-area select option {
-  background-color: #cbd6de !important;
+  background-color: var(--dashboard-panel-surface) !important;
   color: #263b4c !important;
 }
 html.dark .dashboard-content-area .dashboard-native-select,
 html.dark .dashboard-content-area .hydraulic-reports-filters select,
 html.dark main.dashboard-content-area select {
-  border-color: #344453 !important;
-  background-color: #17222e !important;
+  border-color: var(--dashboard-panel-border) !important;
+  background-color: var(--dashboard-panel-surface) !important;
   color: #dce6ed !important;
   color-scheme: dark;
 }
 html.dark .dashboard-content-area .dashboard-native-select option,
 html.dark .dashboard-content-area .hydraulic-reports-filters select option,
 html.dark main.dashboard-content-area select option {
-  background-color: #17222e !important;
+  background-color: var(--dashboard-panel-surface) !important;
   color: #dce6ed !important;
 }
 
@@ -2480,11 +2480,22 @@ html.dark main.dashboard-content-area [role="combobox"] {
 }
 
 /* Cards built with the shared Card primitive use the same calm surface across
-   every dashboard route, even when legacy pages pass older color utilities. */
+   every dashboard route, even when legacy pages pass older color utilities.
+   --dashboard-panel-surface is the single source of truth for that surface:
+   sections nested inside a card (gauges, metric tiles, filter fields) call it
+   instead of hardcoding a brighter background of their own. */
+:root {
+  --dashboard-panel-surface: #cbd6de;
+  --dashboard-panel-border: #afbec9;
+}
+html.dark {
+  --dashboard-panel-surface: #17232f;
+  --dashboard-panel-border: #2b3b4a;
+}
 main.dashboard-content-area .content-panel-card {
-  border-color: #afbec9 !important;
+  border-color: var(--dashboard-panel-border) !important;
   border-radius: 1.1rem !important;
-  background: #cbd6de !important;
+  background: var(--dashboard-panel-surface) !important;
   color: #263b4c !important;
   box-shadow: 0 10px 24px -22px rgb(20 42 60 / 0.4) !important;
 }
@@ -2493,8 +2504,8 @@ main.dashboard-content-area .content-panel-card:hover {
   box-shadow: 0 14px 28px -24px rgb(20 42 60 / 0.42) !important;
 }
 html.dark main.dashboard-content-area .content-panel-card {
-  border-color: #2b3b4a !important;
-  background: #17232f !important;
+  border-color: var(--dashboard-panel-border) !important;
+  background: var(--dashboard-panel-surface) !important;
   color: #d5e0e8 !important;
   box-shadow: 0 12px 28px -26px rgb(0 0 0 / 0.72) !important;
 }
@@ -3249,4 +3260,1234 @@ html.dark body .app-dialog-content .dashboard-modal-subpanel {
   border-color: #344555 !important;
   background: #17232f !important;
   color: #b8c6d0 !important;
+}
+
+/* Utility directory cards use a compact operational summary layout. */
+.utility-directory-card {
+  position: relative;
+  border: 1px solid #aebec9 !important;
+  background: linear-gradient(145deg, #d2dde5 0%, #c7d3dc 100%) !important;
+  box-shadow: 0 10px 24px -20px rgb(20 42 60 / 0.48) !important;
+}
+.utility-directory-card:hover {
+  border-color: #91aebf !important;
+  box-shadow: 0 16px 30px -22px rgb(20 42 60 / 0.5) !important;
+}
+.utility-card-metric {
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-content: center;
+  column-gap: 0.45rem;
+  border: 1px solid #b7c6d0;
+  border-radius: 12px;
+  padding: 0.45rem 0.3rem;
+  background: rgb(218 228 235 / 0.52);
+}
+.utility-card-metric > svg {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.utility-card-metric__value {
+  color: #20394a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.utility-card-metric__label {
+  color: #5e7180;
+  font-size: 0.65rem;
+  line-height: 1.1;
+}
+html.dark .utility-directory-card {
+  border-color: #304252 !important;
+  background: linear-gradient(145deg, #1b2b38 0%, #172430 100%) !important;
+  box-shadow: 0 12px 28px -24px rgb(0 0 0 / 0.72) !important;
+}
+html.dark .utility-directory-card:hover {
+  border-color: #3a5265 !important;
+  box-shadow: 0 18px 32px -24px rgb(0 0 0 / 0.8) !important;
+}
+html.dark .utility-card-metric {
+  border-color: #304252;
+  background: rgb(13 24 34 / 0.52);
+}
+html.dark .utility-card-metric__value { color: #e0e9ef; }
+html.dark .utility-card-metric__label { color: #9aabba; }
+
+.storage-facility-metric {
+  display: grid;
+  min-width: 0;
+  min-height: 62px;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 0.55rem;
+  border-bottom: 1px solid rgb(142 164 179 / 0.42);
+  padding: 0.35rem 0.55rem 0.55rem;
+}
+.storage-facility-metric > svg {
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.storage-facility-metric--wide { grid-column: 1 / -1; }
+.storage-facility-metric__label {
+  overflow: hidden;
+  color: #607687;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.storage-facility-metric__value {
+  overflow: hidden;
+  color: #20394a;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.storage-facility-fill {
+  display: grid;
+  gap: 0.4rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem 0.5rem;
+  background: rgb(216 229 237 / 0.5);
+}
+.storage-facility-fill__heading,
+.storage-facility-fill__scale {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.storage-facility-fill__heading {
+  color: #607687;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+.storage-facility-fill__heading strong {
+  color: #176d83;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+.storage-facility-fill__track {
+  height: 0.45rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #b9cbd6;
+}
+.storage-facility-fill__value {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #168da2, #35b6c0);
+  transition: width 500ms ease;
+}
+.storage-facility-fill__value--over {
+  background: #c77b3b;
+}
+.storage-facility-fill__scale {
+  color: #687d8b;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.storage-facility-no-data {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  border-bottom: 1px solid rgb(142 164 179 / 0.42);
+  color: #607687;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+html.dark .storage-facility-metric,
+html.dark .storage-facility-no-data {
+  border-color: rgb(83 108 127 / 0.36);
+}
+html.dark .storage-facility-metric__label,
+html.dark .storage-facility-no-data { color: #9aabba; }
+html.dark .storage-facility-metric__value { color: #e0e9ef; }
+html.dark .storage-facility-fill { background: rgb(10 21 31 / 0.58); }
+html.dark .storage-facility-fill__heading,
+html.dark .storage-facility-fill__scale { color: #9aabba; }
+html.dark .storage-facility-fill__heading strong { color: #72cbd4; }
+html.dark .storage-facility-fill__track { background: #354b5b; }
+html.dark .storage-facility-fill__value { background: linear-gradient(90deg, #167e91, #43aeb9); }
+html.dark .storage-facility-fill__value--over { background: #b9773c; }
+
+/* Storage facility sensor detail cards */
+.storage-facility-detail-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1rem;
+}
+.storage-facility-detail-heading__icon,
+.storage-facility-detail-card__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: #187d91;
+  background: #dcecf0;
+}
+.storage-facility-detail-heading__icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid #c2dce3;
+  border-radius: 1.1rem;
+}
+.storage-facility-detail-heading__icon svg { width: 1.65rem; height: 1.65rem; }
+.storage-facility-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.15rem;
+}
+.storage-facility-detail-card {
+  display: block;
+  min-width: 0;
+  border-radius: 1.35rem;
+  outline: none;
+}
+.storage-facility-detail-card:focus-visible {
+  box-shadow: 0 0 0 3px rgb(24 125 145 / 0.28);
+}
+.storage-facility-detail-card__surface {
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid #b9cbd5 !important;
+  border-radius: 1.35rem !important;
+  background: linear-gradient(135deg, #e2eaee 0%, #d7e1e7 100%) !important;
+  box-shadow: 0 14px 30px -25px rgb(20 42 60 / 0.6), inset 0 1px rgb(255 255 255 / 0.48) !important;
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease, background 180ms ease;
+}
+.storage-facility-detail-card:hover .storage-facility-detail-card__surface {
+  transform: translateY(-3px);
+  border-color: #83aebb !important;
+  background: linear-gradient(135deg, #e7eef1 0%, #dbe7eb 100%) !important;
+  box-shadow: 0 20px 34px -24px rgb(20 42 60 / 0.58), inset 0 1px rgb(255 255 255 / 0.56) !important;
+}
+.storage-facility-detail-card__content {
+  display: flex;
+  min-height: 17rem;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.35rem !important;
+}
+.storage-facility-detail-card__header,
+.storage-facility-detail-card__identity,
+.storage-facility-detail-card__meta,
+.storage-facility-detail-card__action {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+.storage-facility-detail-card__header {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.storage-facility-detail-card__identity { gap: 0.85rem; }
+.storage-facility-detail-card__icon {
+  width: 2.8rem;
+  height: 2.8rem;
+  border: 1px solid #b8d4dc;
+  border-radius: 0.9rem;
+  background: linear-gradient(145deg, #d4e9ed, #c7dfe5);
+}
+.storage-facility-detail-card__icon > svg { width: 1.3rem; height: 1.3rem; }
+.storage-facility-detail-card__title,
+.storage-facility-detail-card__device { display: block; }
+.storage-facility-detail-card__title {
+  overflow: hidden;
+  color: #20394a;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.105em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.storage-facility-detail-card__device {
+  overflow: hidden;
+  margin-top: 0.32rem;
+  color: #607687;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  letter-spacing: 0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.storage-facility-detail-card__readings {
+  display: grid;
+  min-height: 7.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #bdcdd5;
+  border-radius: 1rem;
+  background: rgb(193 208 216 / 0.54);
+}
+.storage-facility-detail-card__reading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 1rem 1.05rem;
+}
+.storage-facility-detail-card__reading + .storage-facility-detail-card__reading {
+  border-left: 1px solid #afc1cb;
+}
+.storage-facility-detail-card__reading-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding-top: 0.15rem;
+  align-items: center;
+  justify-content: center;
+  color: #16879b;
+  font-size: 1.15rem;
+}
+.storage-facility-detail-card__reading-icon svg { width: 1.25rem; height: 1.25rem; }
+.storage-facility-detail-card__reading-copy { display: grid; min-width: 0; gap: 0.28rem; }
+.storage-facility-detail-card__reading-label {
+  overflow: hidden;
+  color: #607687;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.storage-facility-detail-card__reading-value {
+  overflow: hidden;
+  color: #20394a;
+  font-size: clamp(1.15rem, 2.1vw, 1.75rem);
+  font-weight: 780;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.storage-facility-detail-card__reading--lead .storage-facility-detail-card__reading-icon { color: #087e95; }
+.storage-facility-detail-card__reading--lead .storage-facility-detail-card__reading-value { font-size: clamp(1.35rem, 2.5vw, 2rem); }
+.storage-facility-detail-card__empty {
+  display: flex;
+  min-height: 7.1rem;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px dashed #aebfc9;
+  border-radius: 1rem;
+  padding: 1rem 1.1rem;
+  color: #607687;
+  background: rgb(193 208 216 / 0.35);
+}
+.storage-facility-detail-card__empty > svg { width: 1.3rem; height: 1.3rem; flex: 0 0 auto; color: #6c91a0; }
+.storage-facility-detail-card__empty span { display: grid; gap: 0.22rem; }
+.storage-facility-detail-card__empty strong { color: #294454; font-size: 0.92rem; font-weight: 750; }
+.storage-facility-detail-card__empty small { color: #6b8090; font-size: 0.76rem; line-height: 1.4; }
+.storage-facility-detail-card__meta {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  color: #647b8b;
+  font-size: 0.75rem;
+}
+.storage-facility-detail-card__meta > span { display: inline-flex; min-width: 0; align-items: center; gap: 0.45rem; }
+.storage-facility-detail-card__meta svg { width: 0.95rem; height: 0.95rem; flex: 0 0 auto; color: #668293; }
+.storage-facility-detail-card__device-state { font-weight: 650; }
+.storage-facility-detail-card__device-state i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #178f72;
+  box-shadow: 0 0 0 3px rgb(23 143 114 / 0.12);
+}
+.storage-facility-detail-card__action {
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  margin-top: auto;
+  border-top: 1px solid #bacbd3;
+  padding-top: 0.7rem;
+  color: #176d83;
+  font-size: 0.82rem;
+  font-weight: 750;
+  transition: color 160ms ease, padding 160ms ease;
+}
+.storage-facility-detail-card__action svg { width: 1.05rem; height: 1.05rem; transition: transform 160ms ease; }
+.storage-facility-detail-card:hover .storage-facility-detail-card__action { color: #075c71; padding-right: 0.15rem; }
+.storage-facility-detail-card:hover .storage-facility-detail-card__action svg { transform: translateX(3px); }
+.storage-facility-detail-card__action::before {
+  content: "";
+  order: 2;
+}
+@media (min-width: 768px) {
+  .storage-facility-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .storage-facility-detail-heading { align-items: flex-start; gap: 0.75rem; }
+  .storage-facility-detail-heading__icon { width: 2.8rem; height: 2.8rem; border-radius: 0.9rem; }
+  .storage-facility-detail-card__content { min-height: 15.5rem; padding: 1rem !important; }
+  .storage-facility-detail-card__header { align-items: flex-start; }
+  .storage-facility-detail-card__meta { align-items: flex-start; flex-direction: column; }
+  .storage-facility-detail-card__reading { padding: 0.85rem 0.75rem; }
+  .storage-facility-detail-card__reading-value { font-size: 1.12rem; }
+  .storage-facility-detail-card__reading--lead .storage-facility-detail-card__reading-value { font-size: 1.32rem; }
+}
+html.dark .storage-facility-detail-heading__icon,
+html.dark .storage-facility-detail-card__icon {
+  border-color: #38505e;
+  color: #83cbd3;
+  background: linear-gradient(145deg, #233d4a, #1c303c);
+}
+html.dark .storage-facility-detail-card__surface {
+  border-color: #344a59 !important;
+  background: linear-gradient(135deg, #1d2d39 0%, #172430 100%) !important;
+  box-shadow: 0 16px 32px -26px rgb(0 0 0 / 0.78), inset 0 1px rgb(255 255 255 / 0.035) !important;
+}
+html.dark .storage-facility-detail-card:hover .storage-facility-detail-card__surface {
+  border-color: #456273 !important;
+  background: linear-gradient(135deg, #203440 0%, #192a36 100%) !important;
+  box-shadow: 0 20px 36px -26px rgb(0 0 0 / 0.82), inset 0 1px rgb(255 255 255 / 0.04) !important;
+}
+html.dark .storage-facility-detail-card__title,
+html.dark .storage-facility-detail-card__reading-value,
+html.dark .storage-facility-detail-card__empty strong { color: #e0e9ef; }
+html.dark .storage-facility-detail-card__device,
+html.dark .storage-facility-detail-card__title,
+html.dark .storage-facility-detail-card__reading-label,
+html.dark .storage-facility-detail-card__meta { color: #9aabba; }
+html.dark .storage-facility-detail-card__readings {
+  border-color: #344a59;
+  background: rgb(11 22 32 / 0.48);
+}
+html.dark .storage-facility-detail-card__reading + .storage-facility-detail-card__reading { border-color: #344a59; }
+html.dark .storage-facility-detail-card__reading-icon,
+html.dark .storage-facility-detail-card__meta svg { color: #72c1cc; }
+html.dark .storage-facility-detail-card__empty {
+  border-color: #405767;
+  color: #a8b8c4;
+  background: rgb(11 22 32 / 0.38);
+}
+html.dark .storage-facility-detail-card__empty small { color: #9aabba; }
+html.dark .storage-facility-detail-card__device-state i { background: #50b49a; box-shadow: 0 0 0 3px rgb(80 180 154 / 0.12); }
+html.dark .storage-facility-detail-card__action {
+  border-color: #344a59;
+  color: #a4dce2;
+}
+html.dark .storage-facility-detail-card:hover .storage-facility-detail-card__action {
+  color: #c0edf0;
+}
+
+/* Sensor detail cards: instrument-led layout with one clear primary reading. */
+.storage-facility-detail-card {
+  border-radius: 1.15rem;
+}
+.storage-facility-detail-card:focus-visible {
+  box-shadow: 0 0 0 2px #d8eef0, 0 0 0 4px #398b98;
+}
+.storage-facility-detail-card__surface {
+  position: relative;
+  border-radius: 1.15rem !important;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgb(68 164 175 / 0.10), transparent 38%),
+    linear-gradient(145deg, #dce6eb 0%, #d2dee5 100%) !important;
+  box-shadow: 0 12px 28px -25px rgb(18 42 58 / 0.7), inset 0 1px rgb(255 255 255 / 0.38) !important;
+}
+.storage-facility-detail-card__surface::before {
+  position: absolute;
+  inset: 0 1.2rem auto;
+  height: 2px;
+  border-radius: 0 0 99px 99px;
+  background: linear-gradient(90deg, transparent, #258c9b 20%, #70c4c4 78%, transparent);
+  content: "";
+  opacity: 0.7;
+}
+.storage-facility-detail-card:hover .storage-facility-detail-card__surface {
+  transform: translateY(-2px);
+  border-color: #83aebb !important;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgb(68 164 175 / 0.14), transparent 40%),
+    linear-gradient(145deg, #e0e9ed 0%, #d6e2e8 100%) !important;
+  box-shadow: 0 18px 30px -24px rgb(18 42 58 / 0.72), inset 0 1px rgb(255 255 255 / 0.48) !important;
+}
+.storage-facility-detail-card__content {
+  min-height: 16.25rem;
+  gap: 1rem;
+  padding: 1.25rem 1.35rem 1rem !important;
+}
+.storage-facility-detail-card__header { align-items: flex-start; }
+.storage-facility-detail-card__identity { align-items: flex-start; gap: 0.75rem; }
+.storage-facility-detail-card__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.05rem;
+  border: 0;
+  border-radius: 0;
+  color: #168397;
+  background: transparent;
+}
+.storage-facility-detail-card__icon > svg { width: 1.3rem; height: 1.3rem; }
+.storage-facility-detail-card__title {
+  color: #315160;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+}
+.storage-facility-detail-card__device {
+  margin-top: 0.25rem;
+  color: #718491;
+  font-size: 0.72rem;
+}
+.storage-facility-detail-card__readings {
+  min-height: 7.4rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr);
+  align-items: stretch;
+  border: 0;
+  border-radius: 0.8rem;
+  background: linear-gradient(105deg, rgb(188 207 216 / 0.50), rgb(202 217 224 / 0.24));
+}
+.storage-facility-detail-card__reading {
+  position: relative;
+  min-height: 7.4rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.9rem 1.05rem;
+}
+.storage-facility-detail-card__reading + .storage-facility-detail-card__reading {
+  align-self: center;
+  min-height: 4.7rem;
+  border-left: 1px solid rgb(115 143 157 / 0.38);
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+}
+.storage-facility-detail-card__reading-copy { gap: 0.38rem; }
+.storage-facility-detail-card__reading-label {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: #718491;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+.storage-facility-detail-card__reading-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: #268b9b;
+  font-size: 0.83rem;
+}
+.storage-facility-detail-card__reading-icon svg { width: 0.95rem; height: 0.95rem; }
+.storage-facility-detail-card__reading-value {
+  color: #20394a;
+  font-size: clamp(1.5rem, 2.1vw, 2.05rem);
+  letter-spacing: -0.055em;
+}
+.storage-facility-detail-card__reading--lead .storage-facility-detail-card__reading-value {
+  font-size: clamp(1.8rem, 2.7vw, 2.5rem);
+}
+.storage-facility-detail-card__primary-tag {
+  position: absolute;
+  right: 0.9rem;
+  bottom: 0.8rem;
+  color: #6d929b;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.storage-facility-detail-card__empty {
+  min-height: 7.4rem;
+  border: 1px dashed #aebfc9;
+  border-radius: 0.8rem;
+  background: linear-gradient(105deg, rgb(188 207 216 / 0.42), rgb(202 217 224 / 0.2));
+}
+.storage-facility-detail-card__meta {
+  gap: 0.7rem;
+  color: #728491;
+  font-size: 0.7rem;
+}
+.storage-facility-detail-card__freshness { overflow: hidden; }
+.storage-facility-detail-card__freshness > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-facility-detail-card__device-state { white-space: nowrap; }
+.storage-facility-detail-card__device-state i { width: 0.38rem; height: 0.38rem; box-shadow: none; }
+.storage-facility-detail-card__action {
+  min-height: 2rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  border-top: 1px solid rgb(115 143 157 / 0.28);
+  padding-top: 0.65rem;
+  color: #287b8b;
+  font-size: 0.75rem;
+}
+.storage-facility-detail-card__action::before { display: none; }
+.storage-facility-detail-card__action svg { width: 0.9rem; height: 0.9rem; }
+.storage-facility-detail-card:hover .storage-facility-detail-card__action { color: #145d70; }
+
+html.dark .storage-facility-detail-card__surface {
+  background:
+    radial-gradient(ellipse at 100% 0%, rgb(54 132 146 / 0.12), transparent 40%),
+    linear-gradient(145deg, #1b2b37 0%, #172430 100%) !important;
+}
+html.dark .storage-facility-detail-card__surface::before {
+  background: linear-gradient(90deg, transparent, #287e8b 20%, #4a9ea5 78%, transparent);
+}
+html.dark .storage-facility-detail-card:hover .storage-facility-detail-card__surface {
+  background:
+    radial-gradient(ellipse at 100% 0%, rgb(54 132 146 / 0.16), transparent 42%),
+    linear-gradient(145deg, #1e303c 0%, #192a36 100%) !important;
+}
+html.dark .storage-facility-detail-card__icon { color: #75c4cc; background: transparent; }
+html.dark .storage-facility-detail-card__title { color: #91c4cb; }
+html.dark .storage-facility-detail-card__device { color: #91a4b1; }
+html.dark .storage-facility-detail-card__readings {
+  border: 0;
+  background: linear-gradient(105deg, rgb(10 21 31 / 0.72), rgb(18 34 45 / 0.38));
+}
+html.dark .storage-facility-detail-card__reading + .storage-facility-detail-card__reading { border-color: rgb(71 101 116 / 0.58); }
+html.dark .storage-facility-detail-card__reading-label,
+html.dark .storage-facility-detail-card__meta { color: #94a8b5; }
+html.dark .storage-facility-detail-card__reading-icon { color: #72c1cc; }
+html.dark .storage-facility-detail-card__reading-value { color: #e3edf1; }
+html.dark .storage-facility-detail-card__primary-tag { color: #6daab2; }
+html.dark .storage-facility-detail-card__action { border-color: rgb(71 101 116 / 0.48); color: #8bcbd1; }
+html.dark .storage-facility-detail-card:hover .storage-facility-detail-card__action { color: #b4e4e7; }
+
+@media (max-width: 520px) {
+  .storage-facility-detail-card__content { min-height: 15rem; padding: 1rem !important; }
+  .storage-facility-detail-card__readings { grid-template-columns: minmax(0, 1fr); }
+  .storage-facility-detail-card__reading { min-height: 6rem; }
+  .storage-facility-detail-card__reading + .storage-facility-detail-card__reading {
+    min-height: 4.2rem;
+    border-top: 1px solid rgb(115 143 157 / 0.32);
+    border-left: 0;
+  }
+  .storage-facility-detail-card__reading--lead .storage-facility-detail-card__reading-value { font-size: 2rem; }
+  .storage-facility-detail-card__primary-tag { bottom: 0.6rem; }
+  html.dark .storage-facility-detail-card__reading + .storage-facility-detail-card__reading { border-top-color: rgb(71 101 116 / 0.58); }
+}
+
+.dma-directory-card {
+  position: relative;
+  border: 1px solid #aebec9 !important;
+  background: linear-gradient(145deg, #d2dde5 0%, #c7d3dc 100%) !important;
+  box-shadow: 0 10px 24px -20px rgb(20 42 60 / 0.48) !important;
+}
+.dma-directory-card:hover {
+  border-color: #91aebf !important;
+  box-shadow: 0 16px 30px -22px rgb(20 42 60 / 0.5) !important;
+}
+.dma-card-metric {
+  display: grid;
+  min-width: 0;
+  min-height: 52px;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-content: center;
+  justify-content: center;
+  column-gap: 0.45rem;
+  border: 1px solid #b7c6d0;
+  border-radius: 12px;
+  padding: 0.45rem 0.3rem;
+  background: rgb(218 228 235 / 0.52);
+  color: #147b91;
+}
+.dma-card-metric > svg { grid-row: 1 / span 2; align-self: center; }
+.dma-card-metric__value {
+  color: #20394a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.dma-card-metric__label { color: #5e7180; font-size: 0.65rem; line-height: 1.1; }
+html.dark .dma-directory-card {
+  border-color: #304252 !important;
+  background: linear-gradient(145deg, #1b2b38 0%, #172430 100%) !important;
+  box-shadow: 0 12px 28px -24px rgb(0 0 0 / 0.72) !important;
+}
+html.dark .dma-directory-card:hover {
+  border-color: #3a5265 !important;
+  box-shadow: 0 18px 32px -24px rgb(0 0 0 / 0.8) !important;
+}
+html.dark .dma-card-metric {
+  border-color: #304252;
+  background: rgb(13 24 34 / 0.52);
+  color: #7ec6d2;
+}
+html.dark .dma-card-metric__value { color: #e0e9ef; }
+html.dark .dma-card-metric__label { color: #9aabba; }
+
+/* Keep the dashboard map layer picker legible over the basemap in dark mode. */
+html.dark .dashboard-map-controls-trigger {
+  border-color: #344858 !important;
+  background: #1b2b39 !important;
+  color: #d4e0e8 !important;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.24) !important;
+}
+html.dark .dashboard-map-controls-trigger:hover {
+  background: #243747 !important;
+}
+html.dark .dashboard-map-controls-panel {
+  border-color: #344858 !important;
+  background: rgb(17 29 41 / 0.97) !important;
+  color: #d4e0e8 !important;
+  box-shadow: 0 16px 32px rgb(0 0 0 / 0.34) !important;
+  backdrop-filter: blur(16px);
+}
+html.dark .dashboard-map-control-option {
+  opacity: 1 !important;
+  border-color: #344858 !important;
+  background: #1b2b39 !important;
+  color: #c5d2dc !important;
+}
+html.dark .dashboard-map-control-option:hover:not(:disabled) {
+  background: #263a4a !important;
+  color: #f0f5f8 !important;
+}
+html.dark .dashboard-map-control-option[data-map-control-active="true"] {
+  border-color: #3e6278 !important;
+  background: #294253 !important;
+  color: #e1edf4 !important;
+}
+html.dark .dashboard-map-control-option:disabled {
+  border-color: #2b3c4b !important;
+  background: #172430 !important;
+  color: #8798a7 !important;
+  cursor: not-allowed;
+}
+html.dark .dashboard-map-controls-panel .border-slate-700 {
+  border-color: #344858 !important;
+}
+
+/* Keep the infrastructure upload workspace on the same subdued dark surfaces. */
+html.dark .utility-infrastructure-list {
+  border-color: #263a48 !important;
+  background: #111d28 !important;
+  box-shadow: none !important;
+}
+html.dark .utility-infrastructure-asset {
+  border-color: #304452 !important;
+  background: #192733 !important;
+  box-shadow: none !important;
+}
+html.dark .utility-infrastructure-asset:hover {
+  border-color: #3b5b6d !important;
+  background: #1e303d !important;
+}
+html.dark .utility-infrastructure-asset.is-selected {
+  border-color: #35677b !important;
+  background: #203541 !important;
+}
+html.dark .utility-infrastructure-preview {
+  border-color: #2d414f !important;
+  background: #172430 !important;
+  box-shadow: none !important;
+}
+html.dark .utility-infrastructure-preview-header {
+  border-color: #2d414f !important;
+  background: #1b2b38 !important;
+}
+html.dark .utility-infrastructure-preview .text-slate-800 {
+  color: #e0e8ee !important;
+}
+html.dark .utility-infrastructure-preview .text-slate-500 {
+  color: #9aabba !important;
+}
+html.dark .utility-infrastructure-preview-empty,
+html.dark .utility-infrastructure-preview .bg-slate-50 {
+  background: #14212c !important;
+}
+html.dark .utility-infrastructure-preview-empty .text-slate-700 {
+  color: #d3dee6 !important;
+}
+html.dark .utility-infrastructure-preview-alert {
+  background: #3a3425 !important;
+  color: #d5a44d !important;
+}
+
+/* Utilities and DMA directories: keep filters and card actions on the dark
+   operational palette even when broad dashboard control rules are applied. */
+html.dark .utility-directory-filter-search {
+  border-color: #304252 !important;
+  background: #111d28 !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .utility-directory-filter-search::placeholder {
+  color: #8295a4 !important;
+  opacity: 1;
+}
+html.dark .utility-directory-filter-search:focus {
+  border-color: #477b8b !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgb(71 123 139 / 0.16) !important;
+}
+html.dark .utility-directory-filter-status {
+  border-color: #304252 !important;
+  background: #111d28 !important;
+  box-shadow: none !important;
+}
+html.dark .utility-directory-filter-status button {
+  background: transparent !important;
+  color: #9aabba !important;
+  box-shadow: none !important;
+}
+html.dark .utility-directory-filter-status button:hover {
+  background: #1b2b38 !important;
+  color: #dce6ec !important;
+}
+html.dark .utility-directory-filter-status button[class*="bg-cyan-600"] {
+  background: #286779 !important;
+  color: #f2f7f9 !important;
+}
+html.dark .utility-directory-filter-status button[class*="bg-cyan-600"]:hover {
+  background: #32778a !important;
+}
+html.dark .utility-directory-card-action {
+  border-color: #405465 !important;
+  background: #15232e !important;
+  color: #c6d3dc !important;
+  box-shadow: none !important;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+html.dark .utility-directory-card-action:hover {
+  border-color: #527184 !important;
+  background: #203442 !important;
+  color: #eef4f7 !important;
+  box-shadow: none !important;
+}
+
+/* Explicit dark surfaces for the remaining sensor and EPANET panels. These
+   page-specific hooks keep Tailwind's light utility backgrounds from showing
+   through the global dashboard theme. */
+html.dark .dashboard-content-area .sensor-filter-input {
+  border-color: #304252 !important;
+  background: #111d28 !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .dashboard-content-area .sensor-filter-input::placeholder {
+  color: #8295a4 !important;
+  opacity: 1;
+}
+html.dark .dashboard-content-area .sensor-filter-input:focus {
+  border-color: #477b8b !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgb(71 123 139 / 0.16) !important;
+}
+
+html.dark .dashboard-content-area .hydraulic-scenario-section {
+  overflow: hidden;
+  border-color: #2d414f !important;
+  background: #172430 !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .dashboard-content-area .hydraulic-scenario-section > h2 {
+  border-color: #2d414f !important;
+  background: #1b2b38 !important;
+  color: #dce6ec !important;
+}
+html.dark .dashboard-content-area .hydraulic-scenario-section .text-slate-500,
+html.dark .dashboard-content-area .hydraulic-scenario-section .text-slate-600 {
+  color: #9aabba !important;
+}
+
+html.dark .dashboard-content-area .hydraulic-requirement-placeholder,
+html.dark .dashboard-content-area .hydraulic-readiness-note {
+  border-color: #304252 !important;
+  background: #14212c !important;
+  color: #a8b7c3 !important;
+  box-shadow: none !important;
+}
+html.dark .dashboard-content-area .hydraulic-upload-panel {
+  border-color: #304252 !important;
+  background: #14212c !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .dashboard-content-area .hydraulic-model-source-panel {
+  border-color: #2d414f !important;
+  background: #172430 !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .dashboard-content-area .hydraulic-inp-file-input {
+  color: #c2d0da !important;
+}
+html.dark .dashboard-content-area .hydraulic-inp-file-input::file-selector-button {
+  border: 1px solid #405465 !important;
+  background: #233543 !important;
+  color: #e1e9ee !important;
+  cursor: pointer;
+}
+html.dark .dashboard-content-area .hydraulic-inp-file-input::file-selector-button:hover {
+  background: #2b4352 !important;
+}
+html.dark .dashboard-content-area .hydraulic-gis-warning {
+  border-color: rgb(177 132 63 / 0.36) !important;
+  background: #302b23 !important;
+  color: #d0ba91 !important;
+}
+
+/* Keep directory card links dark when hovered. The broad dashboard hover
+   normalizer also targets their Tailwind hover classes, so this selector is
+   intentionally more specific and placed after that normalization. */
+html.dark .dashboard-content-area :is(button, a, [role="button"]).utility-directory-card-action:hover {
+  border-color: #527184 !important;
+  background-color: #203442 !important;
+  background-image: none !important;
+  color: #eef4f7 !important;
+  box-shadow: none !important;
+}
+
+/* Hydraulic report detail accordions contain nested data surfaces; keep
+   these dark when generic light-table and disclosure styles are present. */
+html.dark .hydraulic-artifact-panel,
+html.dark .hydraulic-snapshot-panel,
+html.dark .hydraulic-snapshot-values,
+html.dark .hydraulic-full-report-panel {
+  border-color: #304252 !important;
+  background: #14212c !important;
+  color: #d7e2e9 !important;
+  box-shadow: none !important;
+}
+html.dark .hydraulic-artifact-panel > div:first-child,
+html.dark .hydraulic-snapshot-panel > summary,
+html.dark .hydraulic-full-report-panel > summary {
+  border-color: #304252 !important;
+  background: #1b2b38 !important;
+  color: #dce6ec !important;
+}
+html.dark .hydraulic-snapshot-entry {
+  border-color: #304252 !important;
+  background: transparent !important;
+  color: #d7e2e9 !important;
+}
+html.dark .hydraulic-snapshot-entry > summary {
+  background: #172430 !important;
+  color: #dce6ec !important;
+}
+html.dark .hydraulic-snapshot-entry > summary:hover {
+  background: #203442 !important;
+}
+html.dark .hydraulic-snapshot-entry > div {
+  border-color: #304252 !important;
+  background: #14212c !important;
+}
+html.dark .hydraulic-snapshot-entry > div > div {
+  border-color: #263947 !important;
+  background: transparent !important;
+}
+html.dark .hydraulic-full-report-text {
+  border-color: #304252 !important;
+  background: #101a23 !important;
+  color: #c6d3dc !important;
+  text-shadow: none !important;
+}
+html.dark .hydraulic-heat-map-legend {
+  border-color: #304252 !important;
+  background: rgb(20 33 44 / 0.96) !important;
+  color: #d7e2e9 !important;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.28) !important;
+  backdrop-filter: blur(12px);
+}
+html.dark .hydraulic-heat-map-legend p {
+  color: #e0e8ed !important;
+}
+html.dark .hydraulic-heat-map-legend .text-slate-700 {
+  color: #c6d3dc !important;
+}
+
+/* Water level detail workspace. These rules style the existing live-data
+   page hooks; the component continues to own its readings and table fields. */
+.sensor-level-page {
+  display: grid;
+  gap: 20px;
+  color: #203644;
+}
+.sensor-level-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.sensor-level-title-mark,
+.sensor-level-context-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  color: #147f91;
+  background: #dceff0;
+}
+.sensor-level-eyebrow {
+  margin: 0 0 4px;
+  color: #168194;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.sensor-level-title {
+  margin: 0;
+  color: #182d3b;
+  font-size: clamp(23px, 2.2vw, 32px);
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -.035em;
+  overflow-wrap: anywhere;
+}
+.sensor-level-subtitle { margin: 6px 0 0; color: #647987; font-size: 14px; }
+.sensor-level-heading > a,
+.sensor-level-heading > button,
+.sensor-level-page > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid #c7d8df;
+  border-radius: 12px;
+  background: #edf4f6;
+  color: #315264;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+.sensor-level-heading > a:hover,
+.sensor-level-heading > button:hover,
+.sensor-level-page > a:hover { background: #e2eef1; border-color: #a9c6cf; transform: translateY(-1px); }
+.sensor-level-context {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 18px;
+  border: 1px solid #cbdce2;
+  border-radius: 17px;
+  background: #eaf2f4;
+}
+.sensor-level-context-facility { min-width: 0; flex: 1 1 auto; font-weight: 720; overflow-wrap: anywhere; }
+.sensor-level-context-divider { width: 1px; height: 34px; background: #c5d6dc; }
+.sensor-level-context-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 9px 18px; color: #617782; font-size: 13px; }
+.sensor-level-overview { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr); align-items: stretch; gap: 18px; }
+.sensor-level-gauge-card,
+.sensor-level-history-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--dashboard-panel-border);
+  border-radius: 20px;
+  background: var(--dashboard-panel-surface);
+  box-shadow: 0 8px 22px rgb(31 62 77 / 6%);
+}
+.sensor-level-gauge-card { padding: 24px; }
+.sensor-level-gauge-content { display: grid; grid-template-columns: minmax(210px, .85fr) minmax(280px, 1.15fr); align-items: center; gap: 26px; height: 100%; }
+
+/* Left column: headline reading + the two identifying facts. */
+.sensor-level-current { display: flex; min-width: 0; flex-direction: column; }
+.sensor-level-label { display: block; color: #647987; font-size: 13px; font-weight: 650; letter-spacing: .02em; }
+.sensor-level-current-value { display: block; margin: 10px 0 0; color: #14262f; font-size: clamp(38px, 4.2vw, 54px); font-weight: 800; line-height: 1; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.sensor-level-current-value span { margin-left: 9px; color: #647987; font-size: 20px; font-weight: 650; letter-spacing: 0; }
+.sensor-level-fill-chip { display: inline-flex; align-items: center; width: fit-content; margin-top: 16px; padding: 7px 13px; border: 1px solid #b7dcd9; border-radius: 999px; background: #d9f0e4; color: #177a55; font-size: 13px; font-weight: 750; }
+.sensor-level-current-foot { display: grid; gap: 11px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #c9dbe2; }
+.sensor-level-current-foot > span { display: flex; align-items: center; gap: 9px; color: #647987; font-size: 13.5px; }
+.sensor-level-current-foot > span > svg { flex: 0 0 auto; width: 16px; height: 16px; color: #7c94a0; }
+.sensor-level-current-foot b { color: #1d3543; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Right column: horizontal fill gauge with a floating value bubble. */
+.sensor-level-scale-wrap { display: flex; min-width: 0; flex-direction: column; padding: 18px; border: 1px solid var(--dashboard-panel-border); border-radius: 16px; background: var(--dashboard-panel-surface); }
+.sensor-level-scale-heading { margin: 0; color: #1d3543; font-size: 15px; font-weight: 750; letter-spacing: -.01em; }
+.sensor-level-ruler-labels { display: flex; justify-content: space-between; gap: 6px; margin: 16px 0 0; color: #758995; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+/* Reserved head-room so the value bubble never collides with the tick row. */
+.sensor-level-ruler-zone { position: relative; margin-top: 6px; padding-top: 46px; }
+.sensor-level-ruler-zone--empty { padding-top: 4px; }
+.sensor-level-ruler { position: relative; height: 18px; overflow: visible; border: 1px solid #c5d5dc; border-radius: 999px; background: #d9e3e7; }
+.sensor-level-ruler-fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; background: linear-gradient(90deg, #2b9aaa, #16788a); }
+.sensor-level-ruler-marker { position: absolute; top: 50%; z-index: 3; width: 22px; height: 22px; border: 4px solid var(--dashboard-panel-surface); border-radius: 50%; background: #167f90; box-shadow: 0 0 0 1px #167f90, 0 6px 14px -8px rgb(9 62 71 / .7); transform: translate(-50%, -50%); }
+.sensor-level-ruler-marker > i { display: none; }
+.sensor-level-ruler-bubble { position: absolute; bottom: calc(100% + 10px); left: 50%; padding: 6px 12px; border-radius: 10px; background: #167f90; color: #fff; font-size: 13.5px; font-weight: 750; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: 0 8px 16px -10px rgb(9 62 71 / .8); transform: translateX(-50%); }
+.sensor-level-ruler-bubble::after { content: ""; position: absolute; top: 100%; left: 50%; width: 2px; height: 10px; background: #167f90; transform: translateX(-50%); }
+.sensor-level-ruler-tick { position: absolute; top: -4px; z-index: 1; width: 1px; height: 26px; background: #8299a4; }
+.sensor-level-ruler-percent { display: flex; justify-content: space-between; margin-top: 9px; color: #718591; font-size: 10.5px; }
+.sensor-level-scale-note { display: flex; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 10px 13px; border-radius: 12px; background: #dfedef; color: #3d6873; font-size: 12.5px; }
+.sensor-level-scale-note > svg { flex: 0 0 auto; width: 15px; height: 15px; margin-right: 8px; color: #168194; }
+.sensor-level-scale-note strong { color: #17505c; font-weight: 750; font-variant-numeric: tabular-nums; }
+.sensor-level-scale-note-separator { display: inline-block; flex: 0 0 auto; height: 14px; margin: 0 12px; border-left: 1px solid #a9c5cc; }
+
+/* Metric tiles: icon chip + stacked label/value, as in the reference. */
+.sensor-level-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; }
+.sensor-level-metric { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 13px 14px; border: 1px solid var(--dashboard-panel-border); border-radius: 16px; background: var(--dashboard-panel-surface); }
+.sensor-level-metric-icon { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; background: #dceff0; color: #168194; }
+.sensor-level-metric-icon > svg { width: 19px; height: 19px; }
+.sensor-level-metric > :last-child { min-width: 0; }
+.sensor-level-metric-label { display: block; overflow: hidden; color: #647987; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.sensor-level-metric-value { display: block; margin-top: 4px; color: #14262f; font-size: 19px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.sensor-level-metric-wide { grid-column: 1 / -1; }
+.sensor-level-metric-wide .sensor-level-metric-value { font-size: 26px; }
+.sensor-level-coordinates { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border: 1px solid var(--dashboard-panel-border); border-radius: 14px; background: var(--dashboard-panel-surface); color: #607783; font-size: 13px; }
+.sensor-level-history-card { background: var(--dashboard-panel-surface); }
+.sensor-level-history-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; padding: 18px 20px; border-bottom: 1px solid #d1dfe4; }
+.sensor-level-history-content { min-width: 0; }
+.sensor-level-table-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; padding: 14px 18px; }
+.sensor-level-search { position: relative; flex: 1 1 210px; min-width: 180px; }
+.sensor-level-search input,
+.sensor-level-table-tools input,
+.sensor-level-table-tools select,
+.sensor-level-table-tools button,
+.sensor-level-history-footer select {
+  min-height: 39px;
+  border: 1px solid var(--dashboard-panel-border) !important;
+  border-radius: 11px !important;
+  background: var(--dashboard-panel-surface) !important;
+  color: #294555 !important;
+  box-shadow: none !important;
+}
+.sensor-level-search input { width: 100%; padding: 0 12px 0 36px; }
+.sensor-level-table-tools input,
+.sensor-level-table-tools select,
+.sensor-level-history-footer select { padding: 0 11px; }
+.sensor-level-table-tools button { padding: 0 13px; font-weight: 650; }
+/* Radix filter triggers (status + rows-per-page) mirror the native filter
+   fields: same global surface, border and sizing. Their popup is rendered in
+   the DOM, so it follows the theme in every browser — Firefox ignores the
+   `option` background that styles native select popups in Chrome. */
+.sensor-level-filter-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: auto;
+  min-width: 8.5rem;
+  height: 39px;
+  min-height: 39px;
+  padding: 0 11px 0 12px;
+  border: 1px solid var(--dashboard-panel-border) !important;
+  border-radius: 11px !important;
+  background: var(--dashboard-panel-surface) !important;
+  color: #294555 !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+.sensor-level-filter-select:focus-visible { outline: 2px solid #71b8c1; outline-offset: 2px; box-shadow: none !important; }
+.sensor-level-history-footer .sensor-level-filter-select { min-width: 4.75rem; height: 34px; min-height: 34px; font-size: 12px; }
+html.dark .sensor-level-filter-select { color: #d8e3e9 !important; }
+.sensor-level-table-tools :is(input, select, button):focus-visible,
+.sensor-level-search input:focus-visible { outline: 2px solid #71b8c1; outline-offset: 2px; }
+.sensor-level-table-scroll { width: 100%; overflow-x: auto; }
+.sensor-level-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 13px; }
+.sensor-level-table thead th { padding: 11px 14px; border-bottom: 1px solid #ccdbe1; background: #e1eaee; color: #607581; font-size: 10px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.sensor-level-table tbody td { padding: 12px 14px; border-bottom: 1px solid #d9e3e7; color: #405966; vertical-align: middle; }
+.sensor-level-table tbody tr:nth-child(even) { background: rgb(240 245 247 / 58%); }
+.sensor-level-table tbody tr:hover { background: #e2eff1; }
+.sensor-level-row-index { color: #7b8e98; font-variant-numeric: tabular-nums; }
+.sensor-level-table-value { color: #203d4d; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sensor-level-percent-pill { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: #dceff0; color: #176e7c; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.sensor-level-empty { padding: 40px 16px !important; color: #758995 !important; text-align: center; }
+.sensor-level-history-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 14px 18px; color: #718591; font-size: 12px; }
+.sensor-level-history-footer > div { display: flex; align-items: center; gap: 7px; }
+.sensor-level-history-footer button { display: inline-grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--dashboard-panel-border); border-radius: 10px; background: var(--dashboard-panel-surface); color: #3d5968; }
+.sensor-level-history-footer button:hover:not(:disabled) { background: hsl(var(--content-panel-raised)); }
+.sensor-level-history-footer button:disabled { opacity: .42; cursor: not-allowed; }
+.sensor-level-history-footer button[data-active] { background: #168194; border-color: #168194; color: #fff; font-weight: 700; }
+.sensor-level-history-footer button[data-active]:hover:not(:disabled) { background: #12707f; }
+
+html.dark .sensor-level-page { color: #d7e2e9; }
+html.dark .sensor-level-title { color: #edf3f6; }
+html.dark .sensor-level-eyebrow { color: #8bbdc5; }
+html.dark .sensor-level-subtitle,
+html.dark .sensor-level-label,
+html.dark .sensor-level-context-meta { color: #9aadb8; }
+html.dark .sensor-level-title-mark,
+html.dark .sensor-level-context-icon { background: #203743; color: #90c9d0; }
+html.dark .sensor-level-heading > a,
+html.dark .sensor-level-heading > button,
+html.dark .sensor-level-page > a { border-color: #344b59; background: #1b2b37; color: #dce7ec; }
+html.dark .sensor-level-heading > a:hover,
+html.dark .sensor-level-heading > button:hover,
+html.dark .sensor-level-page > a:hover { background: #243b49; border-color: #496879; }
+html.dark .sensor-level-context,
+html.dark .sensor-level-gauge-card,
+html.dark .sensor-level-history-card,
+html.dark .sensor-level-coordinates { border-color: var(--dashboard-panel-border); background: var(--dashboard-panel-surface); color: #d4e0e6; box-shadow: none; }
+html.dark .sensor-level-current-value { color: #edf3f6; }
+html.dark .sensor-level-current-value span { color: #9aadb8; }
+html.dark .sensor-level-current-foot > span { color: #9aadb8; }
+html.dark .sensor-level-current-foot > span > svg { color: #7f9aa8; }
+html.dark .sensor-level-current-foot b { color: #d4e0e6; }
+html.dark .sensor-level-current-foot,
+html.dark .sensor-level-history-heading { border-color: #2d4250; }
+html.dark .sensor-level-fill-chip { border-color: #2f6b55; background: #17392e; color: #7ed0a8; }
+html.dark .sensor-level-percent-pill { border-color: #315763; background: #203b46; color: #a4d4d8; }
+html.dark .sensor-level-scale-wrap,
+html.dark .sensor-level-metric { border-color: var(--dashboard-panel-border); background: var(--dashboard-panel-surface); }
+html.dark .sensor-level-scale-heading { color: #c2d0d7; }
+html.dark .sensor-level-ruler { border-color: #405563; background: #2b3d48; }
+html.dark .sensor-level-ruler-fill { background: linear-gradient(90deg, #367f89, #286a76); }
+html.dark .sensor-level-ruler-marker { border-color: var(--dashboard-panel-surface); background: #86c2ca; box-shadow: 0 0 0 1px #86c2ca; }
+html.dark .sensor-level-ruler-tick { background: #6c8491; }
+html.dark .sensor-level-ruler-bubble { background: #86c2ca; color: #0c262d; box-shadow: 0 8px 16px -10px rgb(0 0 0 / .8); }
+html.dark .sensor-level-ruler-bubble::after { background: #86c2ca; }
+html.dark .sensor-level-ruler-labels,
+html.dark .sensor-level-ruler-percent { color: #9aadb8; }
+html.dark .sensor-level-scale-note { background: #203843; color: #afcbd1; }
+html.dark .sensor-level-scale-note strong { color: #d4e0e6; }
+html.dark .sensor-level-scale-note-separator { border-color: #45616d; }
+html.dark .sensor-level-metric { border-color: var(--dashboard-panel-border); }
+html.dark .sensor-level-metric-icon { background: #203b46; color: #8fc8d0; }
+html.dark .sensor-level-metric-label { color: #9aadb8; }
+html.dark .sensor-level-metric-value { color: #e3edf1; }
+html.dark .sensor-level-metric-wide .sensor-level-metric-value { color: #edf3f6; }
+html.dark .sensor-level-table-tools :is(input, select, button),
+html.dark .sensor-level-search input,
+html.dark .sensor-level-history-footer select,
+html.dark .sensor-level-history-footer button { border-color: var(--dashboard-panel-border) !important; background: var(--dashboard-panel-surface) !important; color: #d8e3e9 !important; }
+html.dark .sensor-level-table-tools :is(input, select, button):hover,
+html.dark .sensor-level-history-footer button:hover:not(:disabled) { background: #243b49 !important; }
+html.dark .sensor-level-history-footer button[data-active],
+html.dark .sensor-level-history-footer button[data-active]:hover:not(:disabled) { background: #1f93a3 !important; border-color: #1f93a3 !important; color: #082027 !important; }
+html.dark .sensor-level-table thead th { border-color: #344b59; background: #20323e; color: #a9bbc4; }
+html.dark .sensor-level-table tbody td { border-color: #283c49; color: #c2d0d7; }
+html.dark .sensor-level-table tbody tr:nth-child(even) { background: rgb(29 48 60 / 55%); }
+html.dark .sensor-level-table tbody tr:hover { background: #223946; }
+html.dark .sensor-level-table-value { color: #e3edf1; }
+html.dark .sensor-level-percent-pill { background: #203b46; }
+html.dark .sensor-level-empty { color: #9aadb8 !important; }
+
+@media (max-width: 1050px) {
+  .sensor-level-overview { grid-template-columns: minmax(0, 1fr); }
+  .sensor-level-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  .sensor-level-page { gap: 14px; }
+  .sensor-level-context { align-items: flex-start; flex-wrap: wrap; padding: 12px; }
+  .sensor-level-context-divider { display: none; }
+  .sensor-level-gauge-card { padding: 14px; }
+  .sensor-level-gauge-content { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .sensor-level-scale-wrap { padding: 14px; }
+  .sensor-level-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sensor-level-history-heading { align-items: flex-start; padding: 15px; }
+  .sensor-level-table-tools { padding: 12px; }
+  .sensor-level-history-footer { padding: 12px; }
 }

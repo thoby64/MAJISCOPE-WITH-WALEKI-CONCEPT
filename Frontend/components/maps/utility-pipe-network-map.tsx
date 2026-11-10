@@ -197,6 +197,7 @@ function FitPreviewToData({ bounds }: { bounds: LatLngBoundsExpression | null })
 }
 
 export function UtilityPipeNetworkMap({
+  className,
   utilityId,
   previewUrl,
   fallbackCenter,
@@ -206,6 +207,7 @@ export function UtilityPipeNetworkMap({
   title = "Utility Pipe Network",
   emptyMessage = "Upload a supported utility pipe network file to preview it on the map.",
 }: {
+  className?: string
   utilityId: string
   previewUrl?: string | null
   fallbackCenter?: [number, number] | null
@@ -317,8 +319,8 @@ export function UtilityPipeNetworkMap({
   }, [previewCoordinates])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+    <div className={`flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ${className || ""}`}>
+      <div className="utility-infrastructure-preview-header border-b border-slate-100 bg-slate-50/80 px-4 py-3">
         <div className="flex items-center gap-2">
           <InfrastructureIcon assetType={assetType} className="h-5 w-5 shrink-0" style={{ color: assetMeta.color }} />
           <div>
@@ -400,8 +402,8 @@ export function UtilityPipeNetworkMap({
           />
         </MapContainer>
       ) : (
-        <div className={`flex ${mapHeightClassName} flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center`}>
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+        <div className={`utility-infrastructure-preview-empty flex ${mapHeightClassName} flex-col items-center justify-center gap-3 bg-slate-50 px-6 text-center`}>
+          <div className="utility-infrastructure-preview-alert flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>

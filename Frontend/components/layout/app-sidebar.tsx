@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import type { MouseEvent } from "react"
+import { useEffect, useState, type MouseEvent } from "react"
+import { ChevronRight } from "lucide-react"
 import { useAuthStore } from "@/store/auth-store"
 import { NAV_ITEMS } from "@/lib/constants"
 import {
@@ -10,7 +11,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -21,17 +21,21 @@ import {
 import { cn } from "@/lib/utils"
 import { BrandWordmark } from "@/components/shared/brand-wordmark"
 import { cleanupHydraulicWorkspaceSession } from "@/lib/hydraulic-workspace"
+import { loadWebUiPreferences, saveWebUiPreferences } from "@/lib/user-preferences"
 
 const NAV_SECTIONS = [
   {
+    id: "operations",
     label: "Operations",
     hrefs: ["/dashboard", "/dashboard/reports", "/dashboard/location-routing", "/dashboard/notifications"],
   },
   {
+    id: "water-network",
     label: "Water network",
     hrefs: ["/dashboard/utilities", "/dashboard/utility-infrastructure", "/dashboard/dmas"],
   },
   {
+    id: "monitoring",
     label: "Monitoring & insight",
     hrefs: [
       "/dashboard/hydraulic-model",
@@ -42,6 +46,7 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    id: "people",
     label: "People & access",
     hrefs: [
       "/dashboard/managers",
@@ -54,6 +59,40 @@ const NAV_SECTIONS = [
   },
 ] as const
 
+// Default open state per group: frequent groups start open, the long tail
+// (People & access) starts folded. Mobile opens only the first group since
+// space is scarce there. Explicit user choices always win over these.
+const DESKTOP_DEFAULT_OPEN: Record<string, boolean> = {
+  operations: true,
+  "water-network": true,
+  monitoring: true,
+  people: false,
+}
+const MOBILE_DEFAULT_OPEN: Record<string, boolean> = {
+  operations: true,
+  "water-network": false,
+  monitoring: false,
+  people: false,
+}
+
+function isNavItemActive(href: string, pathname: string) {
+  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href))
+}
+
+function resolveGroupOpen(
+  groupId: string,
+  isActiveSection: boolean,
+  overrides: Record<string, boolean> | null,
+  isMobile: boolean
+) {
+  const stored = overrides?.[groupId]
+  if (stored !== undefined) return stored
+  // The group containing the current page opens automatically so the active
+  // item is never hidden — unless the user has explicitly chosen otherwise.
+  if (isActiveSection) return true
+  return (isMobile ? MOBILE_DEFAULT_OPEN : DESKTOP_DEFAULT_OPEN)[groupId] ?? true
+}
+
 export function AppSidebar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -61,6 +100,22 @@ export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar()
   const isCollapsed = !isMobile && state === "collapsed"
   const isHydraulicWorkspace = pathname === "/dashboard/hydraulic-model/workspace"
+
+  // null until preferences hydrate (after mount, so SSR markup stays stable).
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean> | null>(null)
+
+  useEffect(() => {
+    setGroupOverrides(loadWebUiPreferences().sidebarOpenGroups)
+  }, [])
+
+  function toggleGroup(groupId: string, currentlyOpen: boolean) {
+    // If hydration hasn't landed yet, read storage synchronously so a rapid
+    // click can never clobber choices saved by an earlier visit.
+    const base = groupOverrides ?? loadWebUiPreferences().sidebarOpenGroups
+    const next = { ...base, [groupId]: !currentlyOpen }
+    setGroupOverrides(next)
+    saveWebUiPreferences({ sidebarOpenGroups: next })
+  }
 
   if (!currentUser) return null
 
@@ -125,18 +180,49 @@ export function AppSidebar() {
           const sectionItems = visibleItems.filter((item) => sectionHrefs.has(item.href))
           if (!sectionItems.length) return null
 
+          const isActiveSection = section.hrefs.some((href) => isNavItemActive(href, pathname))
+          const open = isCollapsed ? true : resolveGroupOpen(section.id, isActiveSection, groupOverrides, isMobile)
+
           return (
-            <SidebarGroup key={section.label} className={cn(
+            <SidebarGroup key={section.id} className={cn(
               "p-0",
               !isCollapsed && "mb-3 border-b border-white/[0.055] pb-3 last:border-0 last:pb-0"
             )}>
               {!isCollapsed ? (
-                <SidebarGroupLabel className="mb-1 h-7 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#96b1b5]">
-                  {section.label}
-                </SidebarGroupLabel>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(section.id, open)}
+                  aria-expanded={open}
+                  aria-controls={`sidebar-section-${section.id}`}
+                  className="group mb-1 flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-md px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#96b1b5] transition-colors duration-150 hover:bg-white/[0.055] hover:text-[#c6d7db] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#66c6bf]/55"
+                >
+                  <span className="min-w-0 flex-1 truncate text-left">{section.label}</span>
+                  {!open ? (
+                    <span className="text-[9px] font-medium tabular-nums text-[#96b1b5]/70 group-hover:text-[#c6d7db]">
+                      {sectionItems.length}
+                    </span>
+                  ) : null}
+                  <ChevronRight
+                    aria-hidden="true"
+                    className={cn(
+                      "h-3 w-3 shrink-0 opacity-50 transition-all duration-200 group-hover:opacity-100",
+                      open && "rotate-90"
+                    )}
+                  />
+                </button>
               ) : null}
-              <SidebarGroupContent>
-                <SidebarMenu className={cn("gap-1", isCollapsed && "items-center")}>
+              <div
+                id={`sidebar-section-${section.id}`}
+                className={cn(
+                  "grid transition-[grid-template-rows] duration-200 ease-out",
+                  open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                )}
+              >
+                {/* Collapsed groups stay in the DOM (so the height animates)
+                    but inert keeps their links out of the tab and a11y tree. */}
+                <div className="min-h-0 overflow-hidden" inert={!open}>
+                  <SidebarGroupContent>
+                    <SidebarMenu className={cn("gap-1", isCollapsed && "items-center")}>
                   {sectionItems.map((item) => {
                     const isActive =
                       pathname === item.href ||
@@ -175,8 +261,10 @@ export function AppSidebar() {
                       </SidebarMenuItem>
                     )
                   })}
-                </SidebarMenu>
-              </SidebarGroupContent>
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </div>
+              </div>
             </SidebarGroup>
           )
         })}

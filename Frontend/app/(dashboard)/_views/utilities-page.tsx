@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { 
-  ChevronDown,
   Eye,
   MoreHorizontal, 
   Pencil, 
@@ -29,9 +28,9 @@ import {
   Trash2, 
   Search, 
   MapPin,
-  Users,
   FileText,
   CheckCircle2,
+  Droplet,
   Phone,
   Mail,
 } from "lucide-react"
@@ -39,6 +38,7 @@ import { WaterUtilityIcon } from "@/components/icons/water-utility-icon"
 import { InfrastructureUploadIcon } from "@/components/icons/infrastructure-upload-icon"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 
 export default function UtilitiesPage() {
   usePageAccess() // Check if user has access to this page
@@ -203,6 +203,10 @@ export default function UtilitiesPage() {
   const totalDmas = isUtilityManager
     ? dmas.filter((dma) => dma.utilityId === currentUser?.utilityId).length
     : dmas?.length || 0
+  const totalInfrastructureAssets = scopedUtilities.reduce(
+    (total, utility) => total + (utility.infrastructureLayers ?? []).reduce((count, layer) => count + (layer.featureCount || 0), 0),
+    0,
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -229,48 +233,11 @@ export default function UtilitiesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="content-metric-grid grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50">
-                  <WaterUtilityIcon className="h-5 w-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Utilities</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalUtilities}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Active Utilities</p>
-                  <p className="text-2xl font-bold text-slate-800">{activeUtilities}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                  <MapPin className="h-5 w-5 text-slate-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total DMAs</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalDmas}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="content-metric-grid grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+          <SummaryMetricCard label="Total Utilities" value={totalUtilities} icon={Droplet} tone="slate" />
+          <SummaryMetricCard label="Active Utilities" value={activeUtilities} icon={CheckCircle2} tone="blue" />
+          <SummaryMetricCard label="Total DMAs" value={totalDmas} icon={MapPin} tone="amber" />
+          <SummaryMetricCard label="Infrastructure Assets" value={totalInfrastructureAssets} icon={InfrastructureUploadIcon} tone="red" />
         </div>
       </div>
 
@@ -278,27 +245,26 @@ export default function UtilitiesPage() {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
           <div className="relative w-full lg:w-80">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/10 to-blue-500/10 blur-lg opacity-0 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <Input
               placeholder="Search by name, manager, status..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-11 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20 shadow-sm"
+              className="utility-directory-filter-search pl-11 h-11 rounded-xl border-slate-200/80 bg-slate-50/80 shadow-sm focus:border-cyan-400 focus:ring-cyan-400/20 dark:border-[#304252] dark:bg-[#111d28] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#397e91] dark:focus:ring-[#397e91]/20"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Status segmented toggle */}
-            <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-sm">
+            <div className="utility-directory-filter-status inline-flex h-10 items-center gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-sm dark:border-[#304252] dark:bg-[#111d28] dark:shadow-none">
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "all"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 All
@@ -309,8 +275,8 @@ export default function UtilitiesPage() {
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "active"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 Active
@@ -321,8 +287,8 @@ export default function UtilitiesPage() {
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "inactive"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 Inactive
@@ -414,43 +380,34 @@ export default function UtilitiesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredUtilities.map((utility) => (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {filteredUtilities.map((utility) => {
+            const assetCount = (utility.infrastructureLayers ?? []).reduce((count, layer) => count + (layer.featureCount || 0), 0)
+            return (
             <Card 
               key={utility.id} 
               className={cn(
-                "overflow-hidden rounded-xl border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-slate-200/60"
+                "utility-directory-card group overflow-hidden rounded-[22px] transition-all duration-300 hover:-translate-y-0.5"
               )}
             >
-              {/* Top accent line */}
-              <div className={cn(
-                "h-1",
-                utility.status === "active" 
-                  ? "bg-gradient-to-r from-cyan-400 to-sky-500" 
-                  : "bg-slate-200"
-              )} />
-              
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold text-slate-800">{utility.name}</h3>
-                      <EntityStatusBadge status={utility.status} />
-                    </div>
-                    {utility.regionName && (
-                      <p className="mt-0.5 truncate text-xs text-slate-500">{utility.regionName}</p>
-                    )}
-                  </div>
+                  <button type="button" onClick={() => openViewDialog(utility)} className="min-w-0 text-left">
+                    <h3 className="truncate text-[17px] font-semibold tracking-[-0.025em] text-slate-800 dark:text-slate-100">{utility.name}</h3>
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                      {[utility.regionName, utility.description].filter(Boolean).join(" · ") || "Water utility"}
+                    </p>
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <EntityStatusBadge status={utility.status} />
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        className="h-8 shrink-0 gap-1 rounded-lg px-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        className="h-8 w-8 shrink-0 rounded-lg p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                       >
                         <MoreHorizontal className="h-4 w-4" />
-                        Actions
-                        <ChevronDown className="h-3 w-3 opacity-60" />
                         <span className="sr-only">Open actions menu</span>
                       </Button>
                     </DropdownMenuTrigger>
@@ -490,72 +447,51 @@ export default function UtilitiesPage() {
                       ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </div>
-
-                {utility.description && (
-                  <p className="mt-3 line-clamp-2 text-sm text-slate-500">{utility.description}</p>
-                )}
-
-                {/* Metric strip */}
-                <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <Users className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="truncate font-medium">{utility.managerName}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="font-medium">{utility.dmasCount} DMAs</span>
-                  </div>
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="font-medium">{utility.reportsCount}</span>
                   </div>
                 </div>
 
-                {/* Infrastructure assets */}
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <InfrastructureUploadIcon className="h-4 w-4 shrink-0 text-cyan-600" />
-                    <span className="truncate text-xs font-medium text-slate-600">Infrastructure assets</span>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="utility-card-metric">
+                    <MapPin className="h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                    <span className="utility-card-metric__value">{utility.dmasCount ?? 0}</span>
+                    <span className="utility-card-metric__label">DMAs</span>
+                  </div>
+                  <div className="utility-card-metric">
+                    <FileText className="h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                    <span className="utility-card-metric__value">{utility.reportsCount ?? 0}</span>
+                    <span className="utility-card-metric__label">Reports</span>
+                  </div>
+                  <div className="utility-card-metric">
+                    <InfrastructureUploadIcon className="h-4 w-4 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                    <span className="utility-card-metric__value">{assetCount}</span>
+                    <span className="utility-card-metric__label">Assets</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-3 dark:border-slate-700/70">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Utility Manager</p>
+                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{utility.managerName || "Unassigned"}</p>
                   </div>
                   <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     onClick={() => router.push("/dashboard/utility-infrastructure")}
-                    className="h-7 rounded-md px-2.5 text-xs font-medium text-cyan-700 hover:bg-cyan-50 hover:text-cyan-800"
+                    className="utility-directory-card-action h-9 shrink-0 rounded-xl border-slate-300/70 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
-                    Manage
+                    <InfrastructureUploadIcon className="mr-1.5 h-4 w-4" />
+                    Manage assets
                   </Button>
                 </div>
-
-                {/* Contacts */}
-                {(utility.contactPhone || utility.contactEmail || utility.contactAddress) ? (
-                  <div className="mt-3 border-t border-slate-100 pt-3">
-                    <div className="flex flex-col gap-1.5 text-xs text-slate-500">
-                      {utility.contactPhone ? (
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{utility.contactPhone}</span>
-                        </div>
-                      ) : null}
-                      {utility.contactEmail ? (
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{utility.contactEmail}</span>
-                        </div>
-                      ) : null}
-                      {utility.contactAddress ? (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{utility.contactAddress}</span>
-                        </div>
-                      ) : null}
-                    </div>
+                {(utility.contactPhone || utility.contactEmail) ? (
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    {utility.contactPhone ? <span className="inline-flex min-w-0 items-center gap-1.5"><Phone className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{utility.contactPhone}</span></span> : null}
+                    {utility.contactEmail ? <span className="inline-flex min-w-0 items-center gap-1.5"><Mail className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{utility.contactEmail}</span></span> : null}
                   </div>
                 ) : null}
               </CardContent>
             </Card>
-          ))}
+          )})}
         </div>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Droplets, FlaskConical, Gauge, MapPin, RefreshCw, Waves } from "lucide-react"
+import { Activity, ArrowUpRight, Building2, Clock3, Database, Droplets, FlaskConical, Gauge, MapPin, RefreshCw, Waves } from "lucide-react"
 import { InfrastructureIcon } from "@/components/icons/infrastructure-icon"
 import { useAuthStore } from "@/store/auth-store"
 import { useDataStore, type SensorCategory, type SensorSnap, type StorageFacilitySnap } from "@/store/data-store"
@@ -11,29 +11,51 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { WaterStatusPill } from "@/components/water-level/status-pill"
 import {
   WATER_LEVEL_POLL_INTERVAL_MS,
   fillPercent,
   formatRelativeTime,
   readStoredStorageFacilityLength,
-  storageFacilityLengthFor,
 } from "@/lib/water-level"
 import { cn } from "@/lib/utils"
 
 interface StorageFacilityGroup {
   storageFacility: StorageFacilitySnap
   representative: SensorSnap | null
+  sensors: SensorSnap[]
   sensorCount: number
   activeSensorCount: number
+  readingCount: number | null
   activeCategories: SensorCategory[]
   sensorCategories: SensorCategory[]
+}
+
+function configuredFacilityHeight(sensor: SensorSnap | null, override: number | null): number | null {
+  if (override && override > 0) return override
+  if (!sensor) return null
+  const configured = sensor.config?.h1M ?? sensor.config?.h1_m ?? sensor.lastReading?.h1M
+  return typeof configured === "number" && Number.isFinite(configured) && configured > 0 ? configured : null
+}
+
+function hasQualityData(parameters: Record<string, number> | null | undefined): boolean {
+  return Boolean(parameters && Object.values(parameters).some((value) => Number.isFinite(value)))
+}
+
+function displaySensorStatus(status: string | null | undefined, facilityStatus: string): { label: string; tone: string } {
+  const normalized = (status || facilityStatus).toLowerCase()
+  if (normalized === "critical") return { label: "Critical", tone: "border-rose-300/70 bg-rose-50/70 text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/35 dark:text-rose-300" }
+  if (normalized === "warning") return { label: "Warning", tone: "border-amber-300/70 bg-amber-50/70 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300" }
+  if (normalized === "active" || normalized === "operational") return { label: "Operational", tone: "border-emerald-300/70 bg-emerald-50/70 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300" }
+  return { label: "Inactive", tone: "border-slate-300/70 bg-slate-100/70 text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300" }
 }
 
 function wqHeadline(parameters: Record<string, number> | null | undefined): string {
   if (!parameters) return "—"
   const pick = (...keys: string[]) => {
-    for (const k of keys) if (parameters[k] != null) return parameters[k]
+    for (const k of keys) {
+      const value = parameters[k]
+      if (typeof value === "number" && Number.isFinite(value)) return value
+    }
     return null
   }
   const parts: string[] = []
@@ -153,8 +175,12 @@ export default function SensorDataPage() {
         return {
           storageFacility,
           representative: latestSensorByStorageFacility.get(storageFacility.id) ?? null,
+          sensors: storageFacilitySensors,
           sensorCount: storageFacilitySensors.length,
           activeSensorCount: storageFacility.activeSensorCount,
+          readingCount: storageFacilitySensors.some((sensor) => typeof sensor.promotedReadings === "number")
+            ? storageFacilitySensors.reduce((total, sensor) => total + (sensor.promotedReadings ?? 0), 0)
+            : null,
           activeCategories,
           sensorCategories: Array.from(new Set(storageFacilitySensors.map((sensor) => sensor.category))),
         }
@@ -305,119 +331,150 @@ export default function SensorDataPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {storageFacilityGroups.map((group) => {
-            const { storageFacility, representative } = group
-            const reading = representative?.lastReading ?? null
-            const isWq = representative?.category === "water_quality"
-            const storageFacilityLength = storageFacilityLengthFor(representative ?? {}, readStoredStorageFacilityLength(storageFacility.id))
-            const percent = reading && !isWq ? fillPercent(reading.waterLevelM ?? 0, storageFacilityLength) : 0
-            const status = representative?.status ?? (storageFacility.status === "deactivated" ? "inactive" : "unknown")
+            const { storageFacility, representative, sensors } = group
+            const latestReadingFor = (category: SensorCategory) => sensors
+              .filter((sensor) => sensor.category === category && sensor.lastReading)
+              .sort((a, b) => new Date(b.lastReading!.occurredAt).getTime() - new Date(a.lastReading!.occurredAt).getTime())[0] ?? null
+            const levelSensor = latestReadingFor("water_level")
+            const qualitySensor = latestReadingFor("water_quality")
+            const levelReading = levelSensor?.lastReading ?? null
+            const qualityReading = qualitySensor?.lastReading ?? null
+            const waterLevel = typeof levelReading?.waterLevelM === "number" && Number.isFinite(levelReading.waterLevelM)
+              ? levelReading.waterLevelM
+              : null
+            const qualitySummary = hasQualityData(qualityReading?.parameters) ? wqHeadline(qualityReading?.parameters) : null
+            const qualityHeadline = qualitySummary && qualitySummary !== "—" ? qualitySummary : null
+            const lastReadingAt = sensors
+              .map((sensor) => sensor.lastReading?.occurredAt)
+              .filter((value): value is string => Boolean(value))
+              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+            const capacity = configuredFacilityHeight(levelSensor, readStoredStorageFacilityLength(storageFacility.id))
+            const percent = waterLevel !== null && capacity !== null ? fillPercent(waterLevel, capacity) : null
+            const rawFillPercent = waterLevel !== null && capacity !== null ? (waterLevel / capacity) * 100 : null
+            const exceedsReferenceHeight = rawFillPercent !== null && rawFillPercent > 100
+            const status = displaySensorStatus(representative?.status, storageFacility.status)
+            const utilityName = utilities.find((utility) => utility.id === storageFacility.utilityId)?.name ?? null
+            const dmaName = storageFacility.dmaId
+              ? dmas.find((dma) => dma.id === storageFacility.dmaId)?.name ?? null
+              : null
 
             return (
               <Card
                 key={storageFacility.id}
                 onClick={() => openStorageFacility(storageFacility.id)}
-                className="cursor-pointer overflow-hidden rounded-xl border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-slate-200/60"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault()
+                    openStorageFacility(storageFacility.id)
+                  }
+                }}
+                className="utility-directory-card group cursor-pointer overflow-hidden rounded-[22px] transition-all duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-700/35 dark:focus-visible:ring-cyan-300/30"
               >
-                <div
-                  className={cn(
-                    "h-1",
-                    status === "critical"
-                      ? "bg-gradient-to-r from-rose-400 to-red-500"
-                      : status === "warning"
-                        ? "bg-gradient-to-r from-amber-400 to-orange-500"
-                        : status === "active"
-                          ? "bg-gradient-to-r from-cyan-400 to-sky-500"
-                          : "bg-slate-200"
-                  )}
-                />
-                <CardContent className="p-5">
+                <CardContent className="flex h-full flex-col p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Droplets className="h-4 w-4 shrink-0 text-cyan-600" />
-                        <h3 className="truncate font-semibold text-slate-800">{storageFacility.name || storageFacility.sourceKey}</h3>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <InfrastructureIcon assetType="storage_facilities" className="h-7 w-7 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                      <div className="min-w-0">
+                        <h3 className="truncate text-[15px] font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                          {storageFacility.name || storageFacility.sourceKey}
+                        </h3>
+                        <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                          <span className="truncate">{dmaName || "Unassigned DMA"}</span>
+                        </p>
                       </div>
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        {group.storageFacility.dmaId ? dmas.find((dma) => dma.id === group.storageFacility.dmaId)?.name || "Unassigned" : "Unassigned"}
-                      </p>
-                      {/* Category chips: which sensor types are fitted on this storageFacility */}
-                      {group.activeCategories.length > 0 && (
-                        <div className="mt-1.5 flex items-center gap-1">
-                          {group.activeCategories.map((cat) => (
-                            <span
-                              key={cat}
-                              className={cn(
-                                "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                                cat === "water_quality"
-                                  ? "bg-cyan-50 text-cyan-700"
-                                  : "bg-emerald-50 text-emerald-700"
-                              )}
-                            >
-                              {cat === "water_quality" ? (
-                                <FlaskConical className="h-2.5 w-2.5" />
-                              ) : (
-                                <Waves className="h-2.5 w-2.5" />
-                              )}
-                              {cat === "water_quality" ? "Quality" : "Level"}
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                    {representative ? <WaterStatusPill status={representative.status} /> : <WaterStatusPill status="inactive" />}
+                    <span className={cn("shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold", status.tone)}>
+                      {status.label}
+                    </span>
                   </div>
 
-                  <div className="mt-4">
-                    {isWq ? (
-                      /* Water-quality summary */
-                      <div className="flex items-end justify-between text-sm">
-                        <div>
-                          <p className="text-xs text-slate-500">Water quality</p>
-                          <p className="font-semibold text-slate-800">{wqHeadline(reading?.parameters)}</p>
-                        </div>
-                        <span className="text-xs font-medium text-slate-500">
-                          {reading ? "Live" : "No readings yet"}
-                        </span>
-                      </div>
-                    ) : (
-                      /* Water-level bar (unchanged behaviour) */
-                      <div className="flex items-end justify-between text-sm">
-                        <div>
-                          <p className="text-xs text-slate-500">Water level</p>
-                          <p className="font-semibold text-slate-800">
-                            {reading ? `${(reading.waterLevelM ?? 0).toFixed(2)} m` : "—"}
-                          </p>
-                        </div>
-                        <span className="text-xs font-medium text-slate-500">
-                          {reading ? `${percent.toFixed(0)}%` : "No readings yet"}
-                        </span>
+                  <div className="mt-4 grid min-h-[64px] grid-cols-2 gap-2">
+                    {waterLevel !== null && (
+                      <div className="storage-facility-metric">
+                        <Waves className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
+                        <span className="storage-facility-metric__label">Water level</span>
+                        <strong className="storage-facility-metric__value">{waterLevel.toFixed(2)} m</strong>
                       </div>
                     )}
-                    {!isWq && (
-                      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    {capacity !== null && (
+                      <div className="storage-facility-metric">
+                        <Gauge className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                        <span className="storage-facility-metric__label">Reference height</span>
+                        <strong className="storage-facility-metric__value">{capacity.toFixed(2)} m</strong>
+                      </div>
+                    )}
+                    {qualityHeadline && (
+                      <div className={cn("storage-facility-metric", waterLevel === null && capacity === null && "storage-facility-metric--wide")}>
+                        <FlaskConical className="h-4 w-4 text-cyan-700 dark:text-cyan-300" />
+                        <span className="storage-facility-metric__label">Water quality</span>
+                        <strong className="storage-facility-metric__value truncate">{qualityHeadline}</strong>
+                      </div>
+                    )}
+                    {waterLevel === null && capacity === null && !qualityHeadline && (
+                      <div className="storage-facility-no-data col-span-2">
+                        <span>No reading data</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {waterLevel !== null && capacity !== null && percent !== null && rawFillPercent !== null && (
+                    <div className="storage-facility-fill mt-3" aria-label="Water level compared with reference height">
+                      <div className="storage-facility-fill__heading">
+                        <span>Level vs reference height</span>
+                        <strong>{exceedsReferenceHeight ? "Above reference" : `${Math.round(rawFillPercent)}%`}</strong>
+                      </div>
+                      <div
+                        className="storage-facility-fill__track"
+                        role="progressbar"
+                        aria-label="Water level compared with reference height"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={percent}
+                        aria-valuetext={`${waterLevel.toFixed(2)} meters of ${capacity.toFixed(2)} meters${exceedsReferenceHeight ? ", above reference height" : ""}`}
+                      >
                         <div
-                          className={cn(
-                            "h-full rounded-full transition-[width] duration-700",
-                            status === "critical"
-                              ? "bg-gradient-to-r from-rose-400 to-red-500"
-                              : status === "warning"
-                                ? "bg-gradient-to-r from-amber-400 to-orange-500"
-                                : status === "active"
-                                  ? "bg-gradient-to-r from-cyan-400 to-sky-500"
-                                  : "bg-slate-300"
-                          )}
+                          className={cn("storage-facility-fill__value", exceedsReferenceHeight && "storage-facility-fill__value--over")}
                           style={{ width: `${percent}%` }}
                         />
                       </div>
-                    )}
+                      <div className="storage-facility-fill__scale">
+                        <span>{waterLevel.toFixed(2)} m of {capacity.toFixed(2)} m</span>
+                        <span>reference height</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-2 border-t border-slate-300/70 pt-3 text-xs dark:border-slate-700/80">
+                    <div className="flex min-w-0 items-center gap-2 text-slate-600 dark:text-slate-300">
+                      <Building2 className="h-3.5 w-3.5 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                      <span className="truncate">{utilityName || "Unassigned utility"}</span>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 text-slate-600 dark:text-slate-300">
+                      <MapPin className="h-3.5 w-3.5 shrink-0 text-cyan-700 dark:text-cyan-300" />
+                      <span className="truncate">{dmaName || "No DMA assigned"}</span>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{lastReadingAt ? `Synced ${formatRelativeTime(lastReadingAt, now)}` : "No sync data"}</span>
+                    </div>
+                    <div className="flex min-w-0 items-center gap-2 text-slate-500 dark:text-slate-400">
+                      <Activity className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{group.readingCount !== null ? `${group.readingCount.toLocaleString()} readings` : "No reading count"}</span>
+                    </div>
                   </div>
 
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    <span>{reading ? `Updated ${formatRelativeTime(reading.occurredAt, now)}` : "No readings yet"}</span>
-                    <span>{group.activeSensorCount} sensor{group.activeSensorCount !== 1 ? "s" : ""}</span>
+                  <div className="mt-auto flex items-center justify-between border-t border-slate-300/70 pt-3 dark:border-slate-700/80">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {group.sensorCount} sensor{group.sensorCount === 1 ? "" : "s"}
+                      {group.activeSensorCount > 0 ? ` · ${group.activeSensorCount} active` : ""}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-800 transition-colors group-hover:text-cyan-950 dark:text-cyan-300 dark:group-hover:text-cyan-100">
+                      View details <ArrowUpRight className="h-3.5 w-3.5" />
+                    </span>
                   </div>
-
                 </CardContent>
               </Card>
             )

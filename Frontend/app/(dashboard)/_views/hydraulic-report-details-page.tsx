@@ -42,7 +42,7 @@ function Metric({ title, value, note, icon: Icon }: { title: string; value: stri
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return <section className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"><h2 className="border-b border-slate-200 px-5 py-3 text-lg font-semibold dark:border-slate-700">{title}</h2><div className="p-5">{children}</div></section>
+  return <section className="hydraulic-scenario-section rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"><h2 className="border-b border-slate-200 px-5 py-3 text-lg font-semibold dark:border-slate-700">{title}</h2><div className="p-5">{children}</div></section>
 }
 
 function SnapshotPrimitive({ value }: { value: unknown }) {
@@ -84,7 +84,7 @@ function SnapshotEntry({ name, value, depth = 0 }: { name: string; value: unknow
   const countLabel = `${entries.length} ${isArray ? (entries.length === 1 ? "item" : "items") : (entries.length === 1 ? "attribute" : "attributes")}`
 
   return (
-    <details open={depth === 0} className="group/snapshot-entry border-b border-slate-200 last:border-b-0 dark:border-slate-700">
+      <details open={depth === 0} className="hydraulic-snapshot-entry group/snapshot-entry border-b border-slate-200 last:border-b-0 dark:border-slate-700">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 font-semibold text-slate-800 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800/50 [&::-webkit-details-marker]:hidden">
         <span className="break-words">{snapshotLabel(name)}</span>
         <span className="flex shrink-0 items-center gap-2">
@@ -205,14 +205,14 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
 
       {Object.keys(hydraulicArtifacts).length ? (
         <Section title="Hydraulic run artifacts">
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <Metric icon={Droplets} title="Recorded inflow" value={number(artifactBalance.total_inflow_m3h, " m³/h")} />
             <Metric icon={Droplets} title="Recorded demand" value={number(artifactBalance.consumer_demand_m3h, " m³/h")} />
             <Metric icon={ShieldAlert} title="Recorded NRW" value={number(artifactBalance.nrw_pct, "%", 1)} note={number(artifactBalance.nrw_m3h, " m³/h")} />
             <Metric icon={Network} title="Status events" value={number(hydraulicArtifacts.status_event_count, "", 0)} />
           </div>
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="hydraulic-artifact-panel rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
                 <p className="font-semibold text-slate-950 dark:text-white">Balance details</p>
               </div>
@@ -224,7 +224,7 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
                 )}
               </div>
             </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="hydraulic-artifact-panel rounded-lg border border-slate-200 dark:border-slate-700">
               <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-700">
                 <p className="font-semibold text-slate-950 dark:text-white">Status and warnings</p>
               </div>
@@ -279,7 +279,7 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
             {typeof detailedResults.report_text === "string" && detailedResults.report_text ? (
               <>
                 <div className="mb-3 flex items-center justify-between gap-3"><p className="text-sm text-slate-500">Original report text from the completed model run.</p><Button size="sm" onClick={downloadReport}><Download className="h-4 w-4" />Download report</Button></div>
-                <details className="rounded-md border border-slate-200 dark:border-slate-700"><summary className="cursor-pointer px-4 py-3 font-medium">View complete report text</summary><pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-700 dark:bg-slate-950">{detailedResults.report_text}</pre></details>
+                <details className="hydraulic-full-report-panel rounded-md border border-slate-200 dark:border-slate-700"><summary className="cursor-pointer px-4 py-3 font-medium">View complete report text</summary><pre className="hydraulic-full-report-text max-h-[36rem] overflow-auto whitespace-pre-wrap border-t border-slate-200 bg-slate-50 p-4 text-xs dark:border-slate-700 dark:bg-slate-950">{detailedResults.report_text}</pre></details>
               </>
             ) : <p className="text-sm text-slate-500">The raw report file was not included in this snapshot.</p>}
           </Section>
@@ -319,7 +319,7 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
 
       <Section title="Simulation inputs"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Object.entries(report.input_parameters_json || {}).filter(([key]) => !key.startsWith("_") && key !== "extra_demands" && key !== "gpkg_filename").map(([key, value]) => <div key={key}><p className="text-sm capitalize text-slate-500">{label(key)}</p><p className="break-words font-medium">{typeof value === "object" ? JSON.stringify(value) : String(value ?? "Not set")}</p></div>)}</div></Section>
 
-      <details className="group/snapshot-panel rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+      <details className="hydraulic-snapshot-panel group/snapshot-panel rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 [&::-webkit-details-marker]:hidden">
           <div>
             <p className="font-semibold text-slate-950 dark:text-white">Complete snapshot data</p>
@@ -332,7 +332,7 @@ export default function HydraulicReportDetailsPage({ snapshotId }: { snapshotId:
             <span>Snapshot schema version <strong className="text-slate-800 dark:text-slate-200">{report.snapshot_version}</strong></span>
             <span>Result quality <strong className="text-slate-800 dark:text-slate-200">{label(report.result_quality)}</strong></span>
           </div>
-          <div className="max-h-[36rem] overflow-auto rounded-md border border-slate-200 dark:border-slate-700">
+          <div className="hydraulic-snapshot-values max-h-[36rem] overflow-auto rounded-md border border-slate-200 dark:border-slate-700">
             {Object.entries({ summary: report.summary_json, nrw: report.nrw_json, leakage: report.leakage_json, alerts: report.alerts_json }).map(([name, value]) => (
               <SnapshotEntry key={name} name={name} value={value} />
             ))}

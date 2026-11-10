@@ -1,1 +1,1 @@
-export { default } from "../../../../_views/water-source-sensor-detail-page"
+export { default } from "../../../../_views/sensor-data-storage-facility-detail-page"

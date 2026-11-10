@@ -226,6 +226,14 @@ export function TopNavbar() {
           ) : null}
 
           <div className="hidden min-w-0 items-center gap-2.5 md:flex">
+            {!isMobile && state === "collapsed" ? (
+              <BrandWordmark
+                size="sm"
+                theme="dark"
+                wordClassName="leading-none"
+                className="mr-1 shrink-0"
+              />
+            ) : null}
             {activeNavItem ? (
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-[#83c9d2] shadow-none">
                 <activeNavItem.icon className="h-[17px] w-[17px]" />

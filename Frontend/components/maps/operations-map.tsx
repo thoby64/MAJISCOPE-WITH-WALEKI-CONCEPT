@@ -1107,7 +1107,7 @@ export function OperationsMap({
                   size="icon"
                   variant="outline"
                   className={cn(
-                    "h-10 w-10 rounded-2xl shadow-lg backdrop-blur-xl",
+                    "dashboard-map-controls-trigger h-10 w-10 rounded-2xl shadow-lg backdrop-blur-xl",
                     isSatellite
                       ? "border-white/14 bg-slate-950/80 text-white shadow-slate-950/30 hover:bg-slate-900"
                       : "border-slate-300/80 bg-slate-100/90 text-slate-900 shadow-slate-900/8 hover:bg-slate-200 dark:border-slate-500/80 dark:bg-black/90 dark:text-white dark:shadow-black/45 dark:hover:bg-black"
@@ -1126,7 +1126,7 @@ export function OperationsMap({
             {controlsOpen ? (
               <div
                 className={cn(
-                  "rounded-2xl border px-3 py-2 shadow-lg backdrop-blur-xl",
+                  "dashboard-map-controls-panel rounded-2xl border px-3 py-2 shadow-lg backdrop-blur-xl",
                   isSatellite
                     ? "border-white/14 bg-slate-950/80 text-white shadow-slate-950/30"
                     : "border-slate-300/80 bg-slate-100/88 text-slate-900 shadow-slate-900/8 dark:border-slate-600/80 dark:bg-slate-900/88 dark:text-white dark:shadow-slate-950/35"
@@ -1140,13 +1140,14 @@ export function OperationsMap({
                         type="button"
                         size="sm"
                         variant={basemap === key ? "default" : "outline"}
-                        className={
+                        data-map-control-active={basemap === key}
+                        className={cn("dashboard-map-control-option", 
                           basemap === key
                             ? "h-8 rounded-xl bg-slate-800 px-3 text-white hover:bg-slate-900"
                             : isSatellite
                               ? "h-8 rounded-xl border-white/14 bg-white/8 px-3 text-white hover:bg-white/12"
                               : "h-8 rounded-xl border-slate-300 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
-                        }
+                        )}
                         onClick={() => {
                           const nextBasemap = key as BasemapKey
                           setLocalBasemap(nextBasemap)
@@ -1161,13 +1162,14 @@ export function OperationsMap({
                     type="button"
                     size="sm"
                     variant={showNetwork ? "default" : "outline"}
-                    className={
+                    data-map-control-active={showNetwork}
+                    className={cn("dashboard-map-control-option", 
                       showNetwork
                         ? "h-8 justify-start rounded-xl border-slate-300 bg-white/70 px-3 text-slate-700 hover:bg-slate-200 dark:border-slate-600/70 dark:bg-slate-900/70 dark:text-slate-200"
                         : isSatellite
                           ? "h-8 justify-start rounded-xl border-white/14 bg-white/8 px-3 text-white hover:bg-white/12"
                           : "h-8 justify-start rounded-xl border-slate-300 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
-                    }
+                    )}
                     onClick={() => setShowNetwork((current) => !current)}
                     disabled={(!networkUrls.length || !isInfrastructureZoomSupported) && !showNetwork}
                   >
@@ -1190,13 +1192,14 @@ export function OperationsMap({
                         type="button"
                         size="sm"
                         variant={visible ? "default" : "outline"}
-                        className={
+                        data-map-control-active={visible}
+                        className={cn("dashboard-map-control-option", 
                           visible
                             ? "h-8 justify-start rounded-xl border-slate-300 bg-white/70 px-3 text-slate-700 hover:bg-slate-200 dark:border-slate-600/70 dark:bg-slate-900/70 dark:text-slate-200"
                             : isSatellite
                               ? "h-8 justify-start rounded-xl border-white/14 bg-white/8 px-3 text-white hover:bg-white/12"
                               : "h-8 justify-start rounded-xl border-slate-300 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
-                        }
+                        )}
                         onClick={() =>
                           setVisibleAssetTypes((current) => ({
                             ...current,
@@ -1221,13 +1224,14 @@ export function OperationsMap({
                     type="button"
                     size="sm"
                     variant={showBoundaries ? "default" : "outline"}
-                    className={
+                    data-map-control-active={showBoundaries}
+                    className={cn("dashboard-map-control-option", 
                       showBoundaries
                         ? "h-8 justify-start rounded-xl border-slate-300 bg-white/70 px-3 text-slate-700 hover:bg-slate-200 dark:border-slate-600/70 dark:bg-slate-900/70 dark:text-slate-200"
                         : isSatellite
                           ? "h-8 justify-start rounded-xl border-white/14 bg-white/8 px-3 text-white hover:bg-white/12"
                           : "h-8 justify-start rounded-xl border-slate-300 bg-slate-100 px-3 text-slate-700 hover:bg-slate-200"
-                    }
+                    )}
                     onClick={() => setShowBoundaries((current) => !current)}
                     disabled={!hasBoundaryOverlays}
                   >

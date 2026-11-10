@@ -396,7 +396,7 @@ export default function HydraulicModelPage() {
               </Select>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
+            <div className="hydraulic-readiness-note rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
               <p className="font-semibold text-slate-950 dark:text-white">
                 {checkingReadiness && hasSelectedDma
                   ? "Checking readiness..."
@@ -440,7 +440,7 @@ export default function HydraulicModelPage() {
                   {readinessError}
                 </div>
               ) : (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
+                <div className="hydraulic-requirement-placeholder rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
                   Select a DMA to check model requirements.
                 </div>
               )}
@@ -458,7 +458,7 @@ export default function HydraulicModelPage() {
                     {readinessError}
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
+                  <div className="hydraulic-requirement-placeholder rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-950/70 dark:text-slate-400">
                     Optional infrastructure checks appear after selecting a DMA.
                   </div>
                 )}
@@ -477,7 +477,7 @@ export default function HydraulicModelPage() {
                 id="hydraulic-inp-file"
                 type="file"
                 accept=".inp"
-                className="mt-3 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold file:text-secondary-foreground hover:file:bg-muted dark:text-slate-200"
+                className="hydraulic-inp-file-input mt-3 block w-full text-sm text-slate-700 file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold file:text-secondary-foreground hover:file:bg-muted dark:text-slate-200"
                 onChange={(event) => {
                   const file = event.target.files?.[0] || null
                   if (file && !file.name.toLowerCase().endsWith(".inp")) {
@@ -513,7 +513,7 @@ export default function HydraulicModelPage() {
             </div>
 
             {/* Which prepared data the simulation should run on. */}
-            <fieldset className="rounded-xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-900/80">
+            <fieldset className="hydraulic-model-source-panel rounded-xl border border-slate-200 bg-white/90 p-4 dark:border-slate-700 dark:bg-slate-900/80">
               <legend className="px-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
                 Model data to simulate
               </legend>
@@ -562,7 +562,7 @@ export default function HydraulicModelPage() {
               )}
 
               {!dmaQualifies && !hasInp ? (
-                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="hydraulic-gis-warning mt-3 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
                   This DMA does not qualify for a GIS rebuild. Upload an EPANET model (.inp) above to run the
                   simulation on your own model instead.
                 </p>

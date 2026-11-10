@@ -3,6 +3,8 @@ export type NotificationRefreshSeconds = 30 | 60 | 120
 export interface WebUiPreferences {
   showHeaderStats: boolean
   notificationRefreshSeconds: NotificationRefreshSeconds
+  /** Manual open/closed choices per sidebar group id (e.g. "people"). */
+  sidebarOpenGroups: Record<string, boolean>
 }
 
 const STORAGE_KEY = "majiscope_web_ui_preferences_v1"
@@ -11,6 +13,7 @@ const CHANGE_EVENT = "majiscope:web-ui-preferences-changed"
 export const DEFAULT_WEB_UI_PREFERENCES: WebUiPreferences = {
   showHeaderStats: true,
   notificationRefreshSeconds: 60,
+  sidebarOpenGroups: {},
 }
 
 function normalizeRefreshSeconds(value: unknown): NotificationRefreshSeconds {
@@ -23,6 +26,20 @@ function normalizeRefreshSeconds(value: unknown): NotificationRefreshSeconds {
   }
 
   return DEFAULT_WEB_UI_PREFERENCES.notificationRefreshSeconds
+}
+
+function normalizeSidebarOpenGroups(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {}
+  }
+
+  const normalized: Record<string, boolean> = {}
+  for (const [groupId, isOpen] of Object.entries(value)) {
+    if (typeof isOpen === "boolean") {
+      normalized[groupId] = isOpen
+    }
+  }
+  return normalized
 }
 
 export function loadWebUiPreferences(): WebUiPreferences {
@@ -40,6 +57,7 @@ export function loadWebUiPreferences(): WebUiPreferences {
     return {
       showHeaderStats: parsed.showHeaderStats ?? DEFAULT_WEB_UI_PREFERENCES.showHeaderStats,
       notificationRefreshSeconds: normalizeRefreshSeconds(parsed.notificationRefreshSeconds),
+      sidebarOpenGroups: normalizeSidebarOpenGroups(parsed.sidebarOpenGroups),
     }
   } catch {
     return DEFAULT_WEB_UI_PREFERENCES
@@ -55,6 +73,7 @@ export function saveWebUiPreferences(nextPreferences: Partial<WebUiPreferences>)
   const normalized: WebUiPreferences = {
     showHeaderStats: Boolean(merged.showHeaderStats),
     notificationRefreshSeconds: normalizeRefreshSeconds(merged.notificationRefreshSeconds),
+    sidebarOpenGroups: normalizeSidebarOpenGroups(merged.sidebarOpenGroups),
   }
 
   if (typeof window !== "undefined") {

@@ -307,7 +307,7 @@ export default function UtilityInfrastructurePage() {
       </div>
 
       <div className="grid h-[calc(100dvh-18rem)] min-h-[430px] max-h-[540px] grid-cols-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="min-h-0 overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/60 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950/30">
+        <div className="utility-infrastructure-list min-h-0 overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/60 p-2 shadow-sm dark:border-slate-800 dark:bg-slate-950/30">
           <div className="h-full space-y-3 overflow-y-auto pr-1">
             {ASSETS.map((asset) => {
             const file = getAssetFile(selectedUtility, asset.type)
@@ -328,9 +328,9 @@ export default function UtilityInfrastructurePage() {
                   }
                 }}
                 className={cn(
-                  "w-full cursor-pointer rounded-2xl border p-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400",
+                  "utility-infrastructure-asset w-full cursor-pointer rounded-2xl border p-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400",
                   selected
-                    ? "border-sky-400 bg-sky-50/80 shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-950/35"
+                    ? "is-selected border-sky-400 bg-sky-50/80 shadow-sky-500/10 dark:border-sky-500/70 dark:bg-sky-950/35"
                     : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
                 )}
               >
@@ -359,7 +359,7 @@ export default function UtilityInfrastructurePage() {
                           requestUpload(asset.type)
                         }}
                         disabled={!selectedUtility || busy}
-                        className="h-8 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                        className="h-8 rounded-lg bg-[#236a7d] text-white hover:bg-[#2b788b] dark:bg-[#285f70] dark:hover:bg-[#326f80]"
                       >
                         {busy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
                         {file ? "Replace" : "Upload"}
@@ -374,7 +374,7 @@ export default function UtilityInfrastructurePage() {
                           void handleTemplateDownload(asset.type)
                         }}
                         disabled={templateBusy}
-                        className="h-8 rounded-lg border-dashed"
+                        className="h-8 rounded-lg border-dashed dark:border-[#3a5262] dark:bg-[#192936] dark:text-slate-200 dark:hover:bg-[#243746]"
                       >
                         {templateBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1.5 h-3.5 w-3.5" />}
                         Template
@@ -422,6 +422,7 @@ export default function UtilityInfrastructurePage() {
 
         <div className="h-full min-h-0 min-w-0">
           <UtilityPipeNetworkMap
+            className="utility-infrastructure-preview"
             utilityId={selectedUtility?.id || ""}
             previewUrl={selectedAssetFile?.previewUrl || null}
             fileName={selectedAssetFile?.fileName || null}

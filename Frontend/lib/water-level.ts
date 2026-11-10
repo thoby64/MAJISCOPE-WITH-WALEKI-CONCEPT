@@ -7,6 +7,10 @@ export const WATER_LEVEL_POLL_INTERVAL_MS = 30_000
 export const DEFAULT_STORAGE_FACILITY_LENGTH_M = 2
 export const READING_HISTORY_LIMIT = 30
 export const WATER_SOURCE_READING_HISTORY_LIMIT = 20
+// The sensor detail pages paginate their history tables client-side, so both
+// sensor categories pull the full reading set (the backend already serves
+// limit=5000 for sensor analytics).
+export const READING_FETCH_LIMIT = 5000
 
 export function getStorageFacilityLengthStorageKey(storageFacilityId: string) {
   return `waleki:storageFacility-length-m:${storageFacilityId}`

@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useMemo } from "react"
 import { CircleMarker, MapContainer, Pane, Popup, Polyline, TileLayer, useMap } from "react-leaflet"
-import { useTheme } from "next-themes"
 import type { LatLngExpression } from "leaflet"
 
 import {
@@ -195,9 +194,6 @@ export function HydraulicHeatMap({
   pipesGeojson?: GeoJsonFeatureCollection
   hotspotsGeojson?: GeoJsonFeatureCollection
 }) {
-  const { resolvedTheme } = useTheme()
-  const theme = resolvedTheme === "dark" ? "dark" : "light"
-
   const features = useMemo(() => {
     if (mode === "leakage_risk") {
       return getGeoJsonFeatures(hotspotsGeojson).filter(isPointFeature)
@@ -222,16 +218,16 @@ export function HydraulicHeatMap({
     return firstPoint || [-6.8, 39.28]
   }, [features])
 
-  const tileUrl = theme === "dark"
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  // Keep the heat map on the same OpenStreetMap street tiles as the main
+  // dashboard. The hydraulic overlay carries the visual emphasis in dark mode.
+  const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+    <div className="hydraulic-heat-map relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
       <MapContainer center={mapCenter} zoom={13} scrollWheelZoom className="h-[25rem] w-full bg-slate-100 dark:bg-slate-950">
         <TileLayer
           url={tileUrl}
-          attribution={theme === "dark" ? "&copy; OSM &copy; CARTO" : "&copy; OpenStreetMap contributors"}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
         <Pane name="hydraulic-heat-hit" className="hydraulic-heat-hit-pane" />
         <MapBounds features={features} />
@@ -301,7 +297,7 @@ export function HydraulicHeatMap({
           )
         })}
       </MapContainer>
-      <div className="pointer-events-none absolute bottom-4 left-4 z-[900] min-w-52 rounded-md border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95">
+      <div className="hydraulic-heat-map-legend pointer-events-none absolute bottom-4 left-4 z-[900] min-w-52 rounded-md border border-slate-200 bg-white/95 p-3 shadow-lg backdrop-blur-sm dark:border-slate-700 dark:bg-slate-950/95">
         <p className="mb-2 text-xs font-semibold text-slate-950 dark:text-white">
           {HYDRAULIC_HEAT_MODE_LABELS[mode]}
         </p>

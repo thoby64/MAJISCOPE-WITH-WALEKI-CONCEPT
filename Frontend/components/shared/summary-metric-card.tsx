@@ -1,7 +1,8 @@
-import type { LucideIcon } from "lucide-react"
+import type { ComponentType } from "react"
 import { cn } from "@/lib/utils"
 
 export type SummaryMetricTone = "slate" | "blue" | "amber" | "red"
+type SummaryMetricIcon = ComponentType<{ className?: string; strokeWidth?: number }>
 
 const toneClasses: Record<SummaryMetricTone, string> = {
   slate: "content-metric-card--slate",
@@ -19,7 +20,7 @@ export function SummaryMetricCard({
 }: {
   label: string
   value: number | string
-  icon: LucideIcon
+  icon: SummaryMetricIcon
   tone?: SummaryMetricTone
   className?: string
 }) {

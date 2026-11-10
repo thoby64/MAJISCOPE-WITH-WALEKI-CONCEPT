@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { 
-  ChevronDown,
   Eye,
   MoreHorizontal, 
   Pencil, 
@@ -34,6 +33,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { SummaryMetricCard } from "@/components/shared/summary-metric-card"
 
 export default function DMAsPage() {
   const router = useRouter()
@@ -229,62 +229,11 @@ export default function DMAsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="content-metric-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50">
-                  <MapPin className="h-5 w-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total DMAs</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalDMAs}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Active DMAs</p>
-                  <p className="text-2xl font-bold text-slate-800">{activeDMAs}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                  <GitBranch className="h-5 w-5 text-slate-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Teams</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalTeams}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="overflow-hidden border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-slate-200/60">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-50">
-                  <FileText className="h-5 w-5 text-cyan-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Total Reports</p>
-                  <p className="text-2xl font-bold text-slate-800">{totalReports}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="content-metric-grid grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+          <SummaryMetricCard label="Total DMAs" value={totalDMAs} icon={MapPin} tone="slate" />
+          <SummaryMetricCard label="Active DMAs" value={activeDMAs} icon={CheckCircle2} tone="blue" />
+          <SummaryMetricCard label="Total Teams" value={totalTeams} icon={GitBranch} tone="amber" />
+          <SummaryMetricCard label="Total Reports" value={totalReports} icon={FileText} tone="red" />
         </div>
       </div>
 
@@ -292,27 +241,26 @@ export default function DMAsPage() {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
           <div className="relative w-full lg:w-80">
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/10 to-sky-500/10 blur-lg opacity-0 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none" />
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <Input
               placeholder="Search by name, utility, manager..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-11 h-11 bg-slate-50/80 border-slate-200/80 rounded-xl focus:border-cyan-400 focus:ring-cyan-400/20 shadow-sm"
+              className="utility-directory-filter-search pl-11 h-11 rounded-xl border-slate-200/80 bg-slate-50/80 shadow-sm focus:border-cyan-400 focus:ring-cyan-400/20 dark:border-[#304252] dark:bg-[#111d28] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-[#397e91] dark:focus:ring-[#397e91]/20"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {/* Status segmented toggle */}
-            <div className="inline-flex h-10 items-center gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-sm">
+            <div className="utility-directory-filter-status inline-flex h-10 items-center gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/60 p-0.5 shadow-sm dark:border-[#304252] dark:bg-[#111d28] dark:shadow-none">
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "all"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 All
@@ -323,8 +271,8 @@ export default function DMAsPage() {
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "active"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 Active
@@ -335,8 +283,8 @@ export default function DMAsPage() {
                 className={cn(
                   "h-9 rounded-[10px] px-3 text-xs font-medium transition-colors",
                   statusFilter === "inactive"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-cyan-600 text-white shadow-sm dark:bg-[#286779] dark:shadow-none"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-[#1b2b38] dark:hover:text-slate-100"
                 )}
               >
                 Inactive
@@ -429,43 +377,31 @@ export default function DMAsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {filteredDMAs.map((dma) => (
             <Card 
               key={dma.id} 
               className={cn(
-                "overflow-hidden rounded-xl border-slate-200/70 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:shadow-slate-200/60"
+                "dma-directory-card group overflow-hidden rounded-[22px] transition-all duration-300 hover:-translate-y-0.5"
               )}
             >
-              {/* Top accent line */}
-              <div className={cn(
-                "h-1",
-                dma.status === "active" 
-                  ? "bg-gradient-to-r from-cyan-400 to-sky-500" 
-                  : "bg-slate-200"
-              )} />
-              
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold text-slate-800">{dma.name}</h3>
-                      <EntityStatusBadge status={dma.status} />
-                    </div>
-                    {dma.utilityName && (
-                      <p className="mt-0.5 truncate text-xs text-slate-500">{dma.utilityName}</p>
-                    )}
-                  </div>
+                  <button type="button" onClick={() => openViewPage(dma)} className="min-w-0 text-left">
+                    <h3 className="truncate text-[17px] font-semibold tracking-[-0.025em] text-slate-800 dark:text-slate-100">{dma.name}</h3>
+                    <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{dma.utilityName || "Unassigned utility"}</p>
+                    {dma.description ? <p className="mt-1 line-clamp-1 text-xs text-slate-500 dark:text-slate-400">{dma.description}</p> : null}
+                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <EntityStatusBadge status={dma.status} />
                   
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="ghost"
-                        className="h-8 shrink-0 gap-1 rounded-lg px-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                        className="h-8 w-8 shrink-0 rounded-lg p-0 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                       >
                         <MoreHorizontal className="h-4 w-4" />
-                        Actions
-                        <ChevronDown className="h-3 w-3 opacity-60" />
                         <span className="sr-only">Open actions menu</span>
                       </Button>
                     </DropdownMenuTrigger>
@@ -507,26 +443,22 @@ export default function DMAsPage() {
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  </div>
                 </div>
 
-                {dma.description && (
-                  <p className="mt-3 line-clamp-2 text-sm text-slate-500">{dma.description}</p>
-                )}
-
-                {/* Metric strip */}
-                <div className="mt-4 flex items-center gap-4 border-t border-slate-100 pt-3 text-sm text-slate-600">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <Users className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="truncate font-medium">{dma.managerName}</span>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="dma-card-metric"><GitBranch className="h-4 w-4 shrink-0" /><span className="dma-card-metric__value">{dma.teamsCount ?? 0}</span><span className="dma-card-metric__label">Teams</span></div>
+                  <div className="dma-card-metric"><Users className="h-4 w-4 shrink-0" /><span className="dma-card-metric__value">{dma.engineersCount ?? 0}</span><span className="dma-card-metric__label">Engineers</span></div>
+                  <div className="dma-card-metric"><FileText className="h-4 w-4 shrink-0" /><span className="dma-card-metric__value">{dma.reportsCount ?? 0}</span><span className="dma-card-metric__label">Reports</span></div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-200/70 pt-3 dark:border-slate-700/70">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">DMA Manager</p>
+                    <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{dma.managerName || "Unassigned"}</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <GitBranch className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="font-medium">{dma.teamsCount ?? 0} teams</span>
-                  </div>
-                  <div className="ml-auto flex items-center gap-1.5">
-                    <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                    <span className="font-medium">{dma.reportsCount}</span>
-                  </div>
+                  <Button type="button" variant="outline" onClick={() => openViewPage(dma)} className="utility-directory-card-action h-9 shrink-0 rounded-xl border-slate-300/70 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+                    <Eye className="mr-1.5 h-4 w-4" /> View DMA
+                  </Button>
                 </div>
               </CardContent>
             </Card>
