@@ -249,7 +249,7 @@ export function TopNavbar() {
             <div className="relative shrink-0">
                 <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-[#203e4c]">
                 <Image
-                  src="/logo1.png"
+                  src="/majiscope.png"
                   alt="MajiScope Logo"
                   width={28}
                   height={28}

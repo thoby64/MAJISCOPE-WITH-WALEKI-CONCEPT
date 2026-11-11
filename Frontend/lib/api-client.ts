@@ -79,7 +79,14 @@ class ApiClient {
 
   constructor() {
     this.baseUrl = CONFIG.backend.fullUrl;
-    const backendHostname = this.baseUrl ? new URL(this.baseUrl).hostname : "";
+    let backendHostname = "";
+    try {
+      backendHostname = this.baseUrl ? new URL(this.baseUrl).hostname : "";
+    } catch {
+      // Relative base URL (e.g. "/api" during a production build where the
+      // backend origin is intentionally blank) — nothing to inspect.
+      backendHostname = "";
+    }
     this.usesNgrokTunnel =
       backendHostname.endsWith(".ngrok-free.app") ||
       backendHostname.endsWith(".ngrok-free.dev");

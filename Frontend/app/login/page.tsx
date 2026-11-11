@@ -160,10 +160,10 @@ export default function LoginPage() {
             <div className="absolute inset-0 animate-ping rounded-full bg-[#62d4c4]/20" style={{ animationDuration: "3s" }} />
             <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-3xl bg-white/10 shadow-2xl shadow-[#168d88]/30 backdrop-blur-sm">
               <Image
-                src="/logo1.png"
+                src="/majiscope.png"
                 alt="MajiScope Logo"
-                width={96}
-                height={96}
+                width={112}
+                height={112}
                 className="object-contain rounded-3xl"
                 priority
               />

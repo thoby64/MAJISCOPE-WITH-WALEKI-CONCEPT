@@ -147,10 +147,10 @@ export function AppSidebar() {
           className={cn("relative z-10 flex min-w-0 items-center", isCollapsed ? "flex-1 justify-center" : "gap-3")}
         >
           <span className={cn(
-            "flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-[#e9efec] shadow-sm",
+            "flex shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/10 shadow-sm backdrop-blur-sm",
             isCollapsed ? "h-10 w-10" : "h-11 w-11"
           )}>
-            <img src="/logo1.png" alt="" className="h-7 w-7 rounded-md object-contain" />
+            <img src="/majiscope.png" alt="" className="h-8 w-8 rounded-md object-contain" />
           </span>
           {!isCollapsed ? (
             <span className="flex min-w-0 flex-col">

@@ -37,7 +37,7 @@ export default function RootPage() {
 
       <div className="relative flex flex-col items-center">
         <Image
-          src="/logo1.png"
+          src="/majiscope.png"
           alt="MajiScope"
           width={32}
           height={32}
